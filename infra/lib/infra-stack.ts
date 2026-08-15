@@ -1,16 +1,34 @@
-import * as cdk from 'aws-cdk-lib/core';
+import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as lambda from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as path from 'path';
 
 export class InfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
+    //TODO: ajustar la ruta si tu estructura de carpetas cambia
+    const trpcLambda = new lambda.NodejsFunction(this, 'TrpcHandler', {
+      entry: path.join(__dirname, '../../backend/src/handler.ts'),
+      handler: 'handler',
+      runtime: cdk.aws_lambda.Runtime.NODEJS_24_X,
+      projectRoot: path.join(__dirname, '../../backend'),
+      depsLockFilePath: path.join(__dirname, '../../backend/package-lock.json'),
+      // TODO: agregar variables de entorno reales cuando exista la DB
+      // environment: {
+      //   DATABASE_URL: 'TODO: reemplazar con el connection string de RDS',
+      //   JWT_SECRET_ARN: 'TODO: reemplazar con el ARN del secreto en Secrets Manager',
+      // },
+    });
 
-    // example resource
-    // const queue = new sqs.Queue(this, 'InfraQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    const api = new apigateway.LambdaRestApi(this, 'TrpcApi', {
+      handler: trpcLambda,
+      proxy: true,
+    });
+
+    new cdk.CfnOutput(this, 'ApiUrl', {
+      value: api.url,
+    });
   }
 }
