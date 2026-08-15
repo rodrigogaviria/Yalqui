@@ -1,0 +1,30 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Build outputs
+frontend/dist/
+backend/dist/
+
+# CDK
+infra/cdk.out/
+**/cdk.out/
+**/*.d.ts
+!**/src/**/*.d.ts
+
+# Variables de entorno / secretos locales
+.env
+.env.local
+*.env
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+*.log
