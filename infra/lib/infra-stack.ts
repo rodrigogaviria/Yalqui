@@ -8,7 +8,9 @@ export class InfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    //TODO: ajustar la ruta si tu estructura de carpetas cambia
+    // TODO: esta ruta asume que 'infra/' y 'backend/' son carpetas hermanas dentro del mismo repo.
+    // Si se reorganiza la estructura del monorepo, ajustar este path.
+
     const trpcLambda = new lambda.NodejsFunction(this, 'TrpcHandler', {
       entry: path.join(__dirname, '../../backend/src/handler.ts'),
       handler: 'handler',

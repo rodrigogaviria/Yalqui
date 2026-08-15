@@ -5,6 +5,10 @@ import { crear, listar } from './handlers/tareas.js';
 
 const t = initTRPC.create();
 
+
+// TODO: esto es solo para pruebas locales. En producción, reemplazar
+// las funciones crear/listar por consultas reales a RDS vía Drizzle.
+
 export const appRouter = t.router({
   hello: t.procedure
     .input(z.object({ nombre: z.string() }))
