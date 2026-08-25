@@ -27,6 +27,36 @@ export class InfraStack extends cdk.Stack {
       // },
     });
 
+        // Bucket que almacena el build estático de React (frontend/dist)
+    const frontendBucket = new s3.Bucket(this, 'FrontendBucket', {
+      // TODO: en producción evaluar RemovalPolicy.RETAIN para no perder el bucket por error
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    // Distribución de CloudFront: sirve el frontend por defecto,
+    // y redirige /trpc/* hacia el API Gateway
+    const distribution = new cloudfront.Distribution(this, 'Distribution', {
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      },
+      additionalBehaviors: {
+        '/trpc/*': {
+          origin: new origins.RestApiOrigin(api),
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        },
+      },
+      defaultRootObject: 'index.html',
+      // TODO: agregar errorResponses para manejar rutas de React Router (SPA routing) si aplica
+    });
+
+    new cdk.CfnOutput(this, 'DistributionUrl', {
+      value: `https://${distribution.distributionDomainName}`,
+    });
+
     const api = new apigateway.LambdaRestApi(this, 'TrpcApi', {
       handler: trpcLambda,
       proxy: true,
