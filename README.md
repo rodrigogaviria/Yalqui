@@ -1,5 +1,5 @@
-# Test
-Test
+# Yalqui
+Yalqui
 
 
 Aplicación serverless en AWS: frontend en React servido por S3+CloudFront, backend con tRPC en Lambda expuesto vía API Gateway, base de datos RDS MySQL.
