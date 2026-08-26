@@ -106,6 +106,22 @@ export class InfraStack extends Stack {
       },
     });
     db.connections.allowDefaultPortFrom(apiFn, "Lambda API a MySQL");
+    
+    const initFn = new nodejs.NodejsFunction(this, "InitDbFn", {
+      functionName: "yalqui-init-db",
+      entry: path.join(BACKEND, "src", "db", "init-handler.ts"),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_24_X,
+      architecture: lambda.Architecture.ARM_64,
+      memorySize: 512,
+      timeout: Duration.minutes(3),
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      depsLockFilePath: ROOT_LOCK,
+      bundling: { ...bundling, loader: { ".sql": "text" } },
+      environment: dbEnv,
+    });
+    db.connections.allowDefaultPortFrom(initFn, "Lambda init a MySQL");
 
     // API Gateway v2 (HttpApi) en vez del v1 que teníamos
     const httpApi = new HttpApi(this, "HttpApi", {
@@ -197,5 +213,6 @@ export class InfraStack extends Stack {
     new CfnOutput(this, "ApiEndpoint", { value: httpApi.apiEndpoint });
     new CfnOutput(this, "DbEndpoint", { value: db.dbInstanceEndpointAddress });
     new CfnOutput(this, "DbSecretName", { value: db.secret!.secretName });
+    new CfnOutput(this, "InitDbFunctionName", { value: initFn.functionName });
   }
 }
