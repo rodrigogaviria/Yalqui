@@ -1,0 +1,9 @@
+{
+  "name": "yalqui",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "infra"
+  ]
+}
