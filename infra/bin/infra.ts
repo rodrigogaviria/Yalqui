@@ -8,11 +8,11 @@ const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: "us-east-1" };
 
 const dns = new YalquiDnsStack(app, "YalquiDnsStack", {
   env,
-  domainName: "yalqui.com.co",
+  domainName: "yalqui.com",
 });
 
 new InfraStack(app, "YalquiStack", {
   env,
-  appDomain: "app.yalqui.com.co",
+  appDomain: "app.yalqui.com",
   zone: dns.zone,
 });
