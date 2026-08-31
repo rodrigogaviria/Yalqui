@@ -5,13 +5,13 @@ Monorepo con npm workspaces:
 | Paquete | Rol |
 |---|---|
 | `backend` | API tRPC (Node 24). En producción corre como Lambda |
-| `frontend` | App React + Vite. Build estático en S3 + CloudFront → `app.yalqui.com.co` |
+| `frontend` | App React + Vite. Build estático en S3 + CloudFront → `app.yalqui.com` |
 | `infra` | AWS CDK (TypeScript) — define toda la infraestructura |
 
 ## Arquitectura
 
 ```
-  app.yalqui.com.co  ──►  CloudFront
+  app.yalqui.com  ──►  CloudFront
                           ├─ /*        → S3 (build del frontend)
                           └─ /trpc/*   → API Gateway (HttpApi) → Lambda (VPC, sin NAT)
                                                                    └─ RDS MySQL t4g.micro
@@ -21,8 +21,14 @@ Región `us-east-1`. Sin NAT Gateway — la Lambda solo necesita hablar con MySQ
 Credenciales de base de datos y secreto JWT en Secrets Manager, inyectados a la Lambda como
 variables de entorno en tiempo de despliegue.
 
-`yalqui.com.co` (el dominio raíz, sin subdominio) queda reservado para la landing existente y
-no se toca con este despliegue.
+`yalqui.com` (el dominio raíz, sin subdominio) queda libre para otro uso (landing u otro
+propósito) y no se toca con este despliegue — solo se despliega el subdominio `app.`.
+
+> **Nota sobre los tres dominios:** la cuenta tiene registrados `yalqui.com`, `yalqui.com.co` y
+> `yalqui.co`. Se definió `yalqui.com` como el dominio canónico para esta app. `yalqui.com.co`
+> tenía una zona de Route 53 activa de un intento anterior (con nameservers distintos a los que
+> usa este proyecto) — si no se está usando para nada, vale la pena limpiarla para evitar
+> confusión futura.
 
 ---
 
@@ -70,21 +76,20 @@ npx cdk deploy YalquiDnsStack
 
 **Estado: ya desplegado.** Nameservers generados:
 ```
-ns-487.awsdns-60.com
-ns-557.awsdns-05.net
-ns-1942.awsdns-50.co.uk
-ns-1451.awsdns-53.org
+ns-988.awsdns-59.net
+ns-1577.awsdns-05.co.uk
+ns-1318.awsdns-36.org
+ns-334.awsdns-41.com
 ```
 
-Estos se delegan desde GoDaddy (donde está registrado `yalqui.com.co`): panel del dominio →
-DNS/Nameservers → **Custom nameservers** → pegar los 4 → guardar. La propagación puede tardar
-entre 10 minutos y varias horas.
+Estos se delegan desde GoDaddy (donde está registrado `yalqui.com`): panel del dominio →
+DNS/Nameservers → **Custom nameservers** → pegar los 4 → guardar.
 
-Verificar cuándo ya propagó:
+**Estado: delegación confirmada y propagada.** Verificado con:
 ```bash
-dig +short NS yalqui.com.co @8.8.8.8
+dig +short NS yalqui.com @8.8.8.8
 ```
-Cuando la respuesta coincida exactamente con los 4 nameservers de arriba, se puede continuar con A2.
+La respuesta coincide con los 4 nameservers de arriba — se puede continuar con A2.
 
 > A diferencia del proceso de FRUBA, aquí quien controla la cuenta de GoDaddy es el propio
 > cliente — el cambio de nameservers lo hace directamente, no el desarrollador.
@@ -126,7 +131,7 @@ ya queda lista para aplicar cualquier esquema nuevo que se agregue ahí.
 
 ### A4. Verificar
 
-Abrir `https://app.yalqui.com.co`.
+Abrir `https://app.yalqui.com`.
 
 > **Usuarios de acceso:** pendiente. Esta sección se completa cuando exista un modelo de
 > autenticación real (tabla de usuarios, roles, seed de datos) — no antes. No se debe documentar
@@ -135,26 +140,23 @@ Abrir `https://app.yalqui.com.co`.
 
 ---
 
-## Parte B — CI/CD automático (pendiente de construir)
+## Parte B — CI/CD automático
 
-FRUBA despliega automáticamente en cada `git push` a `main`, autenticado por OIDC (sin llaves
-de larga duración en GitHub). Yalqui todavía no tiene este pipeline — hoy todo despliegue es
-manual, con los comandos de la Parte A. El proveedor OIDC de GitHub ya existe en esta cuenta
-(fue creado para FRUBA y es un recurso a nivel de cuenta, no de proyecto), así que falta
-únicamente lo específico de este repositorio:
+**Estado: listo.** Cada `git push` a `main` dispara el despliegue solo, autenticado por OIDC
+(sin llaves de larga duración en GitHub) — mismo patrón que FRUBA.
 
-1. Crear un rol IAM propio (ej. `yalqui-github-deploy`), con trust policy apuntando a
-   `repo:rodrigogaviria/Yalqui:ref:refs/heads/main` — **no reutilizar** el rol de FRUBA, el suyo
-   solo confía en su propio repositorio.
-2. Adjuntarle permiso para asumir los roles que CDK generó en el bootstrap
-   (`arn:aws:iam::934384776718:role/cdk-*`) y para invocar `yalqui-init-db`.
-3. Guardar el ARN de ese rol como secreto `AWS_DEPLOY_ROLE_ARN` en GitHub
-   (Settings → Secrets and variables → Actions).
-4. Escribir `.github/workflows/deploy.yml`: install → typecheck → build → asumir rol por OIDC →
-   `cdk deploy --all` → invocar `yalqui-init-db` en modo `schema`.
+- Rol: `arn:aws:iam::934384776718:role/yalqui-github-deploy`, con trust policy limitada a
+  `repo:rodrigogaviria/Yalqui:ref:refs/heads/main`.
+- Permisos: asumir los roles de CDK (`arn:aws:iam::934384776718:role/cdk-*`) e invocar
+  `yalqui-init-db`.
+- Secreto en GitHub: `AWS_DEPLOY_ROLE_ARN` (Settings → Secrets and variables → Actions).
+- Workflow: `.github/workflows/deploy.yml` — install → typecheck → build → asumir rol por OIDC →
+  `cdk deploy --all` → invocar `yalqui-init-db` en modo `schema`.
+- Actions está habilitado en el repo (Settings → Actions → General → *Allow all actions and
+  reusable workflows*).
 
-Hasta que esto exista, cualquier cambio de infraestructura o de esquema se aplica corriendo los
-comandos de la Parte A a mano.
+Para forzar una corrida manual sin necesidad de un push: pestaña **Actions** → *Deploy Yalqui* →
+**Run workflow**.
 
 ---
 
@@ -165,26 +167,3 @@ cd infra && npx cdk diff YalquiStack --profile yalqui   # ver cambios antes de d
 cd infra && npx cdk destroy --all --profile yalqui       # borrar todo (RDS queda como snapshot)
 ```
 
-## Costos estimados
-
-Mismo perfil de arquitectura que FRUBA — números de referencia:
-
-| Servicio | Primer año (free tier) | Después |
-|---|---|---|
-| RDS MySQL t4g.micro + 20 GB | $0 | ~$13.70/mes |
-| Lambda (API + init) | $0 | ~$0 |
-| API Gateway (HttpApi) | $0 | ~$0.10 |
-| S3 + CloudFront | $0 | ~$0.05 |
-| Secrets Manager (2 secretos) | ~$0.80 | ~$0.80 |
-| **Total aprox.** | **~$0–1/mes** | **~$14–15/mes** |
-
-Palanca principal para bajarlo después del primer año: Reserved Instance de RDS (~$7/mes).
-
-## Pendiente
-
-- Delegación de nameservers en GoDaddy (bloquea A2)
-- Rol OIDC + workflow de GitHub Actions específicos de Yalqui (Parte B completa)
-- Modelo de datos real: inmuebles, arrendatarios, contratos, pagos — se construye con Claude
-  Code sobre `backend/src/db/schema.ts`, extendiendo el patrón ya dejado en `app_meta`
-- Sistema de autenticación y usuarios reales (hoy no existe `auth` en el backend, a diferencia
-  de FRUBA)
