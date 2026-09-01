@@ -19,7 +19,10 @@ export const movimientos = mysqlTable("movimientos", {
 	contratoId: int("contrato_id", { unsigned: true }).references(() => contratos.id, { onDelete: "set null" } ),
 	movimientoPadreId: bigint("movimiento_padre_id", { mode: "number", unsigned: true }),
 	tipo: mysqlEnum(['ingreso','egreso']).notNull(),
-	categoria: mysqlEnum(['canon','administracion','mantenimiento','fachada','zonas_comunes','impuesto_predial','seguro','suscripcion_yalqui','servicio_yalqui','otro']).notNull(),
+	/** El tipo sale del catálogo administrable. La `categoria` de abajo es el
+	 *  ENUM anterior: se conserva por los índices y ya no se escribe. */
+	tipoMovimientoId: int("tipo_movimiento_id", { unsigned: true }),
+	categoria: mysqlEnum(['canon','administracion','mantenimiento','fachada','zonas_comunes','impuesto_predial','seguro','suscripcion_yalqui','servicio_yalqui','otro']),
 	monto: decimal({ precision: 14, scale: 2 }).notNull(),
 	// you can use { mode: 'date' }, if you want to have Date as type for this column
 	fecha: date({ mode: 'string' }).notNull(),

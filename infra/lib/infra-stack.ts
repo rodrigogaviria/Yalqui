@@ -14,7 +14,7 @@ import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as targets from "aws-cdk-lib/aws-route53-targets";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
-import { CorsHttpMethod, HttpApi } from "aws-cdk-lib/aws-apigatewayv2";
+import { CorsHttpMethod, HttpApi, HttpMethod } from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 
 const REPO_ROOT = path.join(__dirname, "..", "..");
@@ -151,6 +151,22 @@ export class InfraStack extends Stack {
         maxAge: Duration.hours(1),
       },
     });
+    /**
+     * Ruta explícita para /trpc, además de la integración por defecto.
+     *
+     * CloudFront enruta /trpc/* hacia la API conservando la ruta completa, así
+     * que la Lambda recibe «/trpc/salud.ping». El adaptador de tRPC saca el
+     * nombre del procedimiento del comodín {proxy+} cuando la ruta lo declara;
+     * sin esta ruta cae en $default, toma la ruta entera como nombre y busca un
+     * procedimiento llamado «trpc/salud.ping», que no existe. Es el 404 que
+     * devolvía la API estando la Lambda perfectamente viva.
+     */
+    httpApi.addRoutes({
+      path: "/trpc/{proxy+}",
+      methods: [HttpMethod.ANY],
+      integration: new HttpLambdaIntegration("TrpcIntegration", apiFn),
+    });
+
     const apiDomain = `${httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`;
 
     const siteBucket = new s3.Bucket(this, "SiteBucket", {

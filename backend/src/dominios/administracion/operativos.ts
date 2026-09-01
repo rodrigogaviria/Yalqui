@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, admin } from "../../trpc/base.js";
 import { cambiosDe, codigoCatalogo } from "./comun.js";
@@ -10,6 +10,7 @@ import {
 } from "../../db/schema/administracion.js";
 import { catalogoAjustes } from "../../db/schema/inventario.js";
 import { proveedores } from "../../db/schema/operacion.js";
+import { plantillasContrato } from "../../db/schema/contrato.js";
 
 const id = z.number().int().positive();
 const codigo = z.string().trim().regex(codigoCatalogo, "Minúsculas, sin espacios ni tildes");
@@ -293,6 +294,122 @@ export const operativosRouter = router({
       // El vínculo sí se borra: no es configuración con historia, es una lista
       // de opciones. Lo que nunca se borra es el requisito ni el documento.
       await ctx.db.delete(requisitoDocumentos).where(eq(requisitoDocumentos.id, input.vinculoId));
+      return { ok: true };
+    }),
+
+  // -------------------------------------------------------------------------
+  // Plantillas de contrato
+  // -------------------------------------------------------------------------
+  plantillas: admin.query(({ ctx }) =>
+    ctx.db
+      .select({
+        id: plantillasContrato.id,
+        codigo: plantillasContrato.codigo,
+        nombre: plantillasContrato.nombre,
+        marcoLegal: plantillasContrato.marcoLegal,
+        version: plantillasContrato.version,
+        estado: plantillasContrato.estado,
+        vigenteDesde: plantillasContrato.vigenteDesde,
+        cuerpo: plantillasContrato.cuerpo,
+      })
+      .from(plantillasContrato)
+      .orderBy(asc(plantillasContrato.marcoLegal), desc(plantillasContrato.version)),
+  ),
+
+  /**
+   * Edita una plantilla.
+   *
+   * Cambiar el cuerpo de una vigente sube la versión: los contratos guardan con
+   * qué plantilla y qué versión se firmaron, y pisar el texto sin cambiar la
+   * versión haría imposible reconstruir lo que la gente aceptó.
+   */
+  editarPlantilla: admin
+    .input(z.object({
+      plantillaId: id,
+      nombre: nombre.optional(),
+      cuerpo: z.string().trim().min(50).max(200_000).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [p] = await ctx.db
+        .select({
+          estado: plantillasContrato.estado,
+          version: plantillasContrato.version,
+          cuerpo: plantillasContrato.cuerpo,
+        })
+        .from(plantillasContrato)
+        .where(eq(plantillasContrato.id, input.plantillaId))
+        .limit(1);
+
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Esa plantilla no existe" });
+
+      const cambiaTexto = input.cuerpo !== undefined && input.cuerpo !== p.cuerpo;
+      const { plantillaId, ...campos } = input;
+
+      await ctx.db
+        .update(plantillasContrato)
+        .set(cambiosDe({
+          ...campos,
+          ...(cambiaTexto && p.estado === "vigente" ? { version: p.version + 1 } : {}),
+        }))
+        .where(eq(plantillasContrato.id, plantillaId));
+
+      return { ok: true, versionNueva: cambiaTexto && p.estado === "vigente" ? p.version + 1 : p.version };
+    }),
+
+  /**
+   * Pone una plantilla en vigencia y archiva la que regía ese marco legal.
+   *
+   * Dos vigentes para el mismo marco dejarían el contrato dependiendo de qué
+   * fila devuelva primero la base, que es lo que pasaba antes de la migración
+   * que sembró estas plantillas.
+   */
+  activarPlantilla: admin
+    .input(z.object({ plantillaId: id, vigente: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const [p] = await ctx.db
+        .select({ marcoLegal: plantillasContrato.marcoLegal })
+        .from(plantillasContrato)
+        .where(eq(plantillasContrato.id, input.plantillaId))
+        .limit(1);
+
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Esa plantilla no existe" });
+
+      if (!input.vigente) {
+        // Archivar la única vigente dejaría ese marco sin con qué generar
+        // contratos, y el error saldría recién al intentar generar uno.
+        const [otras] = await ctx.db
+          .select({ n: sql<number>`COUNT(*)` })
+          .from(plantillasContrato)
+          .where(and(
+            eq(plantillasContrato.marcoLegal, p.marcoLegal),
+            eq(plantillasContrato.estado, "vigente"),
+            ne(plantillasContrato.id, input.plantillaId),
+          ));
+
+        if (Number(otras?.n ?? 0) === 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Es la única vigente para ese marco legal: poné otra en vigencia primero",
+          });
+        }
+      }
+
+      await ctx.db.transaction(async (tx) => {
+        if (input.vigente) {
+          await tx
+            .update(plantillasContrato)
+            .set({ estado: "archivada" })
+            .where(and(
+              eq(plantillasContrato.marcoLegal, p.marcoLegal),
+              eq(plantillasContrato.estado, "vigente"),
+            ));
+        }
+        await tx
+          .update(plantillasContrato)
+          .set({ estado: input.vigente ? "vigente" : "archivada" })
+          .where(eq(plantillasContrato.id, input.plantillaId));
+      });
+
       return { ok: true };
     }),
 

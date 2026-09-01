@@ -9,6 +9,11 @@ import { precalificacionRouter } from "./dominios/precalificacion.js";
 import { aplicacionesRouter } from "./dominios/aplicaciones.js";
 import { contratosRouter } from "./dominios/contratos.js";
 import { facturacionRouter } from "./dominios/facturacion.js";
+import { incidenciasRouter } from "./dominios/incidencias.js";
+import { rentabilidadRouter } from "./dominios/rentabilidad.js";
+import { comunicadosRouter } from "./dominios/comunicados.js";
+import { planRouter } from "./dominios/plan.js";
+import { dashboardRouter } from "./dominios/dashboard.js";
 
 /**
  * Un router por dominio, con procedimientos explícitos.
@@ -28,6 +33,11 @@ export const appRouter = router({
   aplicaciones: aplicacionesRouter,
   contratos: contratosRouter,
   facturacion: facturacionRouter,
+  incidencias: incidenciasRouter,
+  rentabilidad: rentabilidadRouter,
+  comunicados: comunicadosRouter,
+  plan: planRouter,
+  dashboard: dashboardRouter,
 });
 
 export type AppRouter = typeof appRouter;

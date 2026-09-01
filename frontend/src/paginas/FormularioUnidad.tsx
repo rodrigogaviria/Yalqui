@@ -4,6 +4,8 @@ import { Campo } from "../componentes/Campo";
 import { pesos } from "../componentes/Dinero";
 
 type TipoUnidad = Awaited<ReturnType<typeof api.admin.catalogos.tiposActivos.query>>[number];
+type Departamento = Awaited<ReturnType<typeof api.admin.geografia.departamentos.query>>[number];
+type Ciudad = Awaited<ReturnType<typeof api.admin.geografia.ciudades.query>>[number];
 
 /** El código del tipo, como lo espera `inmuebles.crear`. */
 type CodigoTipo = Parameters<typeof api.inmuebles.crear.mutate>[0]["tipo"];
@@ -34,8 +36,12 @@ export function FormularioUnidad({
   const [tipo, setTipo] = useState<CodigoTipo>("apartamento");
   const [direccion, setDireccion] = useState("");
   const [complemento, setComplemento] = useState("");
-  const [ciudad, setCiudad] = useState("Bogotá");
-  const [departamento, setDepartamento] = useState("Cundinamarca");
+  // Geografía del catálogo, no texto libre: escrita a mano, «Bogotá», «bogota»
+  // y «Bogotá D.C.» son tres ciudades distintas y ninguna búsqueda funciona.
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
+  const [ciudades, setCiudades] = useState<Ciudad[]>([]);
+  const [departamento, setDepartamento] = useState("");
+  const [ciudad, setCiudad] = useState("");
   const [canonBase, setCanonBase] = useState("");
   const [valorAdministracion, setValorAdministracion] = useState("");
   const [administracionIncluida, setAdministracionIncluida] = useState(false);
@@ -45,6 +51,7 @@ export function FormularioUnidad({
   const [ocupantesMaximo, setOcupantesMaximo] = useState("");
   const [mascotasMaximo, setMascotasMaximo] = useState("0");
   const [descripcion, setDescripcion] = useState("");
+  const [matricula, setMatricula] = useState("");
 
   // Al editar, los campos arrancan vacíos y se llenan con lo que hay guardado.
   // Los números llegan como texto porque los inputs trabajan con strings, y los
@@ -72,6 +79,7 @@ export function FormularioUnidad({
         setOcupantesMaximo(texto(unidad.ocupantesMaximo));
         setMascotasMaximo(texto(unidad.mascotasMaximo) || "0");
         setDescripcion(unidad.descripcion ?? "");
+        setMatricula(unidad.matriculaInmobiliaria ?? "");
       } catch (e) {
         if (vigente) setError(mensajeDeError(e));
       } finally {
@@ -87,14 +95,42 @@ export function FormularioUnidad({
     let vigente = true;
     void (async () => {
       try {
-        const lista = await api.admin.catalogos.tiposActivos.query();
-        if (vigente) setTipos(lista);
+        const [lista, deptos] = await Promise.all([
+          api.admin.catalogos.tiposActivos.query(),
+          api.admin.geografia.departamentos.query({}),
+        ]);
+        if (!vigente) return;
+        setTipos(lista);
+        setDepartamentos(deptos);
       } catch (e) {
         if (vigente) setError(mensajeDeError(e));
       }
     })();
     return () => { vigente = false; };
   }, []);
+
+  // Las ciudades se piden al elegir departamento: traer las 66 de una vez y
+  // filtrarlas en memoria funciona hoy, pero no cuando el catálogo tenga los
+  // 1.100 municipios del país.
+  useEffect(() => {
+    const dep = departamentos.find((d) => d.nombre === departamento);
+    if (dep === undefined) { setCiudades([]); return; }
+
+    let vigente = true;
+    void (async () => {
+      try {
+        const lista = await api.admin.geografia.ciudades.query({ departamentoId: dep.id });
+        if (!vigente) return;
+        setCiudades(lista);
+        // Si la ciudad guardada no pertenece al departamento elegido, se limpia:
+        // dejarla puesta guardaría una combinación que no existe.
+        setCiudad((actual) => (lista.some((c) => c.nombre === actual) ? actual : ""));
+      } catch (e) {
+        if (vigente) setError(mensajeDeError(e));
+      }
+    })();
+    return () => { vigente = false; };
+  }, [departamento, departamentos]);
 
   // Qué campos pide el formulario lo decide el tipo: a un parqueadero no tiene
   // sentido preguntarle cuántos baños tiene.
@@ -127,6 +163,7 @@ export function FormularioUnidad({
       ocupantesMaximo: numero(ocupantesMaximo),
       mascotasMaximo: Number(mascotasMaximo) || 0,
       descripcion: descripcion.trim() || undefined,
+      matriculaInmobiliaria: matricula.trim() || undefined,
     };
 
     try {
@@ -180,11 +217,21 @@ export function FormularioUnidad({
           <Campo etiqueta="Apto / interior">
             <input value={complemento} onChange={(e) => setComplemento(e.target.value)} placeholder="302" />
           </Campo>
-          <Campo etiqueta="Ciudad">
-            <input value={ciudad} onChange={(e) => setCiudad(e.target.value)} required />
-          </Campo>
           <Campo etiqueta="Departamento">
-            <input value={departamento} onChange={(e) => setDepartamento(e.target.value)} required />
+            <select value={departamento} onChange={(e) => setDepartamento(e.target.value)} required>
+              <option value="">Elegí uno…</option>
+              {departamentos.map((d) => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
+            </select>
+          </Campo>
+          <Campo
+            etiqueta="Ciudad"
+            ayuda={departamento === "" ? "Elegí primero el departamento" : undefined}
+          >
+            <select value={ciudad} onChange={(e) => setCiudad(e.target.value)}
+              disabled={departamento === ""} required>
+              <option value="">Elegí una…</option>
+              {ciudades.map((c) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+            </select>
           </Campo>
         </div>
       </section>
@@ -257,6 +304,11 @@ export function FormularioUnidad({
 
       <section className="tarjeta" style={{ padding: 22, display: "grid", gap: 15 }}>
         <h2 style={{ fontSize: 17, fontWeight: 600 }}>Descripción</h2>
+        <Campo etiqueta="Matrícula inmobiliaria" ayuda="Va en la cláusula de objeto del contrato">
+          <input value={matricula} onChange={(e) => setMatricula(e.target.value)}
+            placeholder="100-123456" />
+        </Campo>
+
         <Campo etiqueta="Cómo es la unidad" ayuda="Sin esto no se puede publicar">
           <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Apartamento de 68 m² en Chapinero, dos habitaciones, piso 3. Cerca del parque de la 93." />

@@ -71,7 +71,10 @@ export const incidencias = mysqlTable("incidencias", {
 	edificacionId: int("edificacion_id", { unsigned: true }).references(() => edificaciones.id, { onDelete: "cascade" } ),
 	contratoId: int("contrato_id", { unsigned: true }).references(() => contratos.id, { onDelete: "set null" } ),
 	reportadaPorId: int("reportada_por_id", { unsigned: true }).notNull().references(() => usuarios.id, { onDelete: "restrict" } ),
-	categoria: mysqlEnum(['plomeria','electrico','estructural','electrodomesticos','cerrajeria','humedad','ascensor','otro']).notNull(),
+	/** El tipo sale del catálogo administrable. La `categoria` de abajo es el
+	 *  ENUM anterior: se conserva por los índices y ya no se escribe. */
+	tipoIncidenciaId: int("tipo_incidencia_id", { unsigned: true }),
+	categoria: mysqlEnum(['plomeria','electrico','estructural','electrodomesticos','cerrajeria','humedad','ascensor','otro']),
 	prioridad: mysqlEnum(['baja','media','alta','urgente']).default('media').notNull(),
 	estado: mysqlEnum(['abierta','asignada','en_progreso','espera_aprobacion','resuelta','cerrada','rechazada']).default('abierta').notNull(),
 	titulo: varchar({ length: 191 }).notNull(),

@@ -1,9 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { api, mensajeDeError } from "../lib/api";
 import { Dinero, pesos } from "../componentes/Dinero";
-import { etiqueta } from "../lib/etiquetas";
 
 type Unidad = Awaited<ReturnType<typeof api.inmuebles.mias.query>>["unidades"][number];
+
+const BOTON = { height: 38, fontSize: 13.5, padding: "0 10px" } as const;
+
+/** Dirección y complemento, que es como se nombra una unidad en todos lados. */
+function titulo(u: { direccion: string; complemento: string | null }): string {
+  return `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`;
+}
 
 const NOMBRE_TIPO: Record<string, string> = {
   apartamento: "Apartamento", casa: "Casa", habitacion: "Habitación",
@@ -12,11 +18,13 @@ const NOMBRE_TIPO: Record<string, string> = {
 };
 
 export function Portafolio({
-  alCrearUnidad, alEditarUnidad, alConfigurarUnidad, alActuar,
+  alCrearUnidad, alEditarUnidad, alConfigurarUnidad, alAlquilar, alVerInquilinos, alActuar,
 }: {
   alCrearUnidad: () => void;
   alEditarUnidad: (inmuebleId: number) => void;
   alConfigurarUnidad: (inmuebleId: number, direccion: string) => void;
+  alAlquilar: (inmuebleId: number, direccion: string, canonBase: number) => void;
+  alVerInquilinos: (inmuebleId: number, direccion: string) => void;
   /** Se llama cuando el estado cambia, para que el aviso anterior no quede
    *  contradiciendo lo que la persona acaba de hacer. */
   alActuar: () => void;
@@ -39,6 +47,22 @@ export function Portafolio({
   }, []);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  /** Devuelve la unidad a disponible. El servidor rechaza si hay contrato vivo. */
+  async function liberar(id: number) {
+    setOcupada(id);
+    setError(null);
+    setIncompleta(null);
+    try {
+      await api.inmuebles.liberar.mutate({ inmuebleId: id });
+      alActuar();
+      await cargar();
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setOcupada(null);
+    }
+  }
 
   async function publicar(id: number) {
     setOcupada(id);
@@ -140,31 +164,51 @@ export function Portafolio({
                 </div>
               </div>
 
-              <span className={`pastilla ${u.estado}`}>{etiqueta("estadoUnidad", u.estado)}</span>
+              {/* El botón dice en qué estado está y, al tocarlo, ofrece el
+                  cambio. Un rótulo aparte más un botón dirían lo mismo dos
+                  veces y ocuparían el doble. */}
+              <button
+                className={u.estado === "arrendado" ? "boton" : "boton fantasma"}
+                style={{ height: 40, fontSize: 14, minWidth: 118 }}
+                disabled={ocupada === u.id}
+                title={u.estado === "arrendado"
+                  ? "Está alquilada. Tocá para liberarla."
+                  : "Está disponible. Tocá para registrar al inquilino."}
+                onClick={() => u.estado === "arrendado"
+                  ? void liberar(u.id)
+                  : alAlquilar(u.id, titulo(u), Number(u.canonBase))}
+              >
+                {ocupada === u.id ? "…" : u.estado === "arrendado" ? "Alquilado" : "Disponible"}
+              </button>
 
               <div style={{ width: 150, textAlign: "right" }}>
                 <Dinero valor={u.canonBase} className="" />
                 <div style={{ fontSize: 12, color: "var(--tinta-3)", marginTop: 1 }}>canon base</div>
               </div>
 
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="boton fantasma" style={{ height: 40, fontSize: 14 }}
-                  onClick={() => alConfigurarUnidad(
-                    u.id,
-                    `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`,
-                  )}>
-                  Precio y requisitos
+              {/* Los mismos cuatro botones en el mismo orden y ancho en todas
+                  las filas. Antes «Publicar» solo aparecía en borrador, así que
+                  cada tarjeta tenía una distribución distinta y la vista
+                  saltaba de una a otra. Lo que no aplica va deshabilitado. */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 116px)", gap: 8 }}>
+                <button className="boton fantasma" style={BOTON}
+                  onClick={() => alConfigurarUnidad(u.id, titulo(u))}>
+                  Precio
                 </button>
-                <button className="boton fantasma" style={{ height: 40, fontSize: 14 }}
+                <button className="boton fantasma" style={BOTON}
                   onClick={() => alEditarUnidad(u.id)}>
                   Editar
                 </button>
-                {u.estado === "borrador" && (
-                  <button className="boton" style={{ height: 40, fontSize: 14 }}
-                    onClick={() => publicar(u.id)} disabled={ocupada === u.id}>
-                    {ocupada === u.id ? "Publicando…" : "Publicar"}
-                  </button>
-                )}
+                <button className="boton fantasma" style={BOTON}
+                  disabled={u.estado !== "borrador" || ocupada === u.id}
+                  title={u.estado !== "borrador" ? "Solo se publica una unidad en borrador" : undefined}
+                  onClick={() => publicar(u.id)}>
+                  {ocupada === u.id ? "…" : "Publicar"}
+                </button>
+                <button className="boton fantasma" style={BOTON}
+                  onClick={() => alVerInquilinos(u.id, titulo(u))}>
+                  Inquilinos
+                </button>
               </div>
             </article>
           ))}

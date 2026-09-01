@@ -10,7 +10,18 @@ import type { AppRouter } from "backend";
  * tenga que compilar el backend con sus propias reglas — que no incluyen los
  * tipos de Node y fallarían en cualquier `import "node:crypto"`.
  */
-const URL_API = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+/**
+ * A dónde habla el cliente.
+ *
+ * En producción va vacío, o sea mismo origen: CloudFront sirve el sitio y
+ * enruta `/trpc/*` hacia la API, así que no hace falta nombrar un host — y
+ * además no hay CORS que resolver.
+ *
+ * El localhost solo aplica en desarrollo. Era el valor por defecto para todo,
+ * y como el despliegue no define `VITE_API_URL`, el sitio publicado quedaba
+ * pidiéndole datos al computador de quien lo abría.
+ */
+const URL_API = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:3000" : "");
 
 const CLAVE_TOKEN = "yalqui.token";
 

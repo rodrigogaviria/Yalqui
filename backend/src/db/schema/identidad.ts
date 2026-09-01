@@ -7,6 +7,11 @@ export const usuarios = mysqlTable("usuarios", {
   id: int("id", { unsigned: true }).autoincrement().primaryKey(),
   email: varchar("email", { length: 191 }).notNull(),
   passwordHash: varchar("password_hash", { length: 191 }).notNull(),
+  /** Enlace de un solo uso para una cuenta creada por otro. Mientras exista, la
+   *  cuenta no tiene contraseña usable: nadie puede entrar con ella. */
+  activacionToken: char("activacion_token", { length: 64 }),
+  activacionExpiraAt: timestamp("activacion_expira_at"),
+  creadaPorId: int("creada_por_id", { unsigned: true }),
   nombre: varchar("nombre", { length: 120 }).notNull(),
   apellido: varchar("apellido", { length: 120 }).notNull(),
   telefono: varchar("telefono", { length: 30 }),

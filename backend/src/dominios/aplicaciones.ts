@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, privado, exigirRol } from "../trpc/base.js";
+import { ambitosCon } from "../auth/roles.js";
+import { usuarios } from "../db/schema/identidad.js";
 import { aplicaciones, aplicacionAjustes, aplicacionDocumentos, precalificaciones } from "../db/schema/demanda.js";
 import { inmuebles, inmuebleAjustes, catalogoAjustes } from "../db/schema/inventario.js";
 
@@ -148,6 +150,51 @@ export const aplicacionesRouter = router({
     }),
 
   /** Las aplicaciones de una unidad, lado a lado — que es donde de verdad se decide. */
+  /**
+   * Las aplicaciones de todo el portafolio.
+   *
+   * `deUnidad` responde por una sola unidad, que sirve cuando ya se está
+   * mirando esa unidad. Para decidir a quién atender primero hace falta verlas
+   * todas juntas: quien tiene cinco unidades no va a entrar a cada una para
+   * enterarse de que en dos no hay nada.
+   */
+  paraMi: privado.query(async ({ ctx }) => {
+    const ids = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+    if (ids.length === 0) return { total: 0, aplicaciones: [] };
+
+    const filas = await ctx.db
+      .select({
+        id: aplicaciones.id,
+        estado: aplicaciones.estado,
+        canonOfrecido: aplicaciones.canonOfrecido,
+        numOcupantes: aplicaciones.numOcupantes,
+        numMascotas: aplicaciones.numMascotas,
+        fechaIngresoDeseada: aplicaciones.fechaIngresoDeseada,
+        enviadaAt: aplicaciones.enviadaAt,
+        motivoRechazo: aplicaciones.motivoRechazo,
+        inmuebleId: inmuebles.id,
+        direccion: inmuebles.direccion,
+        complemento: inmuebles.complemento,
+        canonBase: inmuebles.canonBase,
+        nivel: precalificaciones.nivel,
+        relacionPct: precalificaciones.relacionPct,
+        candidato: usuarios.nombre,
+        candidatoApellido: usuarios.apellido,
+      })
+      .from(aplicaciones)
+      .innerJoin(inmuebles, eq(inmuebles.id, aplicaciones.inmuebleId))
+      .innerJoin(usuarios, eq(usuarios.id, aplicaciones.inquilinoId))
+      .leftJoin(precalificaciones, eq(precalificaciones.id, aplicaciones.precalificacionId))
+      .where(inArray(aplicaciones.inmuebleId, ids))
+      .orderBy(desc(aplicaciones.enviadaAt));
+
+    const abiertas = filas.filter(
+      (a) => a.estado === "enviada" || a.estado === "en_verificacion" || a.estado === "en_negociacion",
+    ).length;
+
+    return { total: filas.length, aplicaciones: filas, abiertas };
+  }),
+
   deUnidad: delPropietario
     .input(z.object({ inmuebleId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {

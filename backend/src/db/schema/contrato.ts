@@ -37,6 +37,9 @@ export const contratos = mysqlTable("contratos", {
   contratoAnteriorId: int("contrato_anterior_id", { unsigned: true }),
   plantillaId: int("plantilla_id", { unsigned: true }).notNull(),
   plantillaVersion: smallint("plantilla_version", { unsigned: true }).notNull(),
+  /** El contrato ya redactado, congelado al generarlo. No se recalcula: el
+   *  documento que se firma tiene que seguir diciendo lo mismo después. */
+  texto: mediumtext("texto"),
   clausulasOpcionales: json("clausulas_opcionales"),
   estado: mysqlEnum("estado",
     ["borrador", "pendiente_firma", "vigente", "en_mora", "en_terminacion", "terminado"])

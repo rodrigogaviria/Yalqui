@@ -8,6 +8,11 @@ import {
   TIPOS_UNIDAD,
 } from "../db/schema/inventario.js";
 import { otorgarRol, ambitosCon } from "../auth/roles.js";
+import { nuevoToken, expiraEn } from "../auth/tokens-enlace.js";
+import { usuarios } from "../db/schema/identidad.js";
+import { aplicaciones } from "../db/schema/demanda.js";
+import { garantes } from "../db/schema/score.js";
+import { contratos } from "../db/schema/contrato.js";
 
 const dinero = z.number().nonnegative().max(9_999_999_999).multipleOf(0.01);
 
@@ -29,6 +34,9 @@ const nuevo = z.object({
   mascotasMaximo: z.number().int().min(0).max(20).default(0),
   edificacionId: z.number().int().positive().optional(),
   descripcion: z.string().trim().max(4000).optional(),
+  /** Va en la cláusula de objeto del contrato. Sin ella el contrato sale con
+   *  el marcador a la vista, que es preferible a un espacio en blanco. */
+  matriculaInmobiliaria: z.string().trim().max(40).optional(),
 });
 
 const soloId = z.object({ inmuebleId: z.number().int().positive() });
@@ -107,6 +115,7 @@ export const inmueblesRouter = router({
         valorAdministracion: input.valorAdministracion.toFixed(2),
         canonBase: input.canonBase.toFixed(2),
         descripcion: input.descripcion ?? null,
+        matriculaInmobiliaria: input.matriculaInmobiliaria ?? null,
       });
       const id = Number((res as { insertId: number }).insertId);
 
@@ -225,9 +234,299 @@ export const inmueblesRouter = router({
       if (c.valorAdministracion !== undefined) set["valorAdministracion"] = c.valorAdministracion.toFixed(2);
       if (c.canonBase !== undefined) set["canonBase"] = c.canonBase.toFixed(2);
       if (c.descripcion !== undefined) set["descripcion"] = c.descripcion || null;
+      if (c.matriculaInmobiliaria !== undefined) set["matriculaInmobiliaria"] = c.matriculaInmobiliaria || null;
 
       await ctx.db.update(inmuebles).set(set).where(eq(inmuebles.id, input.inmuebleId));
       return { ok: true };
+    }),
+
+  /**
+   * Quién vive o vivió en esta unidad.
+   *
+   * Sale de los contratos y no de un campo en la unidad: el inquilino es una
+   * relación con fechas, no un atributo. Los anteriores se conservan porque
+   * saber quién vivió antes importa para una referencia o un reclamo.
+   */
+  inquilinos: delPropietario.input(soloId).query(async ({ ctx, input }) => {
+    const filas = await ctx.db
+      .select({
+        contratoId: contratos.id,
+        numero: contratos.numero,
+        estadoContrato: contratos.estado,
+        canonMensual: contratos.canonMensual,
+        fechaInicio: contratos.fechaInicio,
+        fechaFin: contratos.fechaFin,
+        usuarioId: usuarios.id,
+        nombre: usuarios.nombre,
+        apellido: usuarios.apellido,
+        email: usuarios.email,
+        telefono: usuarios.telefono,
+        tipoDocumento: usuarios.tipoDocumento,
+        numeroDocumento: usuarios.numeroDocumento,
+        token: usuarios.activacionToken,
+      })
+      .from(contratos)
+      .innerJoin(usuarios, eq(usuarios.id, contratos.inquilinoId))
+      .where(eq(contratos.inmuebleId, input.inmuebleId))
+      .orderBy(desc(contratos.fechaInicio));
+
+    // Aprobado pero sin contrato todavía: ya hay alguien designado, y no
+    // mostrarlo haría parecer que la unidad está alquilada sin nadie adentro.
+    const designados = await ctx.db
+      .select({
+        aplicacionId: aplicaciones.id,
+        usuarioId: usuarios.id,
+        nombre: usuarios.nombre,
+        apellido: usuarios.apellido,
+        email: usuarios.email,
+        telefono: usuarios.telefono,
+        canonOfrecido: aplicaciones.canonOfrecido,
+        token: usuarios.activacionToken,
+      })
+      .from(aplicaciones)
+      .innerJoin(usuarios, eq(usuarios.id, aplicaciones.inquilinoId))
+      .where(and(
+        eq(aplicaciones.inmuebleId, input.inmuebleId),
+        eq(aplicaciones.estado, "aprobada"),
+      ))
+      .orderBy(desc(aplicaciones.decididaAt));
+
+    const idsAplicacion = designados.map((d) => d.aplicacionId);
+    const codeudores = idsAplicacion.length === 0 ? [] : await ctx.db
+      .select({
+        aplicacionId: garantes.aplicacionId,
+        nombre: garantes.nombre,
+        email: garantes.email,
+        telefono: garantes.telefono,
+        numeroDocumento: garantes.numeroDocumento,
+      })
+      .from(garantes)
+      .where(inArray(garantes.aplicacionId, idsAplicacion));
+
+    const conContrato = new Set(filas.map((f) => f.usuarioId));
+    /** Sigue sin activarse: la cuenta existe pero su dueño nunca entró. */
+    const marcar = <T extends { token: string | null }>({ token, ...resto }: T) =>
+      ({ ...resto, sinActivar: token !== null });
+
+    return {
+      actuales: filas
+        .filter((f) => f.estadoContrato === "vigente" || f.estadoContrato === "en_mora")
+        .map(marcar),
+      anteriores: filas.filter((f) => f.estadoContrato === "terminado").map(marcar),
+      designados: designados
+        .filter((d) => !conContrato.has(d.usuarioId))
+        .map((d) => ({
+          ...marcar(d),
+          codeudor: codeudores.find((c) => c.aplicacionId === d.aplicacionId) ?? null,
+        })),
+    };
+  }),
+
+  /**
+   * Devuelve la unidad a disponible.
+   *
+   * No termina contratos: si hay uno vigente, la unidad no está libre por más
+   * que alguien apriete un botón, y terminarlo tiene consecuencias —
+   * liquidación, devolución, preaviso— que no caben en un cambio de estado.
+   */
+  liberar: delPropietario.input(soloId).mutation(async ({ ctx, input }) => {
+    const [u] = await ctx.db
+      .select({ estado: inmuebles.estado })
+      .from(inmuebles)
+      .where(eq(inmuebles.id, input.inmuebleId))
+      .limit(1);
+
+    if (!u) throw new TRPCError({ code: "NOT_FOUND", message: "Esa unidad no existe" });
+    if (u.estado !== "arrendado") {
+      throw new TRPCError({ code: "CONFLICT", message: "Esa unidad no está arrendada" });
+    }
+
+    const [vivo] = await ctx.db
+      .select({ numero: contratos.numero })
+      .from(contratos)
+      .where(and(
+        eq(contratos.inmuebleId, input.inmuebleId),
+        inArray(contratos.estado, ["vigente", "en_mora", "pendiente_firma"]),
+      ))
+      .limit(1);
+
+    if (vivo) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: `El contrato ${vivo.numero} sigue en pie. Terminalo antes de liberar la unidad.`,
+      });
+    }
+
+    await ctx.db.update(inmuebles).set({ estado: "borrador" })
+      .where(eq(inmuebles.id, input.inmuebleId));
+
+    return { estado: "borrador" as const };
+  }),
+
+  /**
+   * Marca la unidad como alquilada y registra al inquilino.
+   *
+   * Es el camino directo, para cuando el propietario ya consiguió inquilino por
+   * fuera: se salta visita, precalificación y aplicación del candidato. Pero no
+   * abre una segunda vía por el sistema — deja una aplicación aprobada, que es
+   * de donde `contratos.generar` toma los datos. Un solo camino hasta el
+   * contrato, con dos entradas.
+   *
+   * Si el inquilino no tenía cuenta, se le crea una SIN contraseña usable y con
+   * un enlace de activación. Que el propietario eligiera la clave le daría
+   * acceso a la cuenta de la otra parte, y sería su palabra contra la de ella
+   * sobre quién firmó el contrato.
+   */
+  marcarAlquilado: delPropietario
+    .input(z.object({
+      inmuebleId: z.number().int().positive(),
+      email: z.string().trim().toLowerCase().email().max(191),
+      nombre: z.string().trim().min(1).max(120),
+      apellido: z.string().trim().min(1).max(120),
+      tipoDocumento: z.enum(["CC", "CE", "NIT", "PA"]),
+      numeroDocumento: z.string().trim().min(4).max(40),
+      telefono: z.string().trim().max(30).optional(),
+      /** Lo que efectivamente acordaron. Por defecto, el canon de la unidad. */
+      canonAcordado: dinero.optional(),
+      /** Meses de plazo. Se guarda en la aplicación y lo hereda el contrato. */
+      mesesPlazo: z.number().int().min(1).max(120).default(12),
+      numOcupantes: z.number().int().min(1).max(50).default(1),
+      numMascotas: z.number().int().min(0).max(20).default(0),
+      fechaIngreso: z.coerce.date().optional(),
+      /**
+       * El codeudor, si lo hay.
+       *
+       * No se le crea cuenta: no va a usar la aplicación, solo responde por la
+       * deuda. Sus datos quedan en `garantes` y pasan al contrato al generarlo.
+       */
+      codeudor: z.object({
+        nombre: z.string().trim().min(3).max(191),
+        tipoDocumento: z.enum(["CC", "CE", "NIT", "PA"]).default("CC"),
+        numeroDocumento: z.string().trim().min(4).max(40),
+        email: z.string().trim().toLowerCase().email().max(191),
+        telefono: z.string().trim().max(30).optional(),
+      }).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [u] = await ctx.db
+        .select({ estado: inmuebles.estado, canonBase: inmuebles.canonBase })
+        .from(inmuebles)
+        .where(eq(inmuebles.id, input.inmuebleId))
+        .limit(1);
+
+      if (!u) throw new TRPCError({ code: "NOT_FOUND", message: "Esa unidad no existe" });
+      if (u.estado === "arrendado") {
+        throw new TRPCError({ code: "CONFLICT", message: "Esa unidad ya está arrendada" });
+      }
+
+      const [existente] = await ctx.db
+        .select({ id: usuarios.id, nombre: usuarios.nombre, estado: usuarios.estado })
+        .from(usuarios)
+        .where(eq(usuarios.email, input.email))
+        .limit(1);
+
+      // El documento es la otra llave única de `usuarios`. Sin comprobarlo, un
+      // documento repetido llegaba a la pantalla como un volcado de SQL con la
+      // consulta y sus parámetros adentro.
+      if (!existente) {
+        const [porDocumento] = await ctx.db
+          .select({ email: usuarios.email })
+          .from(usuarios)
+          .where(and(
+            eq(usuarios.tipoDocumento, input.tipoDocumento),
+            eq(usuarios.numeroDocumento, input.numeroDocumento),
+          ))
+          .limit(1);
+
+        if (porDocumento) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Ya hay una cuenta con ${input.tipoDocumento} ${input.numeroDocumento}, a nombre de ${porDocumento.email}. Registrá al inquilino con ese correo.`,
+          });
+        }
+      }
+
+      if (existente?.id === ctx.usuario.id) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No podés registrarte a vos mismo como inquilino de tu unidad",
+        });
+      }
+
+      const { token, hash } = nuevoToken();
+      const canon = input.canonAcordado ?? Number(u.canonBase);
+
+      const resultado = await ctx.db.transaction(async (tx) => {
+        let inquilinoId: number;
+        let cuentaNueva = false;
+
+        if (existente) {
+          inquilinoId = existente.id;
+        } else {
+          // El hash es un valor que ningún scrypt puede producir, así que
+          // `verificarContrasena` siempre falla contra él: la cuenta existe
+          // pero nadie puede entrar hasta activarla.
+          const [res] = await tx.insert(usuarios).values({
+            email: input.email,
+            passwordHash: "sin-contrasena",
+            activacionToken: hash,
+            activacionExpiraAt: expiraEn(168),
+            creadaPorId: ctx.usuario.id,
+            nombre: input.nombre,
+            apellido: input.apellido,
+            telefono: input.telefono ?? null,
+            tipoDocumento: input.tipoDocumento,
+            numeroDocumento: input.numeroDocumento,
+            estado: "pendiente",
+          });
+          inquilinoId = Number((res as { insertId: number }).insertId);
+          cuentaNueva = true;
+        }
+
+        // La aplicación nace aprobada: el propietario ya decidió, y decirlo de
+        // otra forma lo obligaría a aprobarse a sí mismo en la pantalla
+        // siguiente.
+        const [ap] = await tx.insert(aplicaciones).values({
+          inmuebleId: input.inmuebleId,
+          inquilinoId,
+          estado: "aprobada",
+          canonOfrecido: canon.toFixed(2),
+          numOcupantes: input.numOcupantes,
+          numMascotas: input.numMascotas,
+          fechaIngresoDeseada: input.fechaIngreso ?? null,
+          enviadaAt: new Date(),
+          decididaAt: new Date(),
+          mensaje: `Registrado directamente por el propietario · ${input.mesesPlazo} meses`,
+        });
+        const aplicacionId = Number((ap as { insertId: number }).insertId);
+
+        if (input.codeudor !== undefined) {
+          await tx.insert(garantes).values({
+            aplicacionId,
+            tipo: "codeudor",
+            nombre: input.codeudor.nombre,
+            tipoDocumento: input.codeudor.tipoDocumento,
+            numeroDocumento: input.codeudor.numeroDocumento,
+            email: input.codeudor.email,
+            telefono: input.codeudor.telefono ?? null,
+          });
+        }
+
+        await tx.update(inmuebles)
+          .set({ estado: "arrendado" })
+          .where(eq(inmuebles.id, input.inmuebleId));
+
+        return { inquilinoId, cuentaNueva, aplicacionId };
+      });
+
+      return {
+        ...resultado,
+        canon,
+        mesesPlazo: input.mesesPlazo,
+        /** Solo cuando la cuenta es nueva. Es la única vez que se ve el token:
+         *  en la base queda su hash, igual que una contraseña. */
+        enlaceActivacion: resultado.cuentaNueva ? `/activar?t=${token}` : null,
+      };
     }),
 
   /**

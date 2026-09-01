@@ -32,6 +32,16 @@ import m013 from "./013_catalogos_operativos.sql";
 import m014 from "./014_yalqui_seguro.sql";
 // @ts-ignore
 import m015 from "./015_configuracion_propietario.sql";
+// @ts-ignore
+import m016 from "./016_incidencias_al_catalogo.sql";
+// @ts-ignore
+import m017 from "./017_plantillas_contrato.sql";
+// @ts-ignore
+import m018 from "./018_activacion_cuenta.sql";
+// @ts-ignore
+import m019 from "./019_texto_contrato.sql";
+// @ts-ignore
+import m020 from "./020_plantilla_real.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -55,4 +65,9 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "013", nombre: "catalogos_operativos", sql: m013 as string },
   { version: "014", nombre: "yalqui_seguro", sql: m014 as string },
   { version: "015", nombre: "configuracion_propietario", sql: m015 as string },
+  { version: "016", nombre: "incidencias_al_catalogo", sql: m016 as string },
+  { version: "017", nombre: "plantillas_contrato", sql: m017 as string },
+  { version: "018", nombre: "activacion_cuenta", sql: m018 as string },
+  { version: "019", nombre: "texto_contrato", sql: m019 as string },
+  { version: "020", nombre: "plantilla_real", sql: m020 as string },
 ];

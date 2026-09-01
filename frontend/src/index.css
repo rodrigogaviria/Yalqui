@@ -5,6 +5,9 @@
   --violeta: #6f44d5;
   --violeta-hondo: #5d2fb1;
   --violeta-tenue: #f1ecfd;
+  /* Intermedio entre el violeta de marca y el tenue del fondo: da borde visible
+     a los botones de fondo blanco sin competir con el botón principal. */
+  --violeta-medio: #b9a3ec;
   --cian: #75f6ff;
   --amarillo: #ffe100;
 
@@ -84,9 +87,9 @@ input[aria-invalid="true"] { border-color: var(--mal); }
 }
 .boton:hover:not(:disabled) { background: var(--violeta-hondo); }
 .boton:disabled { opacity: 0.55; cursor: not-allowed; }
-.boton.fantasma { background: transparent; color: var(--tinta); border: 1px solid var(--linea); }
-.boton.fantasma:hover:not(:disabled) { background: var(--violeta-tenue); }
-.boton.riesgo { background: transparent; color: var(--mal); border: 1px solid var(--linea); }
+.boton.fantasma { background: transparent; color: var(--tinta); border: 1px solid var(--violeta-medio); }
+.boton.fantasma:hover:not(:disabled) { background: var(--violeta-tenue); border-color: var(--violeta); }
+.boton.riesgo { background: transparent; color: var(--mal); border: 1px solid var(--mal-tenue); }
 
 /* ---------- avisos ---------- */
 .aviso { border-radius: var(--radio); padding: 13px 16px; font-size: 14.5px; line-height: 1.5; }
@@ -108,3 +111,27 @@ input[aria-invalid="true"] { border-color: var(--mal); }
 .pastilla.mora { background: var(--mal-tenue); color: var(--mal); }
 
 .vacio { text-align: center; padding: 56px 24px; color: var(--tinta-2); }
+
+/* ---------- menú lateral ---------- */
+/* En pantalla angosta el menú sale del flujo y se desliza sobre el contenido:
+   234px fijos sobre 360px de ancho no dejarían lugar para nada más. */
+.velo-menu { display: none; }
+
+@media (max-width: 860px) {
+  .barra-movil { display: flex !important; }
+  .menu-lateral {
+    position: fixed !important;
+    left: 0;
+    top: 0;
+    z-index: 20;
+    transform: translateX(-100%);
+    transition: transform 0.18s ease;
+    box-shadow: 0 0 40px rgba(23, 18, 43, 0.18);
+  }
+  .menu-lateral[data-abierto="si"] { transform: translateX(0); }
+  .velo-menu { display: block; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-lateral { transition: none; }
+}

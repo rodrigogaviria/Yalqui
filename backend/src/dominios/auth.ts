@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, publico, privado } from "../trpc/base.js";
 import { usuarios, consentimientos } from "../db/schema/identidad.js";
 import { cifrarContrasena, verificarContrasena } from "../auth/password.js";
 import { emitirToken } from "../auth/token.js";
+import { hashToken } from "../auth/tokens-enlace.js";
+import type { Database } from "../db/index.js";
 
 /** La versión de la política que se acepta al registrarse. Sube con cada cambio. */
 const VERSION_POLITICA = "2026-08";
@@ -35,14 +37,33 @@ export const authRouter = router({
    * inmueble o cuando firma un contrato.
    */
   registrar: publico.input(registro).mutation(async ({ ctx, input }) => {
-    const yaExiste = await ctx.db
+    // Se comprueban las dos llaves únicas antes de insertar. Sin esto, un
+    // documento repetido salía como un volcado de SQL en la pantalla del
+    // usuario, con la consulta y sus parámetros adentro.
+    const [porCorreo] = await ctx.db
       .select({ id: usuarios.id })
       .from(usuarios)
       .where(eq(usuarios.email, input.email))
       .limit(1);
 
-    if (yaExiste.length > 0) {
+    if (porCorreo) {
       throw new TRPCError({ code: "CONFLICT", message: "Ese correo ya tiene cuenta" });
+    }
+
+    const [porDocumento] = await ctx.db
+      .select({ id: usuarios.id })
+      .from(usuarios)
+      .where(and(
+        eq(usuarios.tipoDocumento, input.tipoDocumento),
+        eq(usuarios.numeroDocumento, input.numeroDocumento),
+      ))
+      .limit(1);
+
+    if (porDocumento) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: `Ya hay una cuenta con ${input.tipoDocumento} ${input.numeroDocumento}. Si es tuya, entrá con ella.`,
+      });
     }
 
     const passwordHash = await cifrarContrasena(input.contrasena);
@@ -122,6 +143,57 @@ export const authRouter = router({
       return { usuarioId: fila.id, token, expiraEn };
     }),
 
+  /**
+   * Qué cuenta hay detrás de un enlace de activación.
+   *
+   * Devuelve solo el nombre y el correo: lo justo para que quien abre el enlace
+   * confirme que es suyo antes de poner una contraseña. Un token vencido o ya
+   * usado responde igual que uno inventado, para no confirmarle a nadie que
+   * cierto enlace existió.
+   */
+  verActivacion: publico
+    .input(z.object({ token: z.string().min(20).max(64) }))
+    .query(async ({ ctx, input }) => {
+      const cuenta = await cuentaPorToken(ctx.db, input.token);
+      return { email: cuenta.email, nombre: cuenta.nombre, apellido: cuenta.apellido };
+    }),
+
+  /**
+   * Activa la cuenta que otro creó, eligiendo contraseña.
+   *
+   * Al activarla el token se borra: es de un solo uso, y desde ese momento
+   * quien la creó ya no tiene forma de entrar.
+   */
+  activar: publico
+    .input(z.object({ token: z.string().min(20).max(64), contrasena }))
+    .mutation(async ({ ctx, input }) => {
+      const cuenta = await cuentaPorToken(ctx.db, input.token);
+
+      await ctx.db
+        .update(usuarios)
+        .set({
+          passwordHash: await cifrarContrasena(input.contrasena),
+          activacionToken: null,
+          activacionExpiraAt: null,
+          estado: "activo",
+        })
+        .where(eq(usuarios.id, cuenta.id));
+
+      // El consentimiento se registra al activar y no al crearla: quien la creó
+      // no puede autorizar el tratamiento de datos de otra persona.
+      await ctx.db.insert(consentimientos).values({
+        usuarioId: cuenta.id,
+        tipo: "tratamiento_datos",
+        otorgado: true,
+        versionPolitica: VERSION_POLITICA,
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent?.slice(0, 255) ?? null,
+      });
+
+      const { token, expiraEn } = await emitirToken({ usuarioId: cuenta.id, email: cuenta.email });
+      return { usuarioId: cuenta.id, token, expiraEn };
+    }),
+
   /** Quién soy y qué puedo. Los roles salen de la base, no del token. */
   sesion: privado.query(({ ctx }) => ({
     id: ctx.usuario.id,
@@ -152,3 +224,31 @@ export const authRouter = router({
       return { ok: true };
     }),
 });
+
+/**
+ * La cuenta detrás de un token de activación, o un error indistinguible.
+ *
+ * Token inexistente, vencido o ya usado devuelven el mismo mensaje: si el
+ * vencido dijera «venció», estaría confirmando que ese enlace fue real.
+ */
+async function cuentaPorToken(db: Database, token: string) {
+  const [cuenta] = await db
+    .select({
+      id: usuarios.id,
+      email: usuarios.email,
+      nombre: usuarios.nombre,
+      apellido: usuarios.apellido,
+      expira: usuarios.activacionExpiraAt,
+    })
+    .from(usuarios)
+    .where(eq(usuarios.activacionToken, hashToken(token)))
+    .limit(1);
+
+  if (!cuenta || cuenta.expira === null || cuenta.expira < new Date()) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Ese enlace no sirve. Pedile al propietario que te mande uno nuevo.",
+    });
+  }
+  return cuenta;
+}

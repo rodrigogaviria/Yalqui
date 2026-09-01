@@ -63,7 +63,7 @@ export const comunicados = mysqlTable("comunicados", {
 	titulo: varchar({ length: 191 }).notNull(),
 	cuerpo: text().notNull(),
 	prioridad: mysqlEnum(['baja','normal','alta','urgente']).default('normal').notNull(),
-	requiereConfirmacion: tinyint("requiere_confirmacion").default(0).notNull(),
+	requiereConfirmacion: boolean("requiere_confirmacion").default(false).notNull(),
 	canales: json().notNull(),
 	plantillaId: int("plantilla_id", { unsigned: true }).references(() => plantillasMensaje.id, { onDelete: "set null" } ),
 	adjuntoArchivoId: bigint("adjunto_archivo_id", { mode: "number", unsigned: true }),

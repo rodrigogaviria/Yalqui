@@ -205,6 +205,64 @@ export const facturacionRouter = router({
     }),
 
   /** La bandeja del propietario: lo que espera confirmación. */
+  /**
+   * Las facturas de las unidades del propietario.
+   *
+   * Devuelve el estado tal como lo necesita el calendario: vencida, pagada o
+   * todavía por llegar. La mora se calcula contra hoy y no se lee de la fila,
+   * porque `dias_mora` solo se actualiza cuando algo toca la factura y una
+   * factura que nadie tocó en dos meses seguiría diciendo cero.
+   */
+  misFacturas: privado.query(async ({ ctx }) => {
+    const ids = ctx.usuario.roles
+      .filter((r) => r.rol === "propietario" && r.ambitoTipo === "inmueble")
+      .map((r) => r.ambitoId);
+    if (ids.length === 0) {
+      return { total: 0, facturas: [], porCobrar: 0, vencido: 0 };
+    }
+
+    const filas = await ctx.db
+      .select({
+        id: facturasArriendo.id,
+        periodo: facturasArriendo.periodo,
+        total: facturasArriendo.total,
+        saldo: facturasArriendo.saldo,
+        estado: facturasArriendo.estado,
+        fechaVencimiento: facturasArriendo.fechaVencimiento,
+        inmuebleId: inmuebles.id,
+        direccion: inmuebles.direccion,
+        complemento: inmuebles.complemento,
+        contratoId: contratos.id,
+      })
+      .from(facturasArriendo)
+      .innerJoin(contratos, eq(contratos.id, facturasArriendo.contratoId))
+      .innerJoin(inmuebles, eq(inmuebles.id, contratos.inmuebleId))
+      .where(inArray(inmuebles.id, ids))
+      .orderBy(desc(facturasArriendo.periodo));
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const facturas = filas.map((f) => {
+      const vence = new Date(f.fechaVencimiento);
+      const pagada = Number(f.saldo) <= 0;
+      const situacion = pagada ? "pagada" : vence < hoy ? "vencida" : "porVencer";
+      const diasMora = situacion === "vencida"
+        ? Math.floor((hoy.getTime() - vence.getTime()) / 86_400_000)
+        : 0;
+      return { ...f, situacion, diasMora };
+    });
+
+    const porCobrar = facturas
+      .filter((f) => f.situacion !== "pagada")
+      .reduce((t, f) => t + Number(f.saldo), 0);
+    const vencido = facturas
+      .filter((f) => f.situacion === "vencida")
+      .reduce((t, f) => t + Number(f.saldo), 0);
+
+    return { total: facturas.length, facturas, porCobrar, vencido };
+  }),
+
   porVerificar: privado.query(async ({ ctx }) => {
     const ids = ctx.usuario.roles
       .filter((r) => r.rol === "propietario" && r.ambitoTipo === "inmueble")
