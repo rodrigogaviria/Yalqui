@@ -244,6 +244,7 @@ export class InfraStack extends Stack {
         destinationBucket: siteBucket,
         distribution,
         distributionPaths: ["/*"],
+        waitForDistributionInvalidation: false,
       });
 
       const cfTarget = route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution));
