@@ -1,111 +1,110 @@
+@import url("https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap");
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* Marca tomada del sitio: violeta, violeta hondo, cian y amarillo. */
+  --violeta: #6f44d5;
+  --violeta-hondo: #5d2fb1;
+  --violeta-tenue: #f1ecfd;
+  --cian: #75f6ff;
+  --amarillo: #ffe100;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --tinta: #17122b;
+  --tinta-2: #635e78;
+  --tinta-3: #8b86a1;
+  --papel: #ffffff;
+  --papel-2: #f7f6fb;
+  --linea: #e5e2ee;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --bien: #17864f;
+  --bien-tenue: #e3f7ec;
+  --ojo: #a06a0b;
+  --ojo-tenue: #fff8e6;
+  --mal: #c0322d;
+  --mal-tenue: #fdebeb;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --radio: 11px;
+  --sombra: 0 1px 2px rgba(23, 18, 43, 0.06), 0 4px 12px rgba(23, 18, 43, 0.04);
+
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+* { box-sizing: border-box; }
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+html, body, #root { height: 100%; }
 
 body {
   margin: 0;
+  background: var(--papel-2);
+  color: var(--tinta);
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
+h1, h2, h3 {
+  font-family: "Kufam", "Trebuchet MS", sans-serif;
   margin: 0;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
+a { color: var(--violeta); text-decoration: none; }
+a:hover { color: var(--violeta-hondo); }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+:focus-visible { outline: 2px solid var(--violeta); outline-offset: 2px; border-radius: 4px; }
+
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- controles ---------- */
+.campo { display: flex; flex-direction: column; gap: 6px; }
+.campo > .campo-etiqueta { font-size: 13.5px; font-weight: 600; color: var(--tinta-2); }
+
+input, select, textarea {
+  font: inherit;
+  color: var(--tinta);
+  background: var(--papel);
+  border: 1px solid var(--linea);
+  border-radius: 9px;
+  padding: 0 13px;
+  height: 46px;
+  width: 100%;
 }
+textarea { height: auto; padding: 11px 13px; resize: vertical; min-height: 92px; line-height: 1.5; }
+input:focus, select:focus, textarea:focus { border-color: var(--violeta); outline: none; box-shadow: 0 0 0 3px var(--violeta-tenue); }
+input[aria-invalid="true"] { border-color: var(--mal); }
+
+.boton {
+  font: inherit; font-weight: 600;
+  height: 48px; padding: 0 22px;
+  border: none; border-radius: 10px;
+  background: var(--violeta); color: #fff;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.boton:hover:not(:disabled) { background: var(--violeta-hondo); }
+.boton:disabled { opacity: 0.55; cursor: not-allowed; }
+.boton.fantasma { background: transparent; color: var(--tinta); border: 1px solid var(--linea); }
+.boton.fantasma:hover:not(:disabled) { background: var(--violeta-tenue); }
+.boton.riesgo { background: transparent; color: var(--mal); border: 1px solid var(--linea); }
+
+/* ---------- avisos ---------- */
+.aviso { border-radius: var(--radio); padding: 13px 16px; font-size: 14.5px; line-height: 1.5; }
+.aviso.malo { background: var(--mal-tenue); color: #7d211d; border: 1px solid #f7d3d3; }
+.aviso.bueno { background: var(--bien-tenue); color: #0e3b24; border: 1px solid #bfe9d3; }
+.aviso.ojo { background: var(--ojo-tenue); color: #4a3405; border: 1px solid #f2e2b2; }
+
+/* ---------- superficies ---------- */
+.tarjeta { background: var(--papel); border: 1px solid var(--linea); border-radius: 14px; box-shadow: var(--sombra); }
+
+.pastilla {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; padding: 4px 11px; border-radius: 20px;
+}
+.pastilla.borrador { background: var(--papel-2); color: var(--tinta-2); }
+.pastilla.publicado { background: var(--violeta-tenue); color: var(--violeta-hondo); }
+.pastilla.arrendado { background: var(--bien-tenue); color: var(--bien); }
+.pastilla.pausado { background: var(--ojo-tenue); color: var(--ojo); }
+.pastilla.mora { background: var(--mal-tenue); color: var(--mal); }
+
+.vacio { text-align: center; padding: 56px 24px; color: var(--tinta-2); }

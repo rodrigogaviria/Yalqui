@@ -1,0 +1,228 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Manrope","Helvetica Neue",Arial,sans-serif;background:#F7F6FB;color:#17122B;-webkit-font-smoothing:antialiased}
+    a{color:#6F44D5;text-decoration:none} a:hover{color:#5D2FB1}
+    .sw{width:46px;height:27px;border-radius:16px;flex-shrink:0;position:relative;cursor:pointer;transition:background .16s ease}
+    .kn{position:absolute;top:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:left .16s ease;box-shadow:0 1px 3px rgba(0,0,0,.22)}
+  </style>
+</helmet>
+
+<div style="display:flex; flex-direction:column; width:1440px; height:1024px; background:#F7F6FB">
+
+  <div style="height:68px; flex-shrink:0; background:#FFFFFF; border-bottom:1px solid #E5E2EE; display:flex; align-items:center; gap:16px; padding:0 32px">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12 4.5 6.5 10l5.5 5.5" stroke="#17122B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <span style="font-size:14.5px; color:#635E78">Portafolio</span>
+    <span style="font-size:14.5px; color:#B8B2CE">/</span>
+    <span style="font-size:14.5px; font-weight:600">Calle 93 #12-40, apto 302</span>
+    <span style="margin-left:auto; font-size:13px; color:#8B86A1">Los cambios aplican a contratos nuevos. El de Camila conserva lo que se pactó.</span>
+  </div>
+
+  <main style="flex-grow:1; padding:26px 32px; display:flex; gap:20px">
+
+    <div style="flex-grow:1; display:flex; flex-direction:column; gap:16px">
+
+      <header style="flex-shrink:0">
+        <h1 style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:27px; font-weight:600; margin:0; letter-spacing:-0.4px">Cómo se arma el canon</h1>
+        <p style="margin:4px 0 0; font-size:14px; color:#635E78">Un valor base y las opciones que ofrecés. El inquilino ve cada línea por separado en su factura.</p>
+      </header>
+
+      <section style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:14px; padding:22px 24px; display:flex; flex-direction:column; gap:2px">
+
+        <div style="display:flex; align-items:center; gap:18px; padding:16px 0; border-bottom:1px solid #F0EDF7">
+          <div style="width:46px; flex-shrink:0"></div>
+          <div style="flex-grow:1">
+            <div style="font-size:15.5px; font-weight:600">Canon base</div>
+            <div style="font-size:12.5px; color:#8B86A1; margin-top:2px">Apartamento de 68 m², 2 habitaciones, piso 3</div>
+          </div>
+          <div style="font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; width:150px; text-align:right">$1.800.000</div>
+        </div>
+
+        <sc-for list="{{ajustes}}" as="a" hint-placeholder-count="4">
+          <div style="display:flex; align-items:center; gap:18px; padding:16px 0; border-bottom:1px solid #F0EDF7">
+            <div class="sw" style="background: {{a.track}}" onClick="{{a.toggle}}">
+              <div class="kn" style="left: {{a.knob}}"></div>
+            </div>
+            <div style="flex-grow:1">
+              <div style="font-size:15.5px; font-weight:600; color: {{a.label}}">{{a.nombre}}</div>
+              <div style="font-size:12.5px; color:#8B86A1; margin-top:2px">{{a.detalle}}</div>
+            </div>
+            <sc-if value="{{a.cantidadVisible}}" hint-placeholder-val="{{true}}">
+              <div style="display:flex; align-items:center; gap:9px; margin-right:6px">
+                <button type="button" onClick="{{a.menos}}" style="width:32px; height:32px; border-radius:8px; border:1px solid #E5E2EE; background:#FFFFFF; font-family:inherit; font-size:17px; color:#17122B; cursor:pointer; line-height:1">–</button>
+                <span style="font-size:15px; font-weight:600; width:16px; text-align:center; font-variant-numeric:tabular-nums">{{a.cantidad}}</span>
+                <button type="button" onClick="{{a.mas}}" style="width:32px; height:32px; border-radius:8px; border:1px solid #E5E2EE; background:#FFFFFF; font-family:inherit; font-size:17px; color:#17122B; cursor:pointer; line-height:1">+</button>
+              </div>
+            </sc-if>
+            <div style="font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; width:150px; text-align:right; color: {{a.monto}}">{{a.texto}}</div>
+          </div>
+        </sc-for>
+
+        <div style="display:flex; align-items:center; gap:18px; padding:16px 0">
+          <div style="width:46px; flex-shrink:0"></div>
+          <div style="flex-grow:1">
+            <div style="font-size:15.5px; font-weight:600">Administración</div>
+            <div style="font-size:12.5px; color:#8B86A1; margin-top:2px">La cobra la copropiedad · no es ingreso tuyo</div>
+          </div>
+          <div style="font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; width:150px; text-align:right">$320.000</div>
+        </div>
+
+      </section>
+
+      <section style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:14px; padding:20px 24px; display:flex; flex-direction:column; gap:14px">
+        <div style="display:flex; align-items:baseline; justify-content:space-between">
+          <h2 style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:17px; font-weight:600; margin:0">Servicios públicos</h2>
+          <span style="font-size:12.5px; color:#8B86A1">Último recibo de cada empresa</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px">
+          <div style="border:1px solid #F7D3D3; background:#FFFAFA; border-radius:11px; padding:15px">
+            <div style="display:flex; align-items:center; justify-content:space-between">
+              <span style="font-size:14px; font-weight:600">Energía</span>
+              <span style="font-size:11.5px; font-weight:600; color:#C0322D; background:#FDEBEB; border-radius:5px; padding:3px 7px">Vencido</span>
+            </div>
+            <div style="font-size:12.5px; color:#8B86A1; margin-top:4px">Enel · lo paga el inquilino</div>
+            <div style="font-size:19px; font-weight:600; margin-top:9px; font-variant-numeric:tabular-nums">$184.300</div>
+            <div style="font-size:12.5px; color:#C0322D; margin-top:3px">Venció hace 6 días</div>
+          </div>
+          <div style="border:1px solid #E5E2EE; border-radius:11px; padding:15px">
+            <div style="display:flex; align-items:center; justify-content:space-between">
+              <span style="font-size:14px; font-weight:600">Acueducto</span>
+              <span style="font-size:11.5px; font-weight:600; color:#17864F; background:#E3F7EC; border-radius:5px; padding:3px 7px">Pagado</span>
+            </div>
+            <div style="font-size:12.5px; color:#8B86A1; margin-top:4px">EAAB · incluido hasta $80.000</div>
+            <div style="font-size:19px; font-weight:600; margin-top:9px; font-variant-numeric:tabular-nums">$71.200</div>
+            <div style="font-size:12.5px; color:#635E78; margin-top:3px">Dentro del tope, lo asumís vos</div>
+          </div>
+          <div style="border:1px dashed #B8B2CE; background:#F8F7FC; border-radius:11px; padding:15px">
+            <div style="display:flex; align-items:center; justify-content:space-between">
+              <span style="font-size:14px; font-weight:600">Gas</span>
+              <span style="font-size:11.5px; font-weight:600; color:#8B86A1; background:#E9E5F3; border-radius:5px; padding:3px 7px">No sabemos</span>
+            </div>
+            <div style="font-size:12.5px; color:#8B86A1; margin-top:4px">Vanti · lo paga el inquilino</div>
+            <div style="font-size:19px; font-weight:600; margin-top:9px; color:#8B86A1">—</div>
+            <div style="font-size:12.5px; color:#635E78; margin-top:3px; line-height:1.4">Vanti no expone consulta y nadie subió el recibo</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <aside style="width:352px; flex-shrink:0; display:flex; flex-direction:column; gap:14px">
+      <div style="background:#5D2FB1; border-radius:15px; padding:24px; color:#FFFFFF">
+        <div style="font-size:12px; letter-spacing:0.8px; text-transform:uppercase; color:#75F6FF; font-weight:600">Total mensual</div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:42px; font-weight:600; margin-top:7px; font-variant-numeric:tabular-nums; letter-spacing:-1px">{{total}}</div>
+        <div style="font-size:13px; color:#C6B8F2; margin-top:3px">{{lineas}} en la factura del inquilino</div>
+
+        <div style="height:1px; background:rgba(255,255,255,0.16); margin:18px 0"></div>
+
+        <sc-for list="{{resumen}}" as="r" hint-placeholder-count="5">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; padding:6px 0">
+            <span style="font-size:13.5px; color:#DED5F8">{{r.nombre}}</span>
+            <span style="font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; color:#FFFFFF">{{r.valor}}</span>
+          </div>
+        </sc-for>
+
+        <div style="height:1px; background:rgba(255,255,255,0.16); margin:16px 0"></div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline">
+          <span style="font-size:13.5px; color:#DED5F8">Ingreso tuyo</span>
+          <span style="font-size:16px; font-weight:600; font-variant-numeric:tabular-nums; color:#75F6FF">{{ingreso}}</span>
+        </div>
+        <div style="font-size:12px; color:#C6B8F2; margin-top:5px; line-height:1.45">La administración no entra: se la paga a la copropiedad.</div>
+      </div>
+
+      <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:14px; padding:18px">
+        <div style="display:flex; align-items:center; gap:9px">
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#6F44D5" stroke-width="1.6"></circle><path d="M10 9v4.6M10 6.6v.4" stroke="#6F44D5" stroke-width="1.7" stroke-linecap="round"></path></svg>
+          <span style="font-size:14px; font-weight:600">Precio sugerido</span>
+        </div>
+        <div style="font-size:13px; color:#635E78; margin-top:9px; line-height:1.5">El motor de precios estima un rango de <strong style="font-weight:600; color:#17122B">$2.580.000 a $2.890.000</strong> para esta zona y estas características. Estás dentro del rango.</div>
+      </div>
+
+      <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:14px; padding:18px; margin-top:auto">
+        <div style="font-size:14px; font-weight:600">Plan de esta unidad</div>
+        <div style="display:flex; align-items:baseline; gap:8px; margin-top:7px">
+          <span style="font-size:20px; font-weight:600; color:#6F44D5">Profesional</span>
+          <span style="font-size:13.5px; color:#635E78; font-variant-numeric:tabular-nums">$20.000 /mes</span>
+        </div>
+        <div style="font-size:12.5px; color:#8B86A1; margin-top:6px; line-height:1.45">Se cobra por unidad. Tus otras 4 unidades pueden estar en planes distintos.</div>
+      </div>
+
+      <button type="button" style="height:48px; border-radius:10px; border:none; background:#6F44D5; font-family:inherit; font-size:15px; font-weight:600; color:#FFFFFF; cursor:pointer">Guardar y publicar</button>
+    </aside>
+
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { amoblado: true, parqueadero: true, mascota: true, personas: 2, personasOn: true };
+  }
+  money(n) {
+    return '$' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  renderVals() {
+    const s = this.state;
+    const on = '#6F44D5', off = '#CFC9E2';
+    const def = [
+      { key: 'amoblado', nombre: 'Amoblado', detalle: 'Sala, comedor, dos alcobas y electrodomésticos', valor: 250000 },
+      { key: 'parqueadero', nombre: 'Parqueadero cubierto', detalle: 'P-14, en el mismo edificio', valor: 150000 },
+      { key: 'mascota', nombre: 'Mascota', detalle: 'Una mascota pequeña o mediana', valor: 80000 },
+      { key: 'personasOn', nombre: 'Persona adicional', detalle: 'Sobre dos ocupantes · máximo 2 más', valor: 60000, cantidad: true }
+    ];
+    const ajustes = def.map((d) => {
+      const activo = !!s[d.key];
+      const cant = d.cantidad ? s.personas : 1;
+      const sub = activo ? d.valor * cant : 0;
+      return {
+        nombre: d.nombre,
+        detalle: d.detalle,
+        track: activo ? on : off,
+        knob: activo ? '22px' : '3px',
+        label: activo ? '#17122B' : '#8B86A1',
+        monto: activo ? '#17122B' : '#B8B2CE',
+        texto: activo ? '+ ' + this.money(sub) : 'No se ofrece',
+        cantidadVisible: !!(d.cantidad && activo),
+        cantidad: cant,
+        toggle: () => this.setState({ [d.key]: !s[d.key] }),
+        menos: () => this.setState({ personas: Math.max(1, s.personas - 1) }),
+        mas: () => this.setState({ personas: Math.min(2, s.personas + 1) })
+      };
+    });
+
+    const base = 1800000, admin = 320000;
+    let extras = 0;
+    if (s.amoblado) extras += 250000;
+    if (s.parqueadero) extras += 150000;
+    if (s.mascota) extras += 80000;
+    if (s.personasOn) extras += 60000 * s.personas;
+
+    const resumen = [{ nombre: 'Canon base', valor: this.money(base) }];
+    if (s.amoblado) resumen.push({ nombre: 'Amoblado', valor: '+ ' + this.money(250000) });
+    if (s.parqueadero) resumen.push({ nombre: 'Parqueadero', valor: '+ ' + this.money(150000) });
+    if (s.mascota) resumen.push({ nombre: 'Mascota', valor: '+ ' + this.money(80000) });
+    if (s.personasOn) resumen.push({ nombre: 'Persona adicional × ' + s.personas, valor: '+ ' + this.money(60000 * s.personas) });
+    resumen.push({ nombre: 'Administración', valor: '+ ' + this.money(admin) });
+
+    return {
+      ajustes: ajustes,
+      resumen: resumen,
+      total: this.money(base + extras + admin),
+      ingreso: this.money(base + extras),
+      lineas: resumen.length + ' líneas'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,30 +1,33 @@
-import { initTRPC } from '@trpc/server';
-import { z } from 'zod';
-import { saludar } from './handlers/hello.js';
-import { crear, listar } from './handlers/tareas.js';
+import { router } from "./trpc/base.js";
+import { saludRouter } from "./dominios/salud.js";
+import { administracionRouter } from "./dominios/administracion/index.js";
+import { authRouter } from "./dominios/auth.js";
+import { inmueblesRouter } from "./dominios/inmuebles.js";
+import { configuracionRouter } from "./dominios/configuracion.js";
+import { visitasRouter } from "./dominios/visitas.js";
+import { precalificacionRouter } from "./dominios/precalificacion.js";
+import { aplicacionesRouter } from "./dominios/aplicaciones.js";
+import { contratosRouter } from "./dominios/contratos.js";
+import { facturacionRouter } from "./dominios/facturacion.js";
 
-const t = initTRPC.create();
-
-
-// TODO: esto es solo para pruebas locales. En producción, reemplazar
-// las funciones crear/listar por consultas reales a RDS vía Drizzle.
-
-export const appRouter = t.router({
-  hello: t.procedure
-    .input(z.object({ nombre: z.string() }))
-    .query(({ input }) => {
-      return saludar(input.nombre);
-    }),
-    crearTarea: t.procedure
-    .input(z.object({ titulo: z.string() }))
-    .mutation(({ input }) => {
-      return crear(input.titulo);
-    }),
-
-  listarTareas: t.procedure
-    .query(() => {
-      return listar();
-    }),
+/**
+ * Un router por dominio, con procedimientos explícitos.
+ * Nada de updateAnything, changeStatus ni saveForm.
+ *
+ * El orden es el del ciclo: registrar la unidad, mostrarla, precalificar,
+ * aplicar, firmar y cobrar.
+ */
+export const appRouter = router({
+  salud: saludRouter,
+  admin: administracionRouter,
+  auth: authRouter,
+  inmuebles: inmueblesRouter,
+  configuracion: configuracionRouter,
+  visitas: visitasRouter,
+  precalificacion: precalificacionRouter,
+  aplicaciones: aplicacionesRouter,
+  contratos: contratosRouter,
+  facturacion: facturacionRouter,
 });
 
 export type AppRouter = typeof appRouter;

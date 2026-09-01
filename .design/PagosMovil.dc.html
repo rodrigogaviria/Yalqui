@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Manrope","Helvetica Neue",Arial,sans-serif;background:#F7F6FB;color:#17122B;-webkit-font-smoothing:antialiased}
+    a{color:#6F44D5;text-decoration:none} a:hover{color:#5D2FB1}
+  </style>
+</helmet>
+
+<div style="display:flex; flex-direction:column; width:390px; height:844px; background:#F7F6FB">
+
+  <div style="height:56px; flex-shrink:0; background:#FFFFFF; border-bottom:1px solid #E5E2EE; display:flex; align-items:center; gap:12px; padding:0 16px">
+    <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="#17122B" stroke-width="1.8" stroke-linecap="round"></path></svg>
+    <img src="logo.png" alt="Yalqui" style="width:74px; height:auto; display:block">
+    <span style="margin-left:auto; position:relative">
+      <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.8a4.6 4.6 0 0 0-4.6 4.6c0 4-1.6 5.2-1.6 5.2h12.4s-1.6-1.2-1.6-5.2A4.6 4.6 0 0 0 10 2.8Z" stroke="#17122B" stroke-width="1.6" stroke-linejoin="round"></path><path d="M8.6 15.4a1.6 1.6 0 0 0 2.8 0" stroke="#17122B" stroke-width="1.6" stroke-linecap="round"></path></svg>
+      <span style="position:absolute; top:-2px; right:-3px; width:9px; height:9px; border-radius:50%; background:#C0322D; border:2px solid #FFFFFF"></span>
+    </span>
+  </div>
+
+  <div style="flex-grow:1; padding:14px 16px 16px; display:flex; flex-direction:column; gap:12px; overflow:hidden">
+
+    <div>
+      <h1 style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:21px; font-weight:600; margin:0; letter-spacing:-0.2px">Pagos por verificar</h1>
+      <p style="margin:3px 0 0; font-size:13px; color:#635E78">3 esperando · $4.500.000</p>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:11px; background:#F1ECFD; border-radius:11px; padding:12px 14px">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style="flex-shrink:0" aria-hidden="true"><path d="m5.6 10.2 2.8 2.8 6-6.2" stroke="#5D2FB1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <div style="flex-grow:1; font-size:12.5px; line-height:1.4"><b>2 coinciden exacto</b> con la factura y llegaron en fecha</div>
+      <button type="button" style="height:36px; padding:0 13px; flex-shrink:0; border-radius:9px; border:none; background:#6F44D5; font-family:inherit; font-size:12.5px; font-weight:600; color:#FFFFFF; cursor:pointer; white-space:nowrap">Aprobar 2</button>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:10px">
+
+      <div style="background:#FFFFFF; border:1.5px solid #17864F; border-radius:13px; padding:14px 15px">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px">
+          <div style="min-width:0">
+            <div style="font-size:14.5px; font-weight:600">Calle 93 #12-40 apto 302</div>
+            <div style="font-size:12px; color:#8B86A1; margin-top:2px">Camila Restrepo · hoy 9:14</div>
+          </div>
+          <span style="font-size:17px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap">$2.720.000</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:7px; margin-top:9px; padding:7px 10px; background:#E3F7EC; border-radius:8px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style="flex-shrink:0" aria-hidden="true"><path d="m5.6 10.2 2.8 2.8 6-6.2" stroke="#17864F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span style="font-size:11.5px; color:#0E3B24; line-height:1.35">Monto exacto · llegó el 2, dentro de tu regla</span>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:11px">
+          <button type="button" style="flex-grow:1; height:46px; border-radius:10px; border:none; background:#17864F; font-family:inherit; font-size:14.5px; font-weight:600; color:#FFFFFF; cursor:pointer">Confirmar</button>
+          <button type="button" style="width:46px; height:46px; flex-shrink:0; border-radius:10px; border:1px solid #E5E2EE; background:#FFFFFF; cursor:pointer; display:flex; align-items:center; justify-content:center">
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11.6 2.5H5.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.4l-3.9-3.9Z" stroke="#635E78" stroke-width="1.6" stroke-linejoin="round"></path><path d="M11.4 2.6v4h4" stroke="#635E78" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:1.5px solid #17864F; border-radius:13px; padding:14px 15px">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px">
+          <div style="min-width:0">
+            <div style="font-size:14.5px; font-weight:600">Calle 53 #24-08 hab 2</div>
+            <div style="font-size:12px; color:#8B86A1; margin-top:2px">Daniel Cruz · ayer 18:40</div>
+          </div>
+          <span style="font-size:17px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap">$630.000</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:7px; margin-top:9px; padding:7px 10px; background:#E3F7EC; border-radius:8px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style="flex-shrink:0" aria-hidden="true"><path d="m5.6 10.2 2.8 2.8 6-6.2" stroke="#17864F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span style="font-size:11.5px; color:#0E3B24; line-height:1.35">Monto exacto · llegó el 1, dentro de tu regla</span>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:11px">
+          <button type="button" style="flex-grow:1; height:46px; border-radius:10px; border:none; background:#17864F; font-family:inherit; font-size:14.5px; font-weight:600; color:#FFFFFF; cursor:pointer">Confirmar</button>
+          <button type="button" style="width:46px; height:46px; flex-shrink:0; border-radius:10px; border:1px solid #E5E2EE; background:#FFFFFF; cursor:pointer; display:flex; align-items:center; justify-content:center">
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11.6 2.5H5.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.4l-3.9-3.9Z" stroke="#635E78" stroke-width="1.6" stroke-linejoin="round"></path><path d="M11.4 2.6v4h4" stroke="#635E78" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div style="background:#FFFCF2; border:1.5px solid #F2E2B2; border-radius:13px; padding:14px 15px">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px">
+          <div style="min-width:0">
+            <div style="font-size:14.5px; font-weight:600">Cra 32 #8-15</div>
+            <div style="font-size:12px; color:#8B86A1; margin-top:2px">Julián Ossa · hace 3 días</div>
+          </div>
+          <span style="font-size:17px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap">$1.150.000</span>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:7px; margin-top:9px; padding:7px 10px; background:#FFF8E6; border-radius:8px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style="flex-shrink:0; margin-top:1px" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#A06A0B" stroke-width="1.8"></circle><path d="M10 6.4v4.2M10 13.2v.3" stroke="#A06A0B" stroke-width="1.8" stroke-linecap="round"></path></svg>
+          <span style="font-size:11.5px; color:#4A3405; line-height:1.35">Abono parcial: la factura es de $2.400.000. Quedan $1.250.000</span>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:11px">
+          <button type="button" style="flex-grow:1; height:46px; border-radius:10px; border:1px solid #E5E2EE; background:#FFFFFF; font-family:inherit; font-size:14.5px; font-weight:600; color:#17122B; cursor:pointer">Revisar</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto; display:flex; align-items:flex-start; gap:9px; background:#FFFFFF; border:1px solid #E5E2EE; border-radius:11px; padding:12px 14px">
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="flex-shrink:0; margin-top:1px" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#6F44D5" stroke-width="1.6"></circle><path d="M10 9v4.6M10 6.6v.4" stroke="#6F44D5" stroke-width="1.7" stroke-linecap="round"></path></svg>
+      <div style="font-size:12px; color:#635E78; line-height:1.45">Es la misma pantalla de escritorio a 390 px. No hay app aparte: la web se adapta.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

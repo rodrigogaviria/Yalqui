@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Manrope","Helvetica Neue",Arial,sans-serif;background:#F7F6FB;color:#17122B;-webkit-font-smoothing:antialiased}
+    a{color:#6F44D5;text-decoration:none} a:hover{color:#5D2FB1}
+  </style>
+</helmet>
+
+<div style="display:flex; flex-direction:column; width:1440px; height:1024px; background:#F7F6FB">
+
+  <div style="height:64px; flex-shrink:0; background:#FFFFFF; border-bottom:1px solid #E5E2EE; display:flex; align-items:center; gap:16px; padding:0 32px">
+    <img src="logo.png" alt="Yalqui" style="width:84px; height:auto; display:block">
+    <span style="width:1px; height:24px; background:#E5E2EE"></span>
+    <span style="font-size:14.5px; font-weight:600">Pagos</span>
+    <span style="margin-left:auto; font-size:13px; color:#8B86A1">Septiembre de 2026</span>
+  </div>
+
+  <main style="flex-grow:1; padding:26px 32px; display:flex; flex-direction:column; gap:18px">
+
+    <header>
+      <h1 style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:27px; font-weight:600; margin:0; letter-spacing:-0.3px">Pagos por verificar</h1>
+      <p style="margin:5px 0 0; font-size:14px; color:#635E78">El canon entra directo a tu cuenta. Acá confirmás que llegó, y solo entonces se mueve el saldo y se detiene la cobranza.</p>
+    </header>
+
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px">
+      <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:13px; padding:17px 18px">
+        <div style="font-size:12.5px; color:#635E78">Esperado este mes</div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:25px; font-weight:600; margin-top:6px; font-variant-numeric:tabular-nums">$8.270.000</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:13px; padding:17px 18px">
+        <div style="font-size:12.5px; color:#635E78">Verificado</div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:25px; font-weight:600; margin-top:6px; color:#17864F; font-variant-numeric:tabular-nums">$3.150.000</div>
+      </div>
+      <div style="background:#FFFCF2; border:1px solid #F2E2B2; border-radius:13px; padding:17px 18px">
+        <div style="font-size:12.5px; color:#A06A0B; font-weight:600">Te esperan</div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:25px; font-weight:600; margin-top:6px; color:#A06A0B; font-variant-numeric:tabular-nums">$2.720.000</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:13px; padding:17px 18px">
+        <div style="font-size:12.5px; color:#635E78">En mora</div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:25px; font-weight:600; margin-top:6px; color:#C0322D; font-variant-numeric:tabular-nums">$2.400.000</div>
+      </div>
+    </div>
+
+    <div style="background:#FFFFFF; border:1.5px solid #6F44D5; border-radius:15px; padding:24px; display:flex; gap:26px">
+      <div style="flex-grow:1">
+        <div style="display:flex; align-items:center; gap:10px">
+          <span style="font-size:11.5px; letter-spacing:0.7px; text-transform:uppercase; font-weight:700; color:#FFFFFF; background:#6F44D5; border-radius:5px; padding:4px 9px">Requiere tu confirmación</span>
+          <span style="font-size:13px; color:#8B86A1">Reportado hoy a las 9:14</span>
+        </div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:33px; font-weight:600; margin-top:13px; font-variant-numeric:tabular-nums; letter-spacing:-0.6px">$2.720.000</div>
+        <div style="font-size:14px; color:#635E78; margin-top:4px">Camila Restrepo · Calle 93 #12-40 apto 302 · factura de septiembre</div>
+
+        <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:20px; margin-top:20px; padding-top:18px; border-top:1px solid #F0EDF7">
+          <div><div style="font-size:12px; color:#8B86A1">Dice haber pagado el</div><div style="font-size:14.5px; font-weight:600; margin-top:3px">2 de septiembre</div></div>
+          <div><div style="font-size:12px; color:#8B86A1">Canal</div><div style="font-size:14.5px; font-weight:600; margin-top:3px">Transferencia · Bancolombia</div></div>
+          <div><div style="font-size:12px; color:#8B86A1">Referencia</div><div style="font-size:14.5px; font-weight:600; margin-top:3px; font-variant-numeric:tabular-nums">8842-119-0463</div></div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:13px; margin-top:20px; padding:14px 16px; background:#F8F7FC; border-radius:11px">
+          <div style="width:40px; height:40px; border-radius:9px; background:#E3F7EC; display:flex; align-items:center; justify-content:center; flex-shrink:0">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11.6 2.5H5.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.4l-3.9-3.9Z" stroke="#17864F" stroke-width="1.6" stroke-linejoin="round"></path><path d="M11.4 2.6v4h4" stroke="#17864F" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+          </div>
+          <div style="flex-grow:1"><div style="font-size:14px; font-weight:600">transferencia-sep.pdf</div><div style="font-size:12.5px; color:#8B86A1; margin-top:1px">248 KB · subido por Camila</div></div>
+          <button type="button" style="height:40px; padding:0 16px; border-radius:9px; border:1px solid #E5E2EE; background:#FFFFFF; font-family:inherit; font-size:13.5px; font-weight:600; color:#17122B; cursor:pointer">Abrir comprobante</button>
+        </div>
+      </div>
+
+      <div style="width:280px; flex-shrink:0; display:flex; flex-direction:column; gap:12px">
+        <div style="background:#FFF8E6; border:1px solid #F2E2B2; border-radius:11px; padding:15px">
+          <div style="font-size:13px; color:#17122B; line-height:1.5">Mientras no confirmes, el saldo sigue abierto y a Camila le siguen llegando recordatorios de cobro.</div>
+        </div>
+        <button type="button" style="height:50px; border-radius:10px; border:none; background:#17864F; font-family:inherit; font-size:15px; font-weight:600; color:#FFFFFF; cursor:pointer">Confirmar que llegó</button>
+        <button type="button" style="height:50px; border-radius:10px; border:1px solid #F7D3D3; background:#FFFFFF; font-family:inherit; font-size:15px; font-weight:600; color:#C0322D; cursor:pointer">No lo encuentro</button>
+        <div style="font-size:12px; color:#8B86A1; line-height:1.45; margin-top:2px">Rechazar deja la factura como estaba y le pide a Camila el soporte correcto. No la anula.</div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:9px; flex-grow:1">
+      <div style="font-size:12px; letter-spacing:0.8px; text-transform:uppercase; color:#8B86A1; font-weight:600; padding:0 2px">Movimiento reciente</div>
+
+      <div style="display:flex; align-items:center; gap:16px; background:#FFFFFF; border:1px solid #E5E2EE; border-radius:13px; padding:14px 18px">
+        <div style="width:36px; height:36px; flex-shrink:0; border-radius:50%; background:#E3F7EC; display:flex; align-items:center; justify-content:center"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5.8 10.4 2.6 2.6 5.8-6" stroke="#17864F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+        <div style="width:330px; flex-shrink:0"><div style="font-size:14.5px; font-weight:600">Carrera 7 #45-12, apto 801</div><div style="font-size:12.5px; color:#8B86A1; margin-top:2px">Andrés Mejía · link de pago</div></div>
+        <div style="width:160px; flex-shrink:0; font-size:15px; font-weight:600; font-variant-numeric:tabular-nums">$3.150.000</div>
+        <div style="width:200px; flex-shrink:0; font-size:13px; color:#635E78">Verificado solo, sin que hicieras nada</div>
+        <div style="margin-left:auto; font-size:13px; color:#8B86A1">3 de septiembre</div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:16px; background:#FFFFFF; border:1px solid #F7D3D3; border-radius:13px; padding:14px 18px">
+        <div style="width:36px; height:36px; flex-shrink:0; border-radius:50%; background:#FDEBEB; display:flex; align-items:center; justify-content:center"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 5.6v5M10 13.6v.4" stroke="#C0322D" stroke-width="2" stroke-linecap="round"></path></svg></div>
+        <div style="width:330px; flex-shrink:0"><div style="font-size:14.5px; font-weight:600">Carrera 32 #8-15</div><div style="font-size:12.5px; color:#8B86A1; margin-top:2px">Julián Ossa · sin reportar</div></div>
+        <div style="width:160px; flex-shrink:0; font-size:15px; font-weight:600; color:#C0322D; font-variant-numeric:tabular-nums">$2.400.000</div>
+        <div style="width:200px; flex-shrink:0; font-size:13px; color:#C0322D">12 días de mora · 3 recordatorios</div>
+        <div style="margin-left:auto"><button type="button" style="height:38px; padding:0 15px; border-radius:9px; border:1px solid #E5E2EE; background:#FFFFFF; font-family:inherit; font-size:13.5px; font-weight:600; color:#17122B; cursor:pointer">Escribirle</button></div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:16px; background:#FFFFFF; border:1px solid #E5E2EE; border-radius:13px; padding:14px 18px">
+        <div style="width:36px; height:36px; flex-shrink:0; border-radius:50%; background:#F0EDF7; display:flex; align-items:center; justify-content:center"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6.6 6.6 13.4 13.4M13.4 6.6 6.6 13.4" stroke="#8B86A1" stroke-width="2" stroke-linecap="round"></path></svg></div>
+        <div style="width:330px; flex-shrink:0"><div style="font-size:14.5px; font-weight:600">Calle 93 #12-40, apto 302</div><div style="font-size:12.5px; color:#8B86A1; margin-top:2px">Camila Restrepo · consignación</div></div>
+        <div style="width:160px; flex-shrink:0; font-size:15px; font-weight:600; color:#8B86A1; font-variant-numeric:tabular-nums">$2.720.000</div>
+        <div style="width:200px; flex-shrink:0; font-size:13px; color:#635E78">Rechazado: comprobante ilegible</div>
+        <div style="margin-left:auto; font-size:13px; color:#8B86A1">6 de agosto</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

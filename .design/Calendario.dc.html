@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Manrope","Helvetica Neue",Arial,sans-serif;background:#F7F6FB;color:#17122B;-webkit-font-smoothing:antialiased}
+    a{color:#6F44D5;text-decoration:none} a:hover{color:#5D2FB1}
+    .cel{border:1px solid #E5E2EE; background:#FFFFFF; padding:8px 9px; display:flex; flex-direction:column; gap:6px; min-height:118px}
+    .dn{font-size:12.5px; color:#8B86A1; font-variant-numeric:tabular-nums}
+    .ev{border-radius:8px; padding:7px 8px; display:flex; flex-direction:column; gap:2px}
+    .ev .u{font-size:11.5px; font-weight:600; line-height:1.25}
+    .ev .m{font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums}
+    .ev .s{font-size:10.5px; line-height:1.3}
+  </style>
+</helmet>
+
+<div style="display:flex; flex-direction:column; width:1440px; height:1024px; background:#F7F6FB">
+
+  <div style="height:64px; flex-shrink:0; background:#FFFFFF; border-bottom:1px solid #E5E2EE; display:flex; align-items:center; gap:16px; padding:0 32px">
+    <img src="logo.png" alt="Yalqui" style="width:84px; height:auto; display:block">
+    <span style="width:1px; height:24px; background:#E5E2EE"></span>
+    <span style="font-size:14.5px; color:#635E78">Pagos</span>
+    <span style="font-size:14.5px; color:#B8B2CE">/</span>
+    <span style="font-size:14.5px; font-weight:600">Calendario</span>
+    <div style="margin-left:auto; display:flex; gap:2px; background:#F0EDF7; border-radius:9px; padding:3px">
+      <div style="padding:7px 15px; border-radius:7px; font-size:13.5px; color:#635E78">Lista</div>
+      <div style="padding:7px 15px; border-radius:7px; background:#FFFFFF; font-size:13.5px; font-weight:600; color:#5D2FB1">Calendario</div>
+    </div>
+  </div>
+
+  <main style="flex-grow:1; padding:24px 32px; display:flex; flex-direction:column; gap:16px">
+
+    <header style="display:flex; align-items:flex-end; justify-content:space-between">
+      <div>
+        <h1 style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:27px; font-weight:600; margin:0; letter-spacing:-0.3px">Septiembre de 2026</h1>
+        <p style="margin:4px 0 0; font-size:14px; color:#635E78">4 pagos programados · hoy es domingo 13</p>
+      </div>
+      <div style="display:flex; align-items:center; gap:9px">
+        <button type="button" style="width:40px; height:40px; border-radius:9px; border:1px solid #E5E2EE; background:#FFFFFF; cursor:pointer; display:flex; align-items:center; justify-content:center"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12 4.5 6.5 10l5.5 5.5" stroke="#17122B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+        <button type="button" style="width:40px; height:40px; border-radius:9px; border:1px solid #E5E2EE; background:#FFFFFF; cursor:pointer; display:flex; align-items:center; justify-content:center"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M8 4.5 13.5 10 8 15.5" stroke="#17122B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+        <button type="button" style="height:40px; padding:0 15px; border-radius:9px; border:1px solid #E5E2EE; background:#FFFFFF; font-family:inherit; font-size:13.5px; font-weight:600; color:#17122B; cursor:pointer">Hoy</button>
+      </div>
+    </header>
+
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px">
+      <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:12px; padding:15px 17px">
+        <div style="font-size:12.5px; color:#635E78">Programado en septiembre</div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:24px; font-weight:600; margin-top:5px; font-variant-numeric:tabular-nums">$8.900.000</div>
+      </div>
+      <div style="background:#E3F7EC; border:1px solid #BFE9D3; border-radius:12px; padding:15px 17px">
+        <div style="font-size:12.5px; color:#17864F; font-weight:600">Pagado</div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:24px; font-weight:600; margin-top:5px; color:#17864F; font-variant-numeric:tabular-nums">$3.150.000</div>
+      </div>
+      <div style="background:#FDEBEB; border:1px solid #F7D3D3; border-radius:12px; padding:15px 17px">
+        <div style="font-size:12.5px; color:#C0322D; font-weight:600">Vencido</div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:24px; font-weight:600; margin-top:5px; color:#C0322D; font-variant-numeric:tabular-nums">$5.120.000</div>
+      </div>
+      <div style="background:#FFF8E6; border:1px solid #F2E2B2; border-radius:12px; padding:15px 17px">
+        <div style="font-size:12.5px; color:#A06A0B; font-weight:600">Aún no llega la fecha</div>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:24px; font-weight:600; margin-top:5px; color:#A06A0B; font-variant-numeric:tabular-nums">$630.000</div>
+      </div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:22px; background:#FFFFFF; border:1px solid #E5E2EE; border-radius:11px; padding:12px 18px">
+      <span style="font-size:12px; letter-spacing:0.7px; text-transform:uppercase; color:#8B86A1; font-weight:700">Cómo leerlo</span>
+      <div style="display:flex; align-items:center; gap:8px"><span style="width:16px; height:16px; border-radius:4px; background:#FDEBEB; border:1px solid #F7D3D3"></span><span style="font-size:13px">Vencido</span></div>
+      <div style="display:flex; align-items:center; gap:8px"><span style="width:16px; height:16px; border-radius:4px; background:#E3F7EC; border:1px solid #BFE9D3"></span><span style="font-size:13px">Pagado y verificado</span></div>
+      <div style="display:flex; align-items:center; gap:8px"><span style="width:16px; height:16px; border-radius:4px; background:#FFF8E6; border:1px solid #F2E2B2"></span><span style="font-size:13px">Aún no llega la fecha</span></div>
+      <div style="display:flex; align-items:center; gap:8px; margin-left:auto"><span style="width:16px; height:16px; border-radius:4px; background:#FDEBEB; border:1px solid #F7D3D3; position:relative"><span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; border-radius:50%; background:#6F44D5; border:1.5px solid #FFFFFF"></span></span><span style="font-size:13px; color:#5D2FB1; font-weight:600">Hay un comprobante esperándote</span></div>
+    </div>
+
+    <div style="flex-grow:1; display:flex; flex-direction:column; border:1px solid #E5E2EE; border-radius:12px; overflow:hidden; background:#E5E2EE">
+      <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:#E5E2EE">
+        <div style="background:#F8F7FC; padding:9px 10px; font-size:11.5px; letter-spacing:0.6px; text-transform:uppercase; color:#8B86A1; font-weight:700">Lun</div>
+        <div style="background:#F8F7FC; padding:9px 10px; font-size:11.5px; letter-spacing:0.6px; text-transform:uppercase; color:#8B86A1; font-weight:700">Mar</div>
+        <div style="background:#F8F7FC; padding:9px 10px; font-size:11.5px; letter-spacing:0.6px; text-transform:uppercase; color:#8B86A1; font-weight:700">Mié</div>
+        <div style="background:#F8F7FC; padding:9px 10px; font-size:11.5px; letter-spacing:0.6px; text-transform:uppercase; color:#8B86A1; font-weight:700">Jue</div>
+        <div style="background:#F8F7FC; padding:9px 10px; font-size:11.5px; letter-spacing:0.6px; text-transform:uppercase; color:#8B86A1; font-weight:700">Vie</div>
+        <div style="background:#F8F7FC; padding:9px 10px; font-size:11.5px; letter-spacing:0.6px; text-transform:uppercase; color:#8B86A1; font-weight:700">Sáb</div>
+        <div style="background:#F8F7FC; padding:9px 10px; font-size:11.5px; letter-spacing:0.6px; text-transform:uppercase; color:#8B86A1; font-weight:700">Dom</div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:#E5E2EE; flex-grow:1">
+
+        <div class="cel" style="background:#F8F7FC"></div>
+        <div class="cel">
+          <span class="dn">1</span>
+          <div class="ev" style="background:#FDEBEB; border:1px solid #F7D3D3">
+            <span class="u" style="color:#C0322D">Cra 32 #8-15</span>
+            <span class="m" style="color:#C0322D">$2.400.000</span>
+            <span class="s" style="color:#C0322D">Vencido hace 12 días</span>
+          </div>
+        </div>
+        <div class="cel"><span class="dn">2</span></div>
+        <div class="cel">
+          <span class="dn">3</span>
+          <div class="ev" style="background:#E3F7EC; border:1px solid #BFE9D3">
+            <span class="u" style="color:#17864F">Cra 7 #45-12 apto 801</span>
+            <span class="m" style="color:#17864F">$3.150.000</span>
+            <span class="s" style="color:#17864F">Verificado el 3</span>
+          </div>
+        </div>
+        <div class="cel"><span class="dn">4</span></div>
+        <div class="cel">
+          <span class="dn">5</span>
+          <div class="ev" style="background:#FDEBEB; border:1px solid #F7D3D3; position:relative">
+            <span style="position:absolute; top:-5px; right:-5px; width:13px; height:13px; border-radius:50%; background:#6F44D5; border:2px solid #FFFFFF"></span>
+            <span class="u" style="color:#C0322D">Calle 93 #12-40 apto 302</span>
+            <span class="m" style="color:#C0322D">$2.720.000</span>
+            <span class="s" style="color:#5D2FB1; font-weight:600">Comprobante por verificar</span>
+          </div>
+        </div>
+        <div class="cel"><span class="dn">6</span></div>
+
+        <div class="cel"><span class="dn">7</span></div>
+        <div class="cel"><span class="dn">8</span></div>
+        <div class="cel"><span class="dn">9</span></div>
+        <div class="cel"><span class="dn">10</span></div>
+        <div class="cel"><span class="dn">11</span></div>
+        <div class="cel"><span class="dn">12</span></div>
+        <div class="cel" style="background:#F1ECFD; border:2px solid #6F44D5">
+          <span class="dn" style="color:#5D2FB1; font-weight:700">13 · hoy</span>
+        </div>
+
+        <div class="cel"><span class="dn">14</span></div>
+        <div class="cel"><span class="dn">15</span></div>
+        <div class="cel"><span class="dn">16</span></div>
+        <div class="cel"><span class="dn">17</span></div>
+        <div class="cel"><span class="dn">18</span></div>
+        <div class="cel"><span class="dn">19</span></div>
+        <div class="cel">
+          <span class="dn">20</span>
+          <div class="ev" style="background:#FFF8E6; border:1px solid #F2E2B2">
+            <span class="u" style="color:#A06A0B">Calle 53 #24-08 hab 2</span>
+            <span class="m" style="color:#A06A0B">$630.000</span>
+            <span class="s" style="color:#A06A0B">Faltan 7 días</span>
+          </div>
+        </div>
+
+        <div class="cel"><span class="dn">21</span></div>
+        <div class="cel"><span class="dn">22</span></div>
+        <div class="cel"><span class="dn">23</span></div>
+        <div class="cel"><span class="dn">24</span></div>
+        <div class="cel"><span class="dn">25</span></div>
+        <div class="cel"><span class="dn">26</span></div>
+        <div class="cel"><span class="dn">27</span></div>
+
+        <div class="cel"><span class="dn">28</span></div>
+        <div class="cel"><span class="dn">29</span></div>
+        <div class="cel"><span class="dn">30</span></div>
+        <div class="cel" style="background:#F8F7FC"></div>
+        <div class="cel" style="background:#F8F7FC"></div>
+        <div class="cel" style="background:#F8F7FC"></div>
+        <div class="cel" style="background:#F8F7FC"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

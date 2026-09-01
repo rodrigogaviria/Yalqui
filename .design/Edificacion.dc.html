@@ -1,0 +1,177 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Manrope","Helvetica Neue",Arial,sans-serif;background:#F7F6FB;color:#17122B;-webkit-font-smoothing:antialiased}
+    a{color:#6F44D5;text-decoration:none} a:hover{color:#5D2FB1}
+  </style>
+</helmet>
+
+<div style="display:flex; flex-direction:column; width:1440px; height:1024px; background:#F7F6FB">
+
+  <div style="height:64px; flex-shrink:0; background:#FFFFFF; border-bottom:1px solid #E5E2EE; display:flex; align-items:center; gap:16px; padding:0 32px">
+    <img src="logo.png" alt="Yalqui" style="width:84px; height:auto; display:block">
+    <span style="width:1px; height:24px; background:#E5E2EE"></span>
+    <span style="font-size:14.5px; color:#635E78">Portafolio</span>
+    <span style="font-size:14.5px; color:#B8B2CE">/</span>
+    <span style="font-size:14.5px; font-weight:600">Edificio Los Robles</span>
+  </div>
+
+  <main style="flex-grow:1; padding:24px 32px; display:flex; gap:20px">
+
+    <div style="flex-grow:1; display:flex; flex-direction:column; gap:16px">
+
+      <header style="display:flex; align-items:flex-end; justify-content:space-between">
+        <div>
+          <h1 style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:27px; font-weight:600; margin:0; letter-spacing:-0.3px">Edificio Los Robles</h1>
+          <p style="margin:4px 0 0; font-size:14px; color:#635E78">Calle 45 #22-30, Teusaquillo · 6 apartaestudios · tuyo por completo</p>
+        </div>
+        <span style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:#5D2FB1; background:#F1ECFD; border-radius:20px; padding:7px 13px">Propiedad única</span>
+      </header>
+
+      <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px">
+        <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:12px; padding:15px 17px">
+          <div style="font-size:12.5px; color:#635E78">Canon del mes</div>
+          <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:24px; font-weight:600; margin-top:5px; font-variant-numeric:tabular-nums">$7.800.000</div>
+        </div>
+        <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:12px; padding:15px 17px">
+          <div style="font-size:12.5px; color:#635E78">Ocupación</div>
+          <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:24px; font-weight:600; margin-top:5px; font-variant-numeric:tabular-nums">5 <span style="font-size:15px; color:#8B86A1">de 6</span></div>
+        </div>
+        <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:12px; padding:15px 17px">
+          <div style="font-size:12.5px; color:#635E78">Gastos de la edificación</div>
+          <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:24px; font-weight:600; margin-top:5px; color:#C0322D; font-variant-numeric:tabular-nums">$9.640.000</div>
+        </div>
+        <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:12px; padding:15px 17px">
+          <div style="font-size:12.5px; color:#635E78">Zonas comunes</div>
+          <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:24px; font-weight:600; margin-top:5px; font-variant-numeric:tabular-nums">180 m²</div>
+        </div>
+      </div>
+
+      <section style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:14px; padding:20px 22px; flex-grow:1; display:flex; flex-direction:column; gap:11px">
+        <div style="display:flex; align-items:baseline; justify-content:space-between">
+          <h2 style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:17px; font-weight:600; margin:0">Unidades de esta edificación</h2>
+          <button type="button" style="height:36px; padding:0 14px; border-radius:8px; border:1px solid #E5E2EE; background:#FFFFFF; font-family:inherit; font-size:13px; font-weight:600; color:#6F44D5; cursor:pointer">Agregar unidad</button>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:14px; border:1px solid #E5E2EE; border-radius:11px; padding:12px 15px">
+          <div style="width:34px; height:34px; flex-shrink:0; border-radius:9px; background:#F1ECFD; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:#5D2FB1">101</div>
+          <div style="width:240px; flex-shrink:0"><div style="font-size:14.5px; font-weight:600">Apartaestudio 101</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">32 m² · primer piso</div></div>
+          <div style="width:140px; flex-shrink:0; font-size:14.5px; font-weight:600; font-variant-numeric:tabular-nums">$1.450.000</div>
+          <span style="font-size:12px; font-weight:600; color:#17864F; background:#E3F7EC; border-radius:20px; padding:4px 10px">Arrendado</span>
+          <div style="margin-left:auto; font-size:13px; color:#635E78">Le toca $1.540.000 de lo repartido</div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:14px; border:1px solid #E5E2EE; border-radius:11px; padding:12px 15px">
+          <div style="width:34px; height:34px; flex-shrink:0; border-radius:9px; background:#F1ECFD; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:#5D2FB1">102</div>
+          <div style="width:240px; flex-shrink:0"><div style="font-size:14.5px; font-weight:600">Apartaestudio 102</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">28 m² · primer piso</div></div>
+          <div style="width:140px; flex-shrink:0; font-size:14.5px; font-weight:600; font-variant-numeric:tabular-nums">$1.300.000</div>
+          <span style="font-size:12px; font-weight:600; color:#17864F; background:#E3F7EC; border-radius:20px; padding:4px 10px">Arrendado</span>
+          <div style="margin-left:auto; font-size:13px; color:#635E78">Le toca $1.347.500 de lo repartido</div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:14px; border:1px solid #E5E2EE; border-radius:11px; padding:12px 15px">
+          <div style="width:34px; height:34px; flex-shrink:0; border-radius:9px; background:#F1ECFD; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:#5D2FB1">201</div>
+          <div style="width:240px; flex-shrink:0"><div style="font-size:14.5px; font-weight:600">Apartaestudio 201</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">35 m² · segundo piso</div></div>
+          <div style="width:140px; flex-shrink:0; font-size:14.5px; font-weight:600; font-variant-numeric:tabular-nums">$1.550.000</div>
+          <span style="font-size:12px; font-weight:600; color:#17864F; background:#E3F7EC; border-radius:20px; padding:4px 10px">Arrendado</span>
+          <div style="margin-left:auto; font-size:13px; color:#635E78">Le toca $1.684.375 de lo repartido</div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:14px; border:1px solid #E5E2EE; border-radius:11px; padding:12px 15px">
+          <div style="width:34px; height:34px; flex-shrink:0; border-radius:9px; background:#F1ECFD; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:#5D2FB1">202</div>
+          <div style="width:240px; flex-shrink:0"><div style="font-size:14.5px; font-weight:600">Apartaestudio 202</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">35 m² · segundo piso</div></div>
+          <div style="width:140px; flex-shrink:0; font-size:14.5px; font-weight:600; font-variant-numeric:tabular-nums">$1.550.000</div>
+          <span style="font-size:12px; font-weight:600; color:#A06A0B; background:#FFF8E6; border-radius:20px; padding:4px 10px">Publicado</span>
+          <div style="margin-left:auto; font-size:13px; color:#635E78">Le toca $1.684.375 de lo repartido</div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:14px; border:1px solid #E5E2EE; border-radius:11px; padding:12px 15px">
+          <div style="width:34px; height:34px; flex-shrink:0; border-radius:9px; background:#F1ECFD; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:#5D2FB1">301</div>
+          <div style="width:240px; flex-shrink:0"><div style="font-size:14.5px; font-weight:600">Apartaestudio 301</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">40 m² · tercer piso</div></div>
+          <div style="width:140px; flex-shrink:0; font-size:14.5px; font-weight:600; font-variant-numeric:tabular-nums">$1.950.000</div>
+          <span style="font-size:12px; font-weight:600; color:#17864F; background:#E3F7EC; border-radius:20px; padding:4px 10px">Arrendado</span>
+          <div style="margin-left:auto; font-size:13px; color:#635E78">Le toca $1.925.000 de lo repartido</div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:14px; border:1px solid #E5E2EE; border-radius:11px; padding:12px 15px">
+          <div style="width:34px; height:34px; flex-shrink:0; border-radius:9px; background:#F1ECFD; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:#5D2FB1">302</div>
+          <div style="width:240px; flex-shrink:0"><div style="font-size:14.5px; font-weight:600">Apartaestudio 302</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">22 m² · tercer piso</div></div>
+          <div style="width:140px; flex-shrink:0; font-size:14.5px; font-weight:600; font-variant-numeric:tabular-nums">$1.100.000</div>
+          <span style="font-size:12px; font-weight:600; color:#17864F; background:#E3F7EC; border-radius:20px; padding:4px 10px">Arrendado</span>
+          <div style="margin-left:auto; font-size:13px; color:#635E78">Le toca $1.058.750 de lo repartido</div>
+        </div>
+      </section>
+    </div>
+
+    <aside style="width:376px; flex-shrink:0; display:flex; flex-direction:column; gap:14px">
+
+      <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:14px; padding:19px">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:13px">
+          <span style="font-size:14.5px; font-weight:600">Gastos de la edificación</span>
+          <span style="font-size:12.5px; color:#6F44D5; font-weight:600">Agregar</span>
+        </div>
+
+        <div style="border:1px solid #E5E2EE; border-radius:11px; padding:14px 15px">
+          <div style="display:flex; align-items:baseline; justify-content:space-between">
+            <span style="font-size:14px; font-weight:600">Pintura de fachada</span>
+            <span style="font-size:15px; font-weight:700; font-variant-numeric:tabular-nums">$8.000.000</span>
+          </div>
+          <div style="font-size:12.5px; color:#8B86A1; margin-top:4px">14 de agosto · Pinturas del Norte</div>
+          <div style="display:flex; align-items:center; gap:7px; margin-top:10px; padding-top:10px; border-top:1px solid #F0EDF7">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h14M10 3v14" stroke="#6F44D5" stroke-width="2" stroke-linecap="round"></path></svg>
+            <span style="font-size:12.5px; color:#5D2FB1; font-weight:600">Repartido por área entre 6 unidades</span>
+          </div>
+        </div>
+
+        <div style="border:1px solid #E5E2EE; border-radius:11px; padding:14px 15px; margin-top:9px">
+          <div style="display:flex; align-items:baseline; justify-content:space-between">
+            <span style="font-size:14px; font-weight:600">Bomba de agua</span>
+            <span style="font-size:15px; font-weight:700; font-variant-numeric:tabular-nums">$1.240.000</span>
+          </div>
+          <div style="font-size:12.5px; color:#8B86A1; margin-top:4px">2 de septiembre · desde una incidencia de zonas comunes</div>
+          <div style="display:flex; align-items:center; gap:7px; margin-top:10px; padding-top:10px; border-top:1px solid #F0EDF7">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h14M10 3v14" stroke="#6F44D5" stroke-width="2" stroke-linecap="round"></path></svg>
+            <span style="font-size:12.5px; color:#5D2FB1; font-weight:600">Repartido por área entre 6 unidades</span>
+          </div>
+        </div>
+
+        <div style="border:1px dashed #CFC9E2; background:#F8F7FC; border-radius:11px; padding:14px 15px; margin-top:9px">
+          <div style="display:flex; align-items:baseline; justify-content:space-between">
+            <span style="font-size:14px; font-weight:600; color:#635E78">Impuesto predial</span>
+            <span style="font-size:15px; font-weight:700; color:#635E78; font-variant-numeric:tabular-nums">$400.000</span>
+          </div>
+          <div style="font-size:12.5px; color:#8B86A1; margin-top:4px">Sin repartir · lo mirás a nivel edificio</div>
+        </div>
+      </div>
+
+      <div style="background:#F1ECFD; border-radius:14px; padding:17px">
+        <div style="display:flex; align-items:center; gap:9px">
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#5D2FB1" stroke-width="1.6"></circle><path d="M10 9v4.6M10 6.6v.4" stroke="#5D2FB1" stroke-width="1.7" stroke-linecap="round"></path></svg>
+          <span style="font-size:13.5px; font-weight:600; color:#5D2FB1">Cómo se reparte</span>
+        </div>
+        <div style="font-size:12.5px; color:#17122B; margin-top:8px; line-height:1.5">Pintar la fachada no es gasto de ningún apartaestudio: es de la edificación. Queda como un solo movimiento y, si querés rentabilidad por unidad, se reparte por área, en partes iguales o por canon. <b>El reparto se congela</b>: si el año entrante agregás dos unidades, lo de este año no se mueve.</div>
+      </div>
+
+      <div style="margin-top:auto; background:#FFFFFF; border:1px solid #E5E2EE; border-radius:14px; padding:17px">
+        <div style="font-size:13.5px; font-weight:600">También sin edificación</div>
+        <div style="font-size:12.5px; color:#635E78; margin-top:7px; line-height:1.5">Una unidad suelta se registra sin asociarla a nada. No pierde nada: simplemente no tiene zonas comunes, ni vecinos, ni gastos de edificio. Si después resulta que sí pertenece a una, asociarla es un clic.</div>
+      </div>
+    </aside>
+
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

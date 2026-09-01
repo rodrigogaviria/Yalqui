@@ -1,0 +1,314 @@
+<title>Yalqui para Propietarios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --violeta:#6F44D5; --violeta-hondo:#5D2FB1; --violeta-tenue:#F1ECFD;
+    --cian:#75F6FF; --amarillo:#FFE100;
+    --tinta:#17122B; --tinta-2:#635E78; --tinta-3:#8B86A1;
+    --papel:#FFFFFF; --papel-2:#F7F6FB; --linea:#E5E2EE;
+    --bien:#17864F; --ojo:#A06A0B;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --violeta:#A688F0; --violeta-hondo:#8B66E4; --violeta-tenue:#241C3D;
+      --tinta:#EDEAF7; --tinta-2:#B3ADC7; --tinta-3:#8C86A3;
+      --papel:#17132A; --papel-2:#100D1E; --linea:#2E2748;
+      --bien:#4FCA8C; --ojo:#E0A94A;
+    }
+  }
+  :root[data-theme="dark"]{
+    --violeta:#A688F0; --violeta-hondo:#8B66E4; --violeta-tenue:#241C3D;
+    --tinta:#EDEAF7; --tinta-2:#B3ADC7; --tinta-3:#8C86A3;
+    --papel:#17132A; --papel-2:#100D1E; --linea:#2E2748;
+    --bien:#4FCA8C; --ojo:#E0A94A;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--papel-2); color:var(--tinta);
+    font-family:"Manrope","Helvetica Neue",Arial,sans-serif; font-size:17px; line-height:1.6;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px; margin:0 auto; padding:0 24px}
+  h1,h2,h3{font-family:"Kufam","Trebuchet MS",sans-serif; margin:0; text-wrap:balance}
+  a{color:var(--violeta); text-decoration:none} a:hover{color:var(--violeta-hondo)}
+  a:focus-visible{outline:2px solid var(--violeta); outline-offset:3px; border-radius:4px}
+  .num{font-variant-numeric:tabular-nums}
+
+  header.top{padding:22px 0}
+  .barra{display:flex; align-items:center; justify-content:space-between; gap:20px}
+  .cta{display:inline-flex; align-items:center; justify-content:center; height:50px; padding:0 26px;
+    border-radius:11px; background:var(--violeta); color:#FFFFFF; font-weight:700; font-size:16px;
+    border:none; cursor:pointer; font-family:inherit}
+  .cta:hover{background:var(--violeta-hondo); color:#FFFFFF}
+  .cta.fantasma{background:transparent; color:var(--tinta); border:1.5px solid var(--linea)}
+  .cta.fantasma:hover{background:var(--violeta-tenue); color:var(--tinta)}
+
+  .hero{padding:52px 0 64px}
+  .hero h1{font-size:clamp(38px,6.4vw,68px); line-height:1.02; letter-spacing:-.025em; font-weight:600}
+  .hero h1 em{font-style:normal; color:var(--violeta)}
+  .hero p.sub{font-size:clamp(18px,2.3vw,21px); color:var(--tinta-2); max-width:56ch; margin:22px 0 30px; line-height:1.5}
+  .acciones{display:flex; flex-wrap:wrap; gap:12px; align-items:center}
+  .fino{font-size:14px; color:var(--tinta-3); margin-top:16px}
+
+  .franja{background:var(--violeta-hondo); color:#FFFFFF; padding:38px 0; margin:0 0 64px}
+  .franja .wrap{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:28px}
+  .franja h3{font-size:19px; font-weight:600; margin-bottom:8px; color:#FFFFFF}
+  .franja p{margin:0; font-size:14.5px; color:#D9CFF6; line-height:1.55}
+  .franja .marca{color:var(--cian); font-weight:700}
+
+  section.b{padding:0 0 68px}
+  .etiqueta{font-size:12px; font-weight:700; letter-spacing:.13em; text-transform:uppercase;
+    color:var(--violeta); margin:0 0 14px}
+  h2{font-size:clamp(28px,4vw,40px); line-height:1.12; letter-spacing:-.02em; font-weight:600; margin-bottom:16px}
+  .entrada{font-size:17.5px; color:var(--tinta-2); max-width:62ch; margin:0 0 34px; line-height:1.55}
+
+  .pasos{display:grid; grid-template-columns:repeat(auto-fit,minmax(238px,1fr)); gap:1px;
+    background:var(--linea); border:1px solid var(--linea); border-radius:16px; overflow:hidden}
+  .paso{background:var(--papel); padding:26px 24px}
+  .paso .n{font-family:"Kufam","Trebuchet MS",sans-serif; font-size:15px; font-weight:700; color:var(--violeta);
+    display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;
+    border-radius:50%; background:var(--violeta-tenue); margin-bottom:15px}
+  .paso h3{font-size:19px; font-weight:600; margin-bottom:9px}
+  .paso p{margin:0; font-size:15px; color:var(--tinta-2); line-height:1.55}
+
+  .tarjetas{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:18px}
+  .tarjeta{background:var(--papel); border:1px solid var(--linea); border-radius:16px; padding:26px 24px}
+  .tarjeta h3{font-size:20px; font-weight:600; margin-bottom:10px}
+  .tarjeta p{margin:0; font-size:15.5px; color:var(--tinta-2); line-height:1.6}
+  .tarjeta .ico{width:44px; height:44px; border-radius:12px; background:var(--violeta-tenue);
+    display:flex; align-items:center; justify-content:center; margin-bottom:16px}
+
+  .planes{display:grid; grid-template-columns:repeat(auto-fit,minmax(232px,1fr)); gap:16px; align-items:stretch}
+  .plan{background:var(--papel); border:1px solid var(--linea); border-radius:16px; padding:26px 22px;
+    display:flex; flex-direction:column}
+  .plan.destacado{border:2px solid var(--violeta); position:relative}
+  .plan .cinta{position:absolute; top:-11px; left:22px; background:var(--amarillo); color:#17122B;
+    font-size:11.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; padding:4px 11px; border-radius:5px}
+  .plan h3{font-size:20px; font-weight:600; margin-bottom:6px}
+  .plan .precio{font-family:"Kufam","Trebuchet MS",sans-serif; font-size:34px; font-weight:600;
+    letter-spacing:-.02em; margin:12px 0 2px}
+  .plan .unidad{font-size:13.5px; color:var(--tinta-3); margin-bottom:18px}
+  .plan ul{list-style:none; margin:0 0 20px; padding:0; display:flex; flex-direction:column; gap:9px}
+  .plan li{font-size:14.5px; color:var(--tinta-2); display:flex; gap:9px; align-items:flex-start; line-height:1.45}
+  .plan .cta{margin-top:auto; width:100%; height:46px; font-size:15px}
+
+  .lista{display:flex; flex-direction:column; gap:1px; background:var(--linea);
+    border:1px solid var(--linea); border-radius:16px; overflow:hidden}
+  .fila{background:var(--papel); padding:20px 24px; display:flex; gap:20px; align-items:baseline; flex-wrap:wrap}
+  .fila .q{font-weight:600; font-size:16.5px; width:290px; flex-shrink:0}
+  .fila .a{font-size:15.5px; color:var(--tinta-2); flex:1; min-width:260px; line-height:1.55}
+
+  .cierre{background:var(--violeta); color:#FFFFFF; border-radius:20px; padding:48px 40px; text-align:center; margin-bottom:56px}
+  .cierre h2{color:#FFFFFF; margin-bottom:14px}
+  .cierre p{color:#E4DBFB; font-size:18px; max-width:52ch; margin:0 auto 28px; line-height:1.55}
+  .cierre .cta{background:#FFFFFF; color:var(--violeta-hondo)}
+  .cierre .cta:hover{background:var(--cian); color:#17122B}
+  .marcador{background:var(--amarillo); color:#17122B; padding:1px 7px; border-radius:4px;
+    font-weight:700; font-size:.92em; white-space:nowrap}
+
+  footer{border-top:1px solid var(--linea); padding:30px 0 60px; font-size:14px; color:var(--tinta-3)}
+  .aviso{background:var(--papel); border:1px solid var(--linea); border-left:3px solid var(--ojo);
+    border-radius:10px; padding:16px 20px; font-size:14.5px; color:var(--tinta-2); margin-top:24px; line-height:1.55}
+  @media (max-width:640px){ .fila .q{width:100%} .cierre{padding:36px 22px} }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="barra">
+      <span style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:26px; font-weight:700; color:var(--violeta); letter-spacing:-.02em">yalqui</span>
+      <a href="#planes" class="cta fantasma" style="height:44px; font-size:15px">Ver planes</a>
+    </div>
+  </header>
+
+  <div class="hero">
+    <h1>Arrendá directo.<br>Sin comisión sobre <em>tu</em> canon.</h1>
+    <p class="sub">Yalqui no se queda con un porcentaje de tu arriendo y nunca toca tu plata. El canon entra completo a tu cuenta, como siempre. Vos pagás un plan por unidad, desde cero.</p>
+    <div class="acciones">
+      <a href="#planes" class="cta">Empezar gratis</a>
+      <a href="#como" class="cta fantasma">Ver cómo funciona</a>
+    </div>
+    <p class="fino">Sin permanencia · Podés arrancar con una unidad</p>
+  </div>
+</div>
+
+<div class="franja">
+  <div class="wrap">
+    <div>
+      <h3>El canon es <span class="marca">tuyo, completo</span></h3>
+      <p>La inmobiliaria tradicional cobra entre 8% y 12% del canon todos los meses. Yalqui cobra un plan fijo por unidad y no toca ese porcentaje.</p>
+    </div>
+    <div>
+      <h3>La plata <span class="marca">no pasa por acá</span></h3>
+      <p>El inquilino te transfiere directo. Yalqui emite la factura, guarda el comprobante y te avisa. Nunca somos custodios de tu dinero.</p>
+    </div>
+    <div>
+      <h3>Todo <span class="marca">explicable</span></h3>
+      <p>Cada cifra que ves se puede abrir: de dónde salió, qué la compone y por qué cambió. Nada de números sin origen.</p>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section class="b" id="como">
+  <p class="etiqueta">Cómo funciona</p>
+  <h2>Cuatro pasos, del aviso al primer pago</h2>
+  <p class="entrada">Lo que hoy te toma semanas de mensajes, papeles sueltos y un contrato bajado de internet.</p>
+
+  <div class="pasos">
+    <div class="paso">
+      <span class="n">1</span>
+      <h3>Publicá la unidad</h3>
+      <p>Cargás fotos y Yalqui las revisa antes de mandarlas: descarta las repetidas y avisa cuáles pueden tener menos alcance. Sale a tu página de Facebook y a Instagram con un clic.</p>
+    </div>
+    <div class="paso">
+      <span class="n">2</span>
+      <h3>Precalificá en la visita</h3>
+      <p>Al terminar de mostrar el apartamento le mandás un enlace. En dos minutos sabés si le alcanza, sin gastar en verificaciones. Si no le alcanza solo, el sistema le pregunta quién lo ayuda y confirma con esa persona.</p>
+    </div>
+    <div class="paso">
+      <span class="n">3</span>
+      <h3>Verificá y firmá</h3>
+      <p>Identidad y antecedentes con Truora, comportamiento crediticio con central de riesgo. El contrato se genera de plantilla según el tipo de inmueble y cada firmante recibe su enlace por WhatsApp.</p>
+    </div>
+    <div class="paso">
+      <span class="n">4</span>
+      <h3>Cobrá sin perseguir</h3>
+      <p>La factura sale sola con su desglose. Si el inquilino se atrasa, los recordatorios salen solos. Vos solo confirmás que la plata llegó — y con varias unidades, todas de un tirón.</p>
+    </div>
+  </div>
+</section>
+
+<section class="b">
+  <p class="etiqueta">Lo que te quita de encima</p>
+  <h2>Las cosas que hoy llevás en la cabeza</h2>
+  <p class="entrada">Con dos apartamentos se puede. Con cinco se empieza a olvidar algo cada mes, y lo que se olvida cuesta plata.</p>
+
+  <div class="tarjetas">
+    <div class="tarjeta">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2" stroke="#6F44D5" stroke-width="1.8"></rect><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5" stroke="#6F44D5" stroke-width="1.8" stroke-linecap="round"></path></svg></div>
+      <h3>El incremento anual</h3>
+      <p>Dos meses antes del aniversario te avisamos con el IPC ya aplicado y el canon nuevo calculado. Un botón genera la carta de notificación al inquilino y guarda la constancia.</p>
+    </div>
+    <div class="tarjeta">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 17.4 8.6 11l3.8 3.2 4.1-6.1 3.5 2.8" stroke="#6F44D5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 4.2v15.6h15.8" stroke="#6F44D5" stroke-width="1.6" stroke-linecap="round" opacity=".45"></path></svg></div>
+      <h3>Cuánto te deja cada unidad</h3>
+      <p>Ingresos y egresos por apartamento, y también por edificio: pintar la fachada no es gasto de ningún apartaestudio, así que se registra aparte y se reparte por área si querés verlo por unidad.</p>
+    </div>
+    <div class="tarjeta">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.2 19.5 6v5.4c0 4.3-3.1 7.7-7.5 8.8-4.4-1.1-7.5-4.5-7.5-8.8V6L12 3.2Z" stroke="#6F44D5" stroke-width="1.8" stroke-linejoin="round"></path><path d="m8.8 12 2.3 2.3 4.3-4.5" stroke="#6F44D5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+      <h3>A quién le estás arrendando</h3>
+      <p>Identidad, antecedentes y comportamiento crediticio antes de firmar. Y si el inquilino ya arrendó por Yalqui, su historial de cumplimiento — con su autorización.</p>
+    </div>
+    <div class="tarjeta">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-8l-4 3.2V17a2 2 0 0 1-2-2V8Z" stroke="#6F44D5" stroke-width="1.8" stroke-linejoin="round"></path></svg></div>
+      <h3>Avisar sin repetirte</h3>
+      <p>Un comunicado se escribe una vez y sale por WhatsApp, correo y la app. Con confirmación de lectura para lo que conviene poder probar.</p>
+    </div>
+    <div class="tarjeta">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 4.5 9.5V20a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V9.5L12 3Z" stroke="#6F44D5" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 21v-6h5v6" stroke="#6F44D5" stroke-width="1.8" stroke-linejoin="round"></path></svg></div>
+      <h3>La salida del inquilino</h3>
+      <p>Inspección de salida comparada contra la de entrada, daños atribuibles con su costo, paz y salvo, liquidación y republicación. Con la lista, no de memoria.</p>
+    </div>
+    <div class="tarjeta">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3.5h8.5L19 8v12.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1Z" stroke="#6F44D5" stroke-width="1.8" stroke-linejoin="round"></path><path d="M14.2 3.6V8H19M8.5 13h7M8.5 16.4h4.5" stroke="#6F44D5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+      <h3>Si toca ir donde el abogado</h3>
+      <p>Un botón arma el expediente: contrato firmado, estado de cuenta mes a mes y la constancia fechada de cada requerimiento. No capturas de pantalla de WhatsApp.</p>
+    </div>
+  </div>
+</section>
+
+<section class="b" id="planes">
+  <p class="etiqueta">Planes</p>
+  <h2>Pagás por unidad, no por tu canon</h2>
+  <p class="entrada">Cada apartamento puede estar en un plan distinto. El que está vacío o el que menos produce puede quedarse en Básico, gratis, sin salir del sistema.</p>
+
+  <div class="planes">
+    <div class="plan">
+      <h3>Básico</h3>
+      <div class="precio">$0</div>
+      <div class="unidad">por unidad al mes</div>
+      <a href="#contacto" class="cta fantasma">Empezar</a>
+    </div>
+    <div class="plan destacado">
+      <span class="cinta">Más elegido</span>
+      <h3>Profesional</h3>
+      <div class="precio num">$20.000</div>
+      <div class="unidad">por unidad al mes</div>
+      <a href="#contacto" class="cta">Empezar</a>
+    </div>
+    <div class="plan">
+      <h3>Empresarial</h3>
+      <div class="precio num">$25.000</div>
+      <div class="unidad">por unidad al mes</div>
+      <a href="#contacto" class="cta fantasma">Empezar</a>
+    </div>
+    <div class="plan">
+      <h3>Corporativo</h3>
+      <div class="precio num">$30.000</div>
+      <div class="unidad">por unidad al mes</div>
+      <a href="#contacto" class="cta fantasma">Empezar</a>
+    </div>
+  </div>
+
+  <div style="background:var(--papel); border:1px solid var(--linea); border-radius:16px; padding:26px 28px; margin-top:18px">
+    <h3 style="font-size:20px; font-weight:600; margin-bottom:14px">Todos los planes incluyen</h3>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px 26px">
+      <div style="font-size:15.5px; color:var(--tinta-2)">Publicar la unidad y agendar visitas</div>
+      <div style="font-size:15.5px; color:var(--tinta-2)">Precalificar interesados en la visita</div>
+      <div style="font-size:15.5px; color:var(--tinta-2)">Contrato digital y firma por WhatsApp</div>
+      <div style="font-size:15.5px; color:var(--tinta-2)">Facturación mensual desglosada</div>
+      <div style="font-size:15.5px; color:var(--tinta-2)">Registro de pagos con comprobante</div>
+      <div style="font-size:15.5px; color:var(--tinta-2)">Sin permanencia y sin comisión sobre el canon</div>
+    </div>
+    <p style="font-size:15px; color:var(--tinta-3); margin:20px 0 0; line-height:1.55">
+      <b style="color:var(--tinta-2)">Funciones por plan en definición.</b> Estamos terminando de definir qué desbloquea cada plan por encima de lo anterior. Escribinos y te contamos exactamente qué incluye el que te sirva.
+    </p>
+  </div>
+</section>
+
+<section class="b">
+  <p class="etiqueta">Servicios a la carta</p>
+  <h2>Y lo que necesitás solo a veces</h2>
+  <p class="entrada">Se cobran por unidad y cuando los usás. También desde el plan Básico: no hace falta subir de plan para contratar uno.</p>
+
+  <div class="lista">
+    <div class="fila"><span class="q">Screening del inquilino</span><span class="a">Identidad y antecedentes con Truora, más comportamiento crediticio con central de riesgo. El resultado te dice qué se consultó y qué no — si una fuente no respondió, lo vas a saber.</span></div>
+    <div class="fila"><span class="q">Motor de precios</span><span class="a">Cuánto cobrar por la unidad y por cada opción: amoblado, parqueadero, persona adicional, mascota. Si los servicios van incluidos, te avisa cuando el cargo por persona no alcanza a cubrir lo que suben.</span></div>
+    <div class="fila"><span class="q">Yalqui Legal</span><span class="a">Plantillas por marco legal —vivienda urbana y local comercial son leyes distintas— y el expediente armado si hay que reclamar.</span></div>
+    <div class="fila"><span class="q">Cobranza automática</span><span class="a">Recordatorios por WhatsApp con plantillas aprobadas, escalando según los días de mora. Con el costo de cada envío a la vista antes de mandarlo.</span></div>
+    <div class="fila"><span class="q">Seguro de arrendamiento</span><span class="a"><span class="marcador">Por definir</span> — aliado y condiciones pendientes.</span></div>
+    <div class="fila"><span class="q">Factoraje de rentas</span><span class="a"><span class="marcador">Por definir</span> — aliado y condiciones pendientes.</span></div>
+  </div>
+</section>
+
+<section class="b">
+  <p class="etiqueta">Lo que preguntan</p>
+  <h2>Antes de que lo preguntes</h2>
+
+  <div class="lista">
+    <div class="fila"><span class="q">¿Yalqui recibe mi arriendo?</span><span class="a">No. El inquilino te transfiere directo a tu cuenta. Yalqui emite la factura, puede ponerle un link de pago y guarda el comprobante — pero la plata nunca pasa por nosotros.</span></div>
+    <div class="fila"><span class="q">Entonces ¿cómo saben que me pagaron?</span><span class="a">El inquilino reporta el pago con su comprobante y vos confirmás. Si tenés varias unidades, podés aprobar en lote las que coinciden exacto, o definir una regla para que se confirmen solas.</span></div>
+    <div class="fila"><span class="q">¿Cobran comisión sobre el canon?</span><span class="a">No. Ni fija ni por porcentaje. Solo el plan por unidad y los servicios que contrates.</span></div>
+    <div class="fila"><span class="q">Tengo un solo apartamento. ¿Me sirve?</span><span class="a">Sí, y en Básico no pagás nada. No hace falta asociarlo a ningún edificio ni a nada más grande: se registra solo.</span></div>
+    <div class="fila"><span class="q">¿Necesito instalar algo?</span><span class="a">No. Es una página web que se adapta al celular, la tableta o el computador. Tu inquilino tampoco instala nada.</span></div>
+    <div class="fila"><span class="q">¿Y si me quiero ir?</span><span class="a">No hay permanencia. Tus contratos y tu historial son tuyos y te los podés llevar.</span></div>
+  </div>
+</section>
+
+<div class="cierre" id="contacto">
+  <h2>Empezá con una unidad</h2>
+  <p>En Básico no pagás nada y podés publicar, precalificar, firmar el contrato y cobrar el primer mes.</p>
+  <a href="mailto:CORREO@yalqui.com.co" class="cta">Escribinos</a>
+  <p style="font-size:15px; margin:22px auto 0; color:#D9CFF6">
+    <span class="marcador">CORREO</span> &nbsp;·&nbsp; <span class="marcador">TELÉFONO</span> &nbsp;·&nbsp; yalqui.com.co
+  </p>
+</div>
+
+<footer>
+  <p style="margin:0 0 8px">Yalqui · Arrendamiento directo entre propietario e inquilino · Colombia</p>
+  <p style="margin:0">Precios en pesos colombianos por unidad al mes. Los planes no incluyen los servicios a la carta. Las condiciones de seguro de arrendamiento y factoraje dependen de aliados por definir.</p>
+</footer>
+
+</div>

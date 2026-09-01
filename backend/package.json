@@ -6,7 +6,9 @@
   "main": "index.js",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --env-file-if-exists=.env.local --import tsx --test $(find src -name \"*.test.ts\")",
+    "build:types": "tsc --emitDeclarationOnly",
+    "dev": "tsx watch --env-file-if-exists=.env.local src/servidor-local.ts"
   },
   "keywords": [],
   "author": "",
@@ -14,13 +16,22 @@
   "dependencies": {
     "@trpc/server": "^11.18.0",
     "drizzle-orm": "^0.45.2",
+    "jose": "^5.10.0",
     "mysql2": "^3.23.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.162",
     "@types/node": "^26.2.0",
+    "drizzle-kit": "^0.31.10",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
+  },
+  "types": "./dist/src/router.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/router.d.ts"
+    }
   }
 }

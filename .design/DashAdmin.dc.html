@@ -1,0 +1,169 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Manrope","Helvetica Neue",Arial,sans-serif;background:#F7F6FB;color:#17122B;-webkit-font-smoothing:antialiased}
+    a{color:#6F44D5;text-decoration:none} a:hover{color:#5D2FB1}
+    .card{background:#FFFFFF;border:1px solid #E5E2EE;border-radius:14px;padding:20px 22px}
+    .ct{font-family:'Kufam','Trebuchet MS',sans-serif;font-size:16px;font-weight:600;margin:0}
+    .cs{font-size:12.5px;color:#8B86A1;margin:4px 0 0}
+    .tile{background:#FFFFFF;border:1px solid #E5E2EE;border-radius:13px;padding:16px 18px}
+    .tl{font-size:12.5px;color:#635E78}
+    .tv{font-family:'Kufam','Trebuchet MS',sans-serif;font-size:27px;font-weight:600;margin-top:5px;font-variant-numeric:tabular-nums;letter-spacing:-0.4px}
+    .td{font-size:12px;margin-top:4px}
+  </style>
+</helmet>
+
+<div style="display:flex; flex-direction:column; width:1440px; height:1024px; background:#F7F6FB">
+
+  <div style="height:64px; flex-shrink:0; background:#FFFFFF; border-bottom:1px solid #E5E2EE; display:flex; align-items:center; gap:16px; padding:0 32px">
+    <img src="logo.png" alt="Yalqui" style="width:84px; height:auto; display:block">
+    <span style="width:1px; height:24px; background:#E5E2EE"></span>
+    <span style="font-size:14.5px; font-weight:600">Dashboard</span>
+    <span style="margin-left:auto; font-size:13px; color:#8B86A1">Mónica Salazar · Torre Almendros · septiembre de 2026</span>
+  </div>
+
+  <main style="flex-grow:1; padding:22px 32px; display:flex; flex-direction:column; gap:16px">
+
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px">
+      <div class="tile"><div class="tl">Unidades ocupadas</div><div class="tv">31 <span style="font-size:16px; color:#8B86A1">de 48</span></div><div class="td" style="color:#8B86A1">65% del edificio</div></div>
+      <div class="tile"><div class="tl">PQRS abiertas</div><div class="tv" style="color:#A06A0B">4</div><div class="td" style="color:#A06A0B">1 en descargos</div></div>
+      <div class="tile"><div class="tl">Áreas comunes</div><div class="tv" style="color:#C0322D">2</div><div class="td" style="color:#C0322D">1 urgente sin resolver</div></div>
+      <div class="tile"><div class="tl">Visitas hoy</div><div class="tv">6</div><div class="td" style="color:#8B86A1">4 por confirmar</div></div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1.25fr 1fr; gap:16px">
+
+      <div class="card">
+        <h2 class="ct">De qué se queja la gente</h2>
+        <p class="cs">PQRS recibidas en los últimos seis meses, por motivo</p>
+        <svg viewBox="0 0 640 228" style="width:100%; height:auto; margin-top:12px" role="img" aria-label="Barras de PQRS por motivo en seis meses: ruido 9, mascotas 6, basuras 5, parqueadero 3 y otros 2.">
+<line x1="54" y1="162.0" x2="600" y2="162.0" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="45" y="166.0" text-anchor="end" font-size="10.5" fill="#8B86A1">2</text>
+      <line x1="54" y1="128.0" x2="600" y2="128.0" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="45" y="132.0" text-anchor="end" font-size="10.5" fill="#8B86A1">4</text>
+      <line x1="54" y1="94.0" x2="600" y2="94.0" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="45" y="98.0" text-anchor="end" font-size="10.5" fill="#8B86A1">6</text>
+      <line x1="54" y1="60.0" x2="600" y2="60.0" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="45" y="64.0" text-anchor="end" font-size="10.5" fill="#8B86A1">8</text>
+      <line x1="54" y1="26.0" x2="600" y2="26.0" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="45" y="30.0" text-anchor="end" font-size="10.5" fill="#8B86A1">10</text>
+      <path d="M 82.6 196 L 82.6 47.0 Q 82.6 43.0 86.6 43.0 L 130.6 43.0 Q 134.6 43.0 134.6 47.0 L 134.6 196 Z" fill="#6F44D5"/>
+      <text x="108.6" y="34.0" text-anchor="middle" font-size="12" font-weight="700" fill="#17122B">9</text>
+      <text x="108.6" y="214" text-anchor="middle" font-size="11" fill="#635E78">Ruido</text>
+      <path d="M 191.79999999999998 196 L 191.79999999999998 98.0 Q 191.79999999999998 94.0 195.79999999999998 94.0 L 239.79999999999998 94.0 Q 243.79999999999998 94.0 243.79999999999998 98.0 L 243.79999999999998 196 Z" fill="#C96A0A"/>
+      <text x="217.8" y="85.0" text-anchor="middle" font-size="12" font-weight="700" fill="#17122B">6</text>
+      <text x="217.8" y="214" text-anchor="middle" font-size="11" fill="#635E78">Mascotas</text>
+      <path d="M 301.0 196 L 301.0 115.0 Q 301.0 111.0 305.0 111.0 L 349.0 111.0 Q 353.0 111.0 353.0 115.0 L 353.0 196 Z" fill="#0A8FA8"/>
+      <text x="327.0" y="102.0" text-anchor="middle" font-size="12" font-weight="700" fill="#17122B">5</text>
+      <text x="327.0" y="214" text-anchor="middle" font-size="11" fill="#635E78">Basuras</text>
+      <path d="M 410.20000000000005 196 L 410.20000000000005 149.0 Q 410.20000000000005 145.0 414.20000000000005 145.0 L 458.20000000000005 145.0 Q 462.20000000000005 145.0 462.20000000000005 149.0 L 462.20000000000005 196 Z" fill="#2E6F1E"/>
+      <text x="436.2" y="136.0" text-anchor="middle" font-size="12" font-weight="700" fill="#17122B">3</text>
+      <text x="436.2" y="214" text-anchor="middle" font-size="11" fill="#635E78">Parqueadero</text>
+      <path d="M 519.4 196 L 519.4 166.0 Q 519.4 162.0 523.4 162.0 L 567.4 162.0 Q 571.4 162.0 571.4 166.0 L 571.4 196 Z" fill="#A8256B"/>
+      <text x="545.4" y="153.0" text-anchor="middle" font-size="12" font-weight="700" fill="#17122B">2</text>
+      <text x="545.4" y="214" text-anchor="middle" font-size="11" fill="#635E78">Otros</text>
+      <line x1="54" y1="196" x2="600" y2="196" stroke="#B8B2CE" stroke-width="1.5"/>
+        </svg>
+        <div style="font-size:12.5px; color:#635E78; line-height:1.5; margin-top:6px">El ruido es la mitad de todo. Siete de las nueve quejas apuntan a horarios de fin de semana — probablemente sea una conversación de reglamento y no de casos sueltos.</div>
+      </div>
+
+      <div class="card">
+        <h2 class="ct">Cumplimiento de plazos</h2>
+        <p class="cs">Incidencias atendidas dentro del tiempo prometido</p>
+        <svg viewBox="0 0 500 148" style="width:100%; height:auto; margin-top:16px" role="img" aria-label="Cumplimiento de plazos: emergencias 96 por ciento en 4 horas, urgentes 88 por ciento en 24 horas, normales 71 por ciento en 72 horas.">
+<text x="120" y="40" text-anchor="end" font-size="12" fill="#17122B">Emergencias</text>
+      <rect x="132" y="22" width="300" height="26" rx="4" fill="#F0EDF7"/>
+      <path d="M 132 48 L 132 26 Q 132 22 136 22 L 416.0 22 Q 420.0 22 420.0 26 L 420.0 48 Z" fill="#2E6F1E"/>
+      <text x="444" y="40" font-size="12.5" font-weight="700" fill="#2E6F1E">96%</text>
+      <text x="484" y="40" font-size="11" fill="#8B86A1">en 4 h</text>
+      <text x="120" y="86" text-anchor="end" font-size="12" fill="#17122B">Urgentes</text>
+      <rect x="132" y="68" width="300" height="26" rx="4" fill="#F0EDF7"/>
+      <path d="M 132 94 L 132 72 Q 132 68 136 68 L 392.0 68 Q 396.0 68 396.0 72 L 396.0 94 Z" fill="#2E6F1E"/>
+      <text x="444" y="86" font-size="12.5" font-weight="700" fill="#2E6F1E">88%</text>
+      <text x="484" y="86" font-size="11" fill="#8B86A1">en 24 h</text>
+      <text x="120" y="132" text-anchor="end" font-size="12" fill="#17122B">Normales</text>
+      <rect x="132" y="114" width="300" height="26" rx="4" fill="#F0EDF7"/>
+      <path d="M 132 140 L 132 118 Q 132 114 136 114 L 341.0 114 Q 345.0 114 345.0 118 L 345.0 140 Z" fill="#A06A0B"/>
+      <text x="444" y="132" font-size="12.5" font-weight="700" fill="#A06A0B">71%</text>
+      <text x="484" y="132" font-size="11" fill="#8B86A1">en 72 h</text>
+        </svg>
+        <div style="display:flex; align-items:flex-start; gap:10px; margin-top:14px; padding:12px 14px; background:#FFF8E6; border-radius:10px">
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex-shrink:0; margin-top:1px" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#A06A0B" stroke-width="1.6"></circle><path d="M10 6.2v4.4M10 13.2v.4" stroke="#A06A0B" stroke-width="1.7" stroke-linecap="round"></path></svg>
+          <div style="font-size:12.5px; line-height:1.45">Lo que se atiende tarde son las incidencias normales. Las urgentes salen bien: el problema no es capacidad, es orden de atención.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1.25fr 1fr; gap:16px; flex-grow:1">
+
+      <div class="card">
+        <h2 class="ct">Lo que está abierto</h2>
+        <p class="cs">Ordenado por urgencia</p>
+        <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">
+          <div style="display:flex; align-items:center; gap:12px; padding:13px 15px; border:1px solid #F7D3D3; background:#FFFAFA; border-radius:10px">
+            <span style="width:9px; height:9px; border-radius:50%; background:#C0322D; flex-shrink:0"></span>
+            <div style="flex-grow:1"><div style="font-size:14px; font-weight:600">Ascensor principal detenido</div><div style="font-size:12px; color:#8B86A1; margin-top:2px">Áreas comunes · Ascensores Andinos llega mañana 8 a. m.</div></div>
+            <span style="font-size:12px; font-weight:600; color:#C0322D">Urgente</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:13px 15px; border:1px solid #F2E2B2; background:#FFFCF2; border-radius:10px">
+            <span style="width:9px; height:9px; border-radius:50%; background:#A06A0B; flex-shrink:0"></span>
+            <div style="flex-grow:1"><div style="font-size:14px; font-weight:600">Ruido en el 802 después de medianoche</div><div style="font-size:12px; color:#8B86A1; margin-top:2px">En descargos · el residente tiene hasta el 31 para responder</div></div>
+            <span style="font-size:12px; font-weight:600; color:#A06A0B">PQRS</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:13px 15px; border:1px solid #E5E2EE; border-radius:10px">
+            <span style="width:9px; height:9px; border-radius:50%; background:#635E78; flex-shrink:0"></span>
+            <div style="flex-grow:1"><div style="font-size:14px; font-weight:600">Filtración en el sótano 2</div><div style="font-size:12px; color:#8B86A1; margin-top:2px">Áreas comunes · 2 cotizaciones de 3 pedidas</div></div>
+            <span style="font-size:12px; font-weight:600; color:#635E78">Cotizando</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:13px 15px; border:1px solid #E5E2EE; border-radius:10px">
+            <span style="width:9px; height:9px; border-radius:50%; background:#635E78; flex-shrink:0"></span>
+            <div style="flex-grow:1"><div style="font-size:14px; font-weight:600">Mascota suelta en zonas comunes</div><div style="font-size:12px; color:#8B86A1; margin-top:2px">Reportada por portería · sin unidad señalada</div></div>
+            <span style="font-size:12px; font-weight:600; color:#635E78">Recibida</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="display:flex; flex-direction:column">
+        <h2 class="ct">Tu equipo hoy</h2>
+        <p class="cs">Turnos activos en el edificio</p>
+        <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">
+          <div style="display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid #E5E2EE; border-radius:10px">
+            <div style="width:34px; height:34px; border-radius:50%; background:#F1ECFD; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#5D2FB1">HR</div>
+            <div style="flex-grow:1"><div style="font-size:13.5px; font-weight:600">Hernán Ruiz</div><div style="font-size:11.5px; color:#8B86A1; margin-top:1px">Portero · turno día</div></div>
+            <span style="font-size:11.5px; color:#2E6F1E; font-weight:600">En turno</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid #E5E2EE; border-radius:10px">
+            <div style="width:34px; height:34px; border-radius:50%; background:#F1ECFD; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#5D2FB1">SP</div>
+            <div style="flex-grow:1"><div style="font-size:13.5px; font-weight:600">Sandra Peña</div><div style="font-size:11.5px; color:#8B86A1; margin-top:1px">Aseo · turno día</div></div>
+            <span style="font-size:11.5px; color:#2E6F1E; font-weight:600">En turno</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid #E5E2EE; border-radius:10px; opacity:.65">
+            <div style="width:34px; height:34px; border-radius:50%; background:#F0EDF7; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#635E78">JC</div>
+            <div style="flex-grow:1"><div style="font-size:13.5px; font-weight:600">Jairo Cortés</div><div style="font-size:11.5px; color:#8B86A1; margin-top:1px">Vigilancia · turno noche</div></div>
+            <span style="font-size:11.5px; color:#8B86A1">Entra 6 p. m.</span>
+          </div>
+        </div>
+        <div style="margin-top:auto; padding-top:14px; border-top:1px solid #F0EDF7; display:flex; align-items:flex-start; gap:10px">
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex-shrink:0; margin-top:1px" aria-hidden="true"><rect x="4.4" y="8.6" width="11.2" height="8" rx="1.5" stroke="#8B86A1" stroke-width="1.6"></rect><path d="M7 8.6V6.4a3 3 0 0 1 6 0v2.2" stroke="#8B86A1" stroke-width="1.6" stroke-linecap="round"></path></svg>
+          <div style="font-size:12px; color:#8B86A1; line-height:1.5">Este panel no muestra cánones, facturas ni scores de residentes. Tu alcance es el edificio y lo operativo.</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

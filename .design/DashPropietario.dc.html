@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Manrope","Helvetica Neue",Arial,sans-serif;background:#F7F6FB;color:#17122B;-webkit-font-smoothing:antialiased}
+    a{color:#6F44D5;text-decoration:none} a:hover{color:#5D2FB1}
+    .card{background:#FFFFFF;border:1px solid #E5E2EE;border-radius:14px;padding:20px 22px}
+    .ct{font-family:'Kufam','Trebuchet MS',sans-serif;font-size:16px;font-weight:600;margin:0}
+    .cs{font-size:12.5px;color:#8B86A1;margin:4px 0 0}
+    .lg{display:flex;align-items:center;gap:7px;font-size:12px;color:#635E78}
+    .sw{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+    .tile{background:#FFFFFF;border:1px solid #E5E2EE;border-radius:13px;padding:16px 18px}
+    .tl{font-size:12.5px;color:#635E78}
+    .tv{font-family:'Kufam','Trebuchet MS',sans-serif;font-size:27px;font-weight:600;margin-top:5px;font-variant-numeric:tabular-nums;letter-spacing:-0.4px}
+    .td{font-size:12px;margin-top:4px}
+  </style>
+</helmet>
+
+<div style="display:flex; flex-direction:column; width:1440px; height:1024px; background:#F7F6FB">
+
+  <div style="height:64px; flex-shrink:0; background:#FFFFFF; border-bottom:1px solid #E5E2EE; display:flex; align-items:center; gap:16px; padding:0 32px">
+    <img src="logo.png" alt="Yalqui" style="width:84px; height:auto; display:block">
+    <span style="width:1px; height:24px; background:#E5E2EE"></span>
+    <span style="font-size:14.5px; font-weight:600">Dashboard</span>
+    <span style="margin-left:auto; font-size:13px; color:#8B86A1">Andrés Mejía · 5 unidades · septiembre de 2026</span>
+  </div>
+
+  <main style="flex-grow:1; padding:22px 32px; display:flex; flex-direction:column; gap:16px">
+
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px">
+      <div class="tile"><div class="tl">Canon esperado</div><div class="tv">$8.900.000</div><div class="td" style="color:#8B86A1">5 unidades, 4 arrendadas</div></div>
+      <div class="tile"><div class="tl">Verificado hasta hoy</div><div class="tv" style="color:#2E6F1E">$3.780.000</div><div class="td" style="color:#2E6F1E">42% del mes</div></div>
+      <div class="tile"><div class="tl">Disponible tras egresos</div><div class="tv">$6.500.000</div><div class="td" style="color:#8B86A1">sin contar la mora</div></div>
+      <div class="tile"><div class="tl">Le pagás a Yalqui</div><div class="tv">$75.000</div><div class="td" style="color:#8B86A1">0,8% del canon</div></div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1.35fr 1fr; gap:16px">
+
+      <div class="card">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between">
+          <div><h2 class="ct">Ingresos y egresos</h2><p class="cs">Últimos seis meses, en millones de pesos</p></div>
+          <div style="display:flex; gap:16px; padding-top:3px">
+            <span class="lg"><span class="sw" style="background:#2E6F1E"></span>Ingresos</span>
+            <span class="lg"><span class="sw" style="background:#C96A0A"></span>Egresos</span>
+          </div>
+        </div>
+        <svg viewBox="0 0 660 246" style="width:100%; height:auto; margin-top:12px" role="img" aria-label="Barras de ingresos y egresos mensuales de abril a septiembre. Los ingresos se mantienen entre 7,8 y 8,9 millones. Los egresos rondan los 2 millones salvo agosto, que llega a 11 millones por la pintura de fachada.">
+<line x1="64" y1="181.3" x2="624" y2="181.3" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="55" y="185.3" text-anchor="end" font-size="10.5" fill="#8B86A1">2M</text>
+      <line x1="64" y1="148.5" x2="624" y2="148.5" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="55" y="152.5" text-anchor="end" font-size="10.5" fill="#8B86A1">4M</text>
+      <line x1="64" y1="115.8" x2="624" y2="115.8" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="55" y="119.8" text-anchor="end" font-size="10.5" fill="#8B86A1">6M</text>
+      <line x1="64" y1="83.1" x2="624" y2="83.1" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="55" y="87.1" text-anchor="end" font-size="10.5" fill="#8B86A1">8M</text>
+      <line x1="64" y1="50.4" x2="624" y2="50.4" stroke="#E5E2EE" stroke-width="1"/>
+      <text x="55" y="54.4" text-anchor="end" font-size="10.5" fill="#8B86A1">10M</text>
+      <path d="M 83.66666666666666 214 L 83.66666666666666 90.36363636363637 Q 83.66666666666666 86.36363636363637 87.66666666666666 86.36363636363637 L 105.66666666666666 86.36363636363637 Q 109.66666666666666 86.36363636363637 109.66666666666666 90.36363636363637 L 109.66666666666666 214 Z" fill="#2E6F1E"/>
+      <path d="M 111.66666666666666 214 L 111.66666666666666 183.63636363636363 Q 111.66666666666666 179.63636363636363 115.66666666666666 179.63636363636363 L 133.66666666666666 179.63636363636363 Q 137.66666666666666 179.63636363636363 137.66666666666666 183.63636363636363 L 137.66666666666666 214 Z" fill="#C96A0A"/>
+      <text x="110.7" y="232" text-anchor="middle" font-size="11" fill="#635E78">Abr</text>
+      <path d="M 176.99999999999997 214 L 176.99999999999997 90.36363636363637 Q 176.99999999999997 86.36363636363637 180.99999999999997 86.36363636363637 L 198.99999999999997 86.36363636363637 Q 202.99999999999997 86.36363636363637 202.99999999999997 90.36363636363637 L 202.99999999999997 214 Z" fill="#2E6F1E"/>
+      <path d="M 204.99999999999997 214 L 204.99999999999997 186.9090909090909 Q 204.99999999999997 182.9090909090909 208.99999999999997 182.9090909090909 L 226.99999999999997 182.9090909090909 Q 230.99999999999997 182.9090909090909 230.99999999999997 186.9090909090909 L 230.99999999999997 214 Z" fill="#C96A0A"/>
+      <text x="204.0" y="232" text-anchor="middle" font-size="11" fill="#635E78">May</text>
+      <path d="M 270.3333333333333 214 L 270.3333333333333 82.18181818181819 Q 270.3333333333333 78.18181818181819 274.3333333333333 78.18181818181819 L 292.3333333333333 78.18181818181819 Q 296.3333333333333 78.18181818181819 296.3333333333333 82.18181818181819 L 296.3333333333333 214 Z" fill="#2E6F1E"/>
+      <path d="M 298.3333333333333 214 L 298.3333333333333 162.36363636363637 Q 298.3333333333333 158.36363636363637 302.3333333333333 158.36363636363637 L 320.3333333333333 158.36363636363637 Q 324.3333333333333 158.36363636363637 324.3333333333333 162.36363636363637 L 324.3333333333333 214 Z" fill="#C96A0A"/>
+      <text x="297.3" y="232" text-anchor="middle" font-size="11" fill="#635E78">Jun</text>
+      <path d="M 363.6666666666667 214 L 363.6666666666667 82.18181818181819 Q 363.6666666666667 78.18181818181819 367.6666666666667 78.18181818181819 L 385.6666666666667 78.18181818181819 Q 389.6666666666667 78.18181818181819 389.6666666666667 82.18181818181819 L 389.6666666666667 214 Z" fill="#2E6F1E"/>
+      <path d="M 391.6666666666667 214 L 391.6666666666667 182.0 Q 391.6666666666667 178.0 395.6666666666667 178.0 L 413.6666666666667 178.0 Q 417.6666666666667 178.0 417.6666666666667 182.0 L 417.6666666666667 214 Z" fill="#C96A0A"/>
+      <text x="390.7" y="232" text-anchor="middle" font-size="11" fill="#635E78">Jul</text>
+      <path d="M 457.0 214 L 457.0 82.18181818181819 Q 457.0 78.18181818181819 461.0 78.18181818181819 L 479.0 78.18181818181819 Q 483.0 78.18181818181819 483.0 82.18181818181819 L 483.0 214 Z" fill="#2E6F1E"/>
+      <path d="M 485.0 214 L 485.0 38.0 Q 485.0 34.0 489.0 34.0 L 507.0 34.0 Q 511.0 34.0 511.0 38.0 L 511.0 214 Z" fill="#C96A0A"/>
+      <text x="484.0" y="232" text-anchor="middle" font-size="11" fill="#635E78">Ago</text>
+      <path d="M 550.3333333333333 214 L 550.3333333333333 72.36363636363637 Q 550.3333333333333 68.36363636363637 554.3333333333333 68.36363636363637 L 572.3333333333333 68.36363636363637 Q 576.3333333333333 68.36363636363637 576.3333333333333 72.36363636363637 L 576.3333333333333 214 Z" fill="#2E6F1E"/>
+      <path d="M 578.3333333333333 214 L 578.3333333333333 178.72727272727272 Q 578.3333333333333 174.72727272727272 582.3333333333333 174.72727272727272 L 600.3333333333333 174.72727272727272 Q 604.3333333333333 174.72727272727272 604.3333333333333 178.72727272727272 L 604.3333333333333 214 Z" fill="#C96A0A"/>
+      <text x="577.3" y="232" text-anchor="middle" font-size="11" fill="#635E78">Sep</text>
+      <line x1="64" y1="214" x2="624" y2="214" stroke="#B8B2CE" stroke-width="1.5"/>
+      <text x="498.0" y="26.0" text-anchor="middle" font-size="10.5" font-weight="700" fill="#C96A0A">$11,0M</text>
+        </svg>
+        <div style="display:flex; align-items:flex-start; gap:10px; margin-top:12px; padding:12px 14px; background:#FFF8E6; border-radius:10px">
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex-shrink:0; margin-top:1px" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#A06A0B" stroke-width="1.6"></circle><path d="M10 6.2v4.4M10 13.2v.4" stroke="#A06A0B" stroke-width="1.7" stroke-linecap="round"></path></svg>
+          <div style="font-size:12.5px; line-height:1.45">Agosto cerró en rojo por la pintura de fachada del Edificio Los Robles. Es un gasto de la edificación, repartido entre sus seis unidades.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="ct">De la visita al contrato</h2>
+        <p class="cs">Lo que pasó en los últimos 90 días</p>
+        <svg viewBox="0 0 460 230" style="width:100%; height:auto; margin-top:14px" role="img" aria-label="Embudo: 34 visitas, 22 precalificaciones enviadas, 14 preaprobados, 9 aplicaciones y 4 contratos firmados.">
+<text x="138" y="40" text-anchor="end" font-size="12" fill="#17122B">Visitas</text>
+      <path d="M 150 50 L 150 24 Q 150 20 154 20 L 446.0 20 Q 450.0 20 450.0 24 L 450.0 50 Z" fill="#DED5F8" transform="translate(0,0)"/>
+      <text x="460.0" y="40" font-size="12" font-weight="700" fill="#17122B">34</text>
+      <text x="138" y="82" text-anchor="end" font-size="12" fill="#17122B">Precalificaciones</text>
+      <path d="M 150 92 L 150 66 Q 150 62 154 62 L 340.11764705882354 62 Q 344.11764705882354 62 344.11764705882354 66 L 344.11764705882354 92 Z" fill="#BCA6EE" transform="translate(0,0)"/>
+      <text x="354.1" y="82" font-size="12" font-weight="700" fill="#17122B">22</text>
+      <text x="378.1" y="82" font-size="10.5" fill="#8B86A1">65%</text>
+      <text x="138" y="124" text-anchor="end" font-size="12" fill="#17122B">Preaprobados</text>
+      <path d="M 150 134 L 150 108 Q 150 104 154 104 L 269.52941176470586 104 Q 273.52941176470586 104 273.52941176470586 108 L 273.52941176470586 134 Z" fill="#9A78E4" transform="translate(0,0)"/>
+      <text x="283.5" y="124" font-size="12" font-weight="700" fill="#17122B">14</text>
+      <text x="307.5" y="124" font-size="10.5" fill="#8B86A1">64%</text>
+      <text x="138" y="166" text-anchor="end" font-size="12" fill="#17122B">Aplicaciones</text>
+      <path d="M 150 176 L 150 150 Q 150 146 154 146 L 225.41176470588235 146 Q 229.41176470588235 146 229.41176470588235 150 L 229.41176470588235 176 Z" fill="#7F54DA" transform="translate(0,0)"/>
+      <text x="239.4" y="166" font-size="12" font-weight="700" fill="#17122B">9</text>
+      <text x="263.4" y="166" font-size="10.5" fill="#8B86A1">64%</text>
+      <text x="138" y="208" text-anchor="end" font-size="12" fill="#17122B">Contratos</text>
+      <path d="M 150 218 L 150 192 Q 150 188 154 188 L 181.29411764705884 188 Q 185.29411764705884 188 185.29411764705884 192 L 185.29411764705884 218 Z" fill="#5D2FB1" transform="translate(0,0)"/>
+      <text x="195.3" y="208" font-size="12" font-weight="700" fill="#17122B">4</text>
+      <text x="219.3" y="208" font-size="10.5" fill="#8B86A1">44%</text>
+        </svg>
+        <div style="font-size:12.5px; color:#635E78; line-height:1.5; margin-top:8px">De cada tres personas que visitan, una llega a preaprobarse. El salto más costoso está entre preaprobado y aplicación: catorce pasan el filtro y solo nueve suben documentos.</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1.35fr 1fr; gap:16px; flex-grow:1">
+
+      <div class="card">
+        <h2 class="ct">Cuánto deja cada unidad</h2>
+        <p class="cs">Promedio mensual del año, después de egresos</p>
+        <svg viewBox="0 0 660 218" style="width:100%; height:auto; margin-top:12px" role="img" aria-label="Rentabilidad mensual por unidad: Carrera 7 apto 801 deja 2.640.000; Calle 93 apto 302, 2.180.000; Calle 53 habitación 2, 540.000; el parqueadero P-14, 180.000; y Carrera 32 está en menos 310.000.">
+<text x="198" y="36" text-anchor="end" font-size="11.5" fill="#17122B">Cra 7 #45-12 apto 801</text>
+      <path d="M 210 44 L 210 22 Q 210 18 214 18 L 446.0 18 Q 450.0 18 450.0 22 L 450.0 44 Z" fill="#0A8FA8"/>
+      <text x="460.0" y="36" font-size="11.5" font-weight="700" fill="#0A8FA8">$2.640.000</text>
+      <text x="198" y="76" text-anchor="end" font-size="11.5" fill="#17122B">Calle 93 #12-40 apto 302</text>
+      <path d="M 210 84 L 210 62 Q 210 58 214 58 L 404.1818181818182 58 Q 408.1818181818182 58 408.1818181818182 62 L 408.1818181818182 84 Z" fill="#0A8FA8"/>
+      <text x="418.2" y="76" font-size="11.5" font-weight="700" fill="#0A8FA8">$2.180.000</text>
+      <text x="198" y="116" text-anchor="end" font-size="11.5" fill="#17122B">Calle 53 #24-08 hab 2</text>
+      <path d="M 210 124 L 210 102 Q 210 98 214 98 L 255.09090909090912 98 Q 259.0909090909091 98 259.0909090909091 102 L 259.0909090909091 124 Z" fill="#0A8FA8"/>
+      <text x="269.1" y="116" font-size="11.5" font-weight="700" fill="#0A8FA8">$540.000</text>
+      <text x="198" y="156" text-anchor="end" font-size="11.5" fill="#17122B">Parqueadero P-14</text>
+      <path d="M 210 164 L 210 142 Q 210 138 214 138 L 222.36363636363637 138 Q 226.36363636363637 138 226.36363636363637 142 L 226.36363636363637 164 Z" fill="#0A8FA8"/>
+      <text x="236.4" y="156" font-size="11.5" font-weight="700" fill="#0A8FA8">$180.000</text>
+      <text x="198" y="196" text-anchor="end" font-size="11.5" fill="#17122B">Cra 32 #8-15</text>
+      <path d="M 210 204 L 210 182 Q 210 178 214 178 L 234.1818181818182 178 Q 238.1818181818182 178 238.1818181818182 182 L 238.1818181818182 204 Z" fill="#C0322D"/>
+      <text x="248.2" y="196" font-size="11.5" font-weight="700" fill="#C0322D">$-310.000</text>
+        </svg>
+        <div style="font-size:12.5px; color:#C0322D; line-height:1.5; margin-top:6px">Carrera 32 lleva tres meses costando plata: doce días de mora y una reparación de $890.000 que asumiste vos.</div>
+      </div>
+
+      <div class="card" style="display:flex; flex-direction:column">
+        <h2 class="ct">Qué necesita tu atención</h2>
+        <p class="cs">Ordenado por lo que cuesta dejarlo pasar</p>
+        <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">
+          <div style="display:flex; align-items:center; gap:11px; padding:12px 14px; border:1px solid #F2E2B2; background:#FFFCF2; border-radius:10px">
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex-shrink:0" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#A06A0B" stroke-width="1.7"></circle><path d="M10 6.2v4.3l2.6 1.6" stroke="#A06A0B" stroke-width="1.7" stroke-linecap="round"></path></svg>
+            <div style="flex-grow:1"><div style="font-size:13.5px; font-weight:600">Un comprobante espera tu visto bueno</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">$2.720.000 · reportado hace 3 días</div></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:11px; padding:12px 14px; border:1px solid #F7D3D3; background:#FFFAFA; border-radius:10px">
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex-shrink:0" aria-hidden="true"><path d="M10 2.8 17.6 16H2.4L10 2.8Z" stroke="#C0322D" stroke-width="1.7" stroke-linejoin="round"></path><path d="M10 7.8v3.4M10 13.4v.3" stroke="#C0322D" stroke-width="1.7" stroke-linecap="round"></path></svg>
+            <div style="flex-grow:1"><div style="font-size:13.5px; font-weight:600">Carrera 32 en mora</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">$2.400.000 · 12 días · 3 recordatorios</div></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:11px; padding:12px 14px; border:1px solid #E5E2EE; border-radius:10px">
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex-shrink:0" aria-hidden="true"><rect x="3" y="4.4" width="14" height="12.6" rx="1.6" stroke="#635E78" stroke-width="1.6"></rect><path d="M3 8.2h14" stroke="#635E78" stroke-width="1.6"></path></svg>
+            <div style="flex-grow:1"><div style="font-size:13.5px; font-weight:600">Contrato por vencer</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">Carrera 7 apto 801 · en 41 días</div></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:11px; padding:12px 14px; border:1px solid #E5E2EE; border-radius:10px">
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex-shrink:0" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#635E78" stroke-width="1.6"></circle><path d="M10 6v4.6M10 13.3v.3" stroke="#635E78" stroke-width="1.7" stroke-linecap="round"></path></svg>
+            <div style="flex-grow:1"><div style="font-size:13.5px; font-weight:600">Recibo de energía vencido</div><div style="font-size:12px; color:#8B86A1; margin-top:1px">Calle 93 apto 302 · lo paga el inquilino</div></div>
+          </div>
+        </div>
+        <div style="margin-top:auto; padding-top:14px; font-size:12.5px; color:#8B86A1; line-height:1.5">Una unidad publicada sin visitas hace tres semanas: el parqueadero P-14.</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

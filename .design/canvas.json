@@ -1,0 +1,242 @@
+{
+  "artboards": [
+    {
+      "file": "Menus.dc.html",
+      "title": "Los cuatro menús",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "MenuAdmin.dc.html",
+      "title": "Administrador de inmueble",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "MenuSocio.dc.html",
+      "title": "Socio inversor",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "DashPropietario.dc.html",
+      "title": "Dashboard del propietario",
+      "x": 6240,
+      "y": 0,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "DashAdmin.dc.html",
+      "title": "Dashboard del administrador",
+      "x": 7800,
+      "y": 0,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Main.dc.html",
+      "title": "Portafolio",
+      "x": 0,
+      "y": 1320,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Evaluar.dc.html",
+      "title": "Evaluar aplicación",
+      "x": 1560,
+      "y": 1320,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Documentos.dc.html",
+      "title": "Revisar documentos",
+      "x": 3120,
+      "y": 1320,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Contrato.dc.html",
+      "title": "Generar contrato",
+      "x": 4680,
+      "y": 1320,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Canon.dc.html",
+      "title": "Unidad y canon",
+      "x": 0,
+      "y": 2640,
+      "w": 1440,
+      "h": 1024,
+      "is_interactive": true
+    },
+    {
+      "file": "Promocionar.dc.html",
+      "title": "Promocionar unidad",
+      "x": 1560,
+      "y": 2640,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Pagos.dc.html",
+      "title": "Pagos por verificar",
+      "x": 3120,
+      "y": 2640,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Comunicados.dc.html",
+      "title": "Comunicados",
+      "x": 4680,
+      "y": 2640,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Inicio.dc.html",
+      "title": "Inquilino · Inicio",
+      "x": 0,
+      "y": 3960,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "Pago.dc.html",
+      "title": "Reportar pago",
+      "x": 510,
+      "y": 3960,
+      "w": 390,
+      "h": 844,
+      "is_interactive": true
+    },
+    {
+      "file": "Score.dc.html",
+      "title": "Mi score",
+      "x": 1020,
+      "y": 3960,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "Firmar.dc.html",
+      "title": "Firmar desde WhatsApp",
+      "x": 1530,
+      "y": 3960,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "Calendario.dc.html",
+      "title": "Calendario de pagos",
+      "x": 6240,
+      "y": 2640,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Edificacion.dc.html",
+      "title": "Edificación y sus unidades",
+      "x": 6240,
+      "y": 1320,
+      "w": 1440,
+      "h": 1024
+    },
+    {
+      "file": "Servicios.dc.html",
+      "title": "Servicios del mes",
+      "x": 2040,
+      "y": 3960,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "PagosMovil.dc.html",
+      "title": "Pagos · 390 px",
+      "x": 2040,
+      "y": 3960,
+      "w": 390,
+      "h": 844
+    }
+  ],
+  "annotations": [
+    {
+      "id": "fila-menus",
+      "x": 0,
+      "y": -190,
+      "w": 900,
+      "text": "MENÚS POR ROL\nLo que cada quien ve al entrar. En cada columna, lo que NO aparece es parte del diseño: el administrador de inmueble y el portero tienen el mayor acceso físico y la menor necesidad de dato sensible, así que nunca ven cánones ni scores."
+    },
+    {
+      "id": "fila-web",
+      "x": 0,
+      "y": 1130,
+      "w": 900,
+      "text": "APP WEB DEL PROPIETARIO · del aviso al contrato firmado\nPortafolio → evaluar quién aplicó → revisar sus soportes → generar el contrato desde plantilla y mandarlo a firmar por WhatsApp."
+    },
+    {
+      "id": "fila-operacion",
+      "x": 0,
+      "y": 2450,
+      "w": 900,
+      "text": "APP WEB DEL PROPIETARIO · la unidad y el día a día\nEl canon se arma con interruptores que funcionan. Promocionar revisa las fotos antes de publicar. Pagos es donde se ve que Yalqui no recauda: sin confirmación, el saldo sigue abierto."
+    },
+    {
+      "id": "fila-movil",
+      "x": 0,
+      "y": 3770,
+      "w": 900,
+      "text": "APP MÓVIL DEL INQUILINO\nReportar pago y Mi score tienen controles: cambiá el canal de pago y mirá cómo avanza el ciclo de verificación."
+    },
+    {
+      "id": "nota-calendario",
+      "x": 6240,
+      "y": 2450,
+      "w": 700,
+      "text": "Rojo claro vencido, verde claro pagado, amarillo claro aun no llega la fecha.\nEl punto violeta marca el cuarto caso que los tres colores no cubren: el inquilino reporto el pago pero nadie lo ha verificado. Sin esa marca, un pago que ya llego se ve igual que uno que nunca llego."
+    },
+    {
+      "id": "nota-edif",
+      "x": 6240,
+      "y": 1130,
+      "w": 700,
+      "text": "Edificio de apartaestudios con un solo dueno: las zonas comunes son suyas y los gastos tambien.\nPintar la fachada es un movimiento de la EDIFICACION, no de ningun apartaestudio. Se reparte por area, partes iguales o canon — y el reparto se congela.\nUna unidad suelta se registra sin edificacion: los dos caminos son de primera clase."
+    },
+    {
+      "id": "nota-dash",
+      "x": 6240,
+      "y": -190,
+      "w": 700,
+      "text": "Dos dashboards, dos alcances. El del propietario es plata y embudo; el del administrador es operacion del edificio y no muestra una sola cifra de canon ni scores.\nPaleta de graficos validada para daltonismo: peor par adyacente delta E 8.7 en deuteranopia."
+    },
+    {
+      "id": "nota-serv",
+      "x": 2040,
+      "y": 3770,
+      "w": 420,
+      "text": "Solo salen los servicios con responsable_pago = inquilino. El acueducto va incluido en el canon, asi que no le aparece.\nMismo ciclo de dos manos que el arriendo: sube el comprobante, queda reportado, y el propietario verifica."
+    },
+    {
+      "id": "nota-responsive",
+      "x": 2040,
+      "y": 3770,
+      "w": 520,
+      "text": "UNA SOLA APP WEB RESPONSIVE, no dos apps.\nLos artboards de 1440 y 390 son anchos de lo mismo. Esta es la pantalla de Pagos del propietario a 390 px: las tarjetas se apilan, la tabla se vuelve lista y el boton de confirmar crece a 46 px.\nCon esto se resuelve sola la recomendacion 2: verificar desde el celular sin construir app aparte."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

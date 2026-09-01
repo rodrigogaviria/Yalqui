@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kufam:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Manrope","Helvetica Neue",Arial,sans-serif;background:#F7F6FB;color:#17122B;-webkit-font-smoothing:antialiased}
+    a{color:#6F44D5;text-decoration:none} a:hover{color:#5D2FB1}
+  </style>
+</helmet>
+
+<div style="display:flex; flex-direction:column; width:390px; height:844px; background:#F7F6FB">
+
+  <div style="height:56px; flex-shrink:0; background:#FFFFFF; border-bottom:1px solid #E5E2EE; display:flex; align-items:center; gap:14px; padding:0 18px">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12 4.5 6.5 10l5.5 5.5" stroke="#17122B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <span style="font-size:16px; font-weight:600">Reportar mi pago</span>
+  </div>
+
+  <div style="flex-grow:1; padding:14px 18px 16px; display:flex; flex-direction:column; gap:12px">
+
+    <div style="display:flex; align-items:flex-start; gap:10px; background:#F1ECFD; border-radius:12px; padding:12px 14px">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style="flex-shrink:0; margin-top:1px" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#6F44D5" stroke-width="1.6"></circle><path d="M10 9.2v4.4M10 6.6v.4" stroke="#6F44D5" stroke-width="1.7" stroke-linecap="round"></path></svg>
+      <div style="font-size:12.5px; color:#17122B; line-height:1.45">Yalqui no recibe tu plata. Transferís directo a Andrés y acá dejás la constancia.</div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:0; padding:0 4px">
+      <sc-for list="{{pasos}}" as="p" hint-placeholder-count="3">
+        <div style="display:flex; align-items:center; flex-grow:1">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:6px; width:74px; flex-shrink:0">
+            <div style="width:28px; height:28px; border-radius:50%; background: {{p.fondo}}; border:2px solid {{p.borde}}; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:600; color: {{p.numColor}}; font-variant-numeric:tabular-nums">{{p.n}}</div>
+            <span style="font-size:10.5px; font-weight:600; color: {{p.txt}}; text-align:center; line-height:1.2">{{p.nombre}}</span>
+          </div>
+          <sc-if value="{{p.linea}}" hint-placeholder-val="{{true}}">
+            <div style="height:2px; flex-grow:1; background: {{p.lineaColor}}; margin-bottom:19px"></div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="background:#FFFFFF; border:1px solid #E5E2EE; border-radius:15px; padding:16px; display:flex; flex-direction:column; gap:13px">
+
+      <div>
+        <label style="font-size:11.5px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; color:#8B86A1">Monto</label>
+        <div style="font-family:'Kufam','Trebuchet MS',sans-serif; font-size:29px; font-weight:600; margin-top:5px; font-variant-numeric:tabular-nums; letter-spacing:-0.7px">$2.720.000</div>
+        <div style="font-size:12.5px; color:#635E78; margin-top:2px">Factura de septiembre · saldo completo</div>
+      </div>
+
+      <div>
+        <label style="font-size:11.5px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; color:#8B86A1">Fecha en que pagaste</label>
+        <div style="display:flex; align-items:center; justify-content:space-between; height:46px; margin-top:6px; padding:0 14px; border:1px solid #E5E2EE; border-radius:10px">
+          <span style="font-size:14.5px">2 de septiembre de 2026</span>
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="4.4" width="14" height="12.6" rx="1.6" stroke="#8B86A1" stroke-width="1.6"></rect><path d="M3 8.2h14M6.8 2.8v3M13.2 2.8v3" stroke="#8B86A1" stroke-width="1.6" stroke-linecap="round"></path></svg>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:11.5px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; color:#8B86A1">Cómo pagaste</label>
+        <div style="display:flex; flex-direction:column; gap:7px; margin-top:6px">
+          <sc-for list="{{canales}}" as="c" hint-placeholder-count="3">
+            <div onClick="{{c.pick}}" style="display:flex; align-items:center; gap:11px; height:48px; padding:0 13px; border:1.5px solid {{c.borde}}; background: {{c.fondo}}; border-radius:10px; cursor:pointer">
+              <div style="width:18px; height:18px; border-radius:50%; border:2px solid {{c.radio}}; flex-shrink:0; display:flex; align-items:center; justify-content:center">
+                <div style="width:8px; height:8px; border-radius:50%; background: {{c.punto}}"></div>
+              </div>
+              <div style="flex-grow:1">
+                <div style="font-size:14px; font-weight:500">{{c.nombre}}</div>
+                <div style="font-size:11.5px; color:#8B86A1; margin-top:1px">{{c.detalle}}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:11.5px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; color:#8B86A1">Comprobante</label>
+        <div style="display:flex; align-items:center; gap:11px; margin-top:6px; padding:11px 13px; border:1px solid #E5E2EE; border-radius:10px; background:#F8F7FC">
+          <div style="width:36px; height:36px; border-radius:9px; background:#E3F7EC; display:flex; align-items:center; justify-content:center; flex-shrink:0">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11.6 2.5H5.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.4l-3.9-3.9Z" stroke="#17864F" stroke-width="1.6" stroke-linejoin="round"></path><path d="M11.4 2.6v4h4" stroke="#17864F" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+          </div>
+          <div style="flex-grow:1">
+            <div style="font-size:13.5px; font-weight:500">transferencia-sep.pdf</div>
+            <div style="font-size:11.5px; color:#8B86A1; margin-top:1px">248 KB · Bancolombia</div>
+          </div>
+          <span style="font-size:12.5px; font-weight:600; color:#6F44D5">Cambiar</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto; display:flex; flex-direction:column; gap:10px">
+      <div style="display:flex; align-items:flex-start; gap:10px; background:#FFF8E6; border:1px solid #F2E2B2; border-radius:12px; padding:11px 14px">
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex-shrink:0; margin-top:1px" aria-hidden="true"><circle cx="10" cy="10" r="7.4" stroke="#A06A0B" stroke-width="1.6"></circle><path d="M10 6.2v4.4M10 13.2v.4" stroke="#A06A0B" stroke-width="1.7" stroke-linecap="round"></path></svg>
+        <div style="font-size:12.5px; line-height:1.45">Tu saldo sigue en <strong style="font-weight:600">$2.720.000</strong> hasta que Andrés verifique el comprobante.</div>
+      </div>
+      <button type="button" style="width:100%; height:50px; border-radius:10px; border:none; background:#6F44D5; font-family:inherit; font-size:15px; font-weight:600; color:#FFFFFF; cursor:pointer">Enviar comprobante</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { canal: 'transferencia' };
+  }
+  renderVals() {
+    const def = [
+      { id: 'link', nombre: 'Link de pago de Yalqui', detalle: 'Se verifica solo, sin esperar a nadie' },
+      { id: 'transferencia', nombre: 'Transferencia bancaria', detalle: 'Andrés la confirma cuando la vea' },
+      { id: 'consignacion', nombre: 'Consignación o efectivo', detalle: 'Necesita comprobante sí o sí' }
+    ];
+    const canales = def.map((c) => {
+      const sel = this.state.canal === c.id;
+      return {
+        nombre: c.nombre,
+        detalle: c.detalle,
+        borde: sel ? '#6F44D5' : '#E5E2EE',
+        fondo: sel ? '#F5F1FE' : '#FFFFFF',
+        radio: sel ? '#6F44D5' : '#B8B2CE',
+        punto: sel ? '#6F44D5' : 'transparent',
+        pick: () => this.setState({ canal: c.id })
+      };
+    });
+
+    const activo = this.state.canal === 'link' ? 3 : 1;
+    const nombres = ['Reportado', 'En verificación', 'Verificado'];
+    const pasos = nombres.map((n, i) => {
+      const hecho = i + 1 <= activo;
+      return {
+        n: i + 1,
+        nombre: n,
+        fondo: hecho ? '#6F44D5' : '#FFFFFF',
+        borde: hecho ? '#6F44D5' : '#CFC9E2',
+        numColor: hecho ? '#FFFFFF' : '#8B86A1',
+        txt: hecho ? '#6F44D5' : '#8B86A1',
+        linea: i < 2,
+        lineaColor: i + 2 <= activo ? '#6F44D5' : '#CFC9E2'
+      };
+    });
+
+    return { canales: canales, pasos: pasos };
+  }
+}
+</script>
+</body>
+</html>

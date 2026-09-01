@@ -14,7 +14,7 @@ import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as targets from "aws-cdk-lib/aws-route53-targets";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
-import { HttpApi } from "aws-cdk-lib/aws-apigatewayv2";
+import { CorsHttpMethod, HttpApi } from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 
 const REPO_ROOT = path.join(__dirname, "..", "..");
@@ -23,8 +23,19 @@ const FRONTEND_DIST = path.join(REPO_ROOT, "frontend", "dist");
 const ROOT_LOCK = path.join(REPO_ROOT, "package-lock.json");
 
 export interface InfraStackProps extends StackProps {
-  appDomain: string;
-  zone: route53.IHostedZone;
+  /**
+   * Dominio y zona son opcionales a propósito.
+   *
+   * Sin ellos el stack despliega VPC, RDS, Lambdas y API Gateway — el backend
+   * vivo y utilizable — y omite certificado, CloudFront y registros DNS. Sirve
+   * para no quedar bloqueado esperando la delegación en el registrador: el
+   * certificado se valida por DNS y el despliegue se cuelga indefinidamente si
+   * el dominio todavía no apunta a la zona.
+   *
+   * Al pasarlos después, CDK agrega el frente sin recrear la base ni la API.
+   */
+  appDomain?: string;
+  zone?: route53.IHostedZone;
 }
 
 export class InfraStack extends Stack {
@@ -32,9 +43,7 @@ export class InfraStack extends Stack {
     super(scope, id, props);
 
     const { appDomain, zone } = props;
-    const recordName = appDomain.endsWith(`.${zone.zoneName}`)
-      ? appDomain.slice(0, appDomain.length - zone.zoneName.length - 1)
-      : appDomain;
+    const conDominio = appDomain !== undefined && zone !== undefined;
 
     // VPC sin NAT Gateway — mismo patrón de FRUBA
     const vpc = new ec2.Vpc(this, "Vpc", {
@@ -75,6 +84,9 @@ export class InfraStack extends Stack {
       DB_HOST: db.dbInstanceEndpointAddress,
       DB_PORT: db.dbInstanceEndpointPort,
       DB_NAME: "yalqui",
+      // Una t4g.micro admite ~85 conexiones. Este limite y la concurrencia
+      // reservada de abajo se mueven juntos: subir uno sin el otro agota la base.
+      DB_POOL_LIMIT: "2",
       DB_USER: db.secret!.secretValueFromJson("username").unsafeUnwrap(),
       DB_PASSWORD: db.secret!.secretValueFromJson("password").unsafeUnwrap(),
       NODE_ENV: "production",
@@ -82,7 +94,7 @@ export class InfraStack extends Stack {
 
     const bundling: nodejs.BundlingOptions = {
       format: nodejs.OutputFormat.CJS,
-      target: "node20",
+      target: "node24",
       nodeModules: ["mysql2"],
     };
 
@@ -94,6 +106,8 @@ export class InfraStack extends Stack {
       architecture: lambda.Architecture.ARM_64,
       memorySize: 512,
       timeout: Duration.seconds(20),
+      // 25 x 2 conexiones = 50, con margen sobre las ~85 de la t4g.micro.
+      reservedConcurrentExecutions: 25,
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       depsLockFilePath: ROOT_LOCK,
@@ -102,7 +116,7 @@ export class InfraStack extends Stack {
         ...dbEnv,
         JWT_SECRET: jwtSecret.secretValue.unsafeUnwrap(),
         JWT_EXPIRES_IN: "7d",
-        CORS_ORIGIN: `https://${appDomain}`,
+        ...(conDominio ? { CORS_ORIGIN: `https://${appDomain}` } : {}),
       },
     });
     db.connections.allowDefaultPortFrom(apiFn, "Lambda API a MySQL");
@@ -115,6 +129,7 @@ export class InfraStack extends Stack {
       architecture: lambda.Architecture.ARM_64,
       memorySize: 512,
       timeout: Duration.minutes(3),
+      reservedConcurrentExecutions: 1,
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       depsLockFilePath: ROOT_LOCK,
@@ -126,13 +141,17 @@ export class InfraStack extends Stack {
     // API Gateway v2 (HttpApi) en vez del v1 que teníamos
     const httpApi = new HttpApi(this, "HttpApi", {
       defaultIntegration: new HttpLambdaIntegration("ApiIntegration", apiFn),
+      // Con CloudFront el frente y la API comparten origen y CORS sobra. Sin
+      // dominio la API se consume directo desde el frente local, que sí es otro
+      // origen; se permite localhost solo mientras no hay dominio.
+      corsPreflight: {
+        allowOrigins: conDominio ? [`https://${appDomain}`] : ["http://localhost:5173"],
+        allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.OPTIONS],
+        allowHeaders: ["content-type", "authorization"],
+        maxAge: Duration.hours(1),
+      },
     });
     const apiDomain = `${httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`;
-
-    const certificate = new acm.Certificate(this, "Certificate", {
-      domainName: appDomain,
-      validation: acm.CertificateValidation.fromDns(zone),
-    });
 
     const siteBucket = new s3.Bucket(this, "SiteBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -152,64 +171,76 @@ export class InfraStack extends Stack {
     uploadsBucket.grantPut(apiFn);
     apiFn.addEnvironment("UPLOADS_BUCKET", uploadsBucket.bucketName);
 
-    const spaRewrite = new cloudfront.Function(this, "SpaRewrite", {
-      code: cloudfront.FunctionCode.fromInline(
-        [
-          "function handler(event) {",
-          "  var request = event.request;",
-          "  var uri = request.uri;",
-          "  if (uri.endsWith('/')) { request.uri = '/index.html'; }",
-          "  else if (!uri.includes('.')) { request.uri = '/index.html'; }",
-          "  return request;",
-          "}",
-        ].join("\n")
-      ),
-    });
+    if (conDominio) {
+      const recordName = appDomain!.endsWith(`.${zone!.zoneName}`)
+        ? appDomain!.slice(0, appDomain!.length - zone!.zoneName.length - 1)
+        : appDomain!;
 
-    const apiBehavior: cloudfront.BehaviorOptions = {
-      origin: new origins.HttpOrigin(apiDomain),
-      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-      cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-      originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-    };
+      const certificate = new acm.Certificate(this, "Certificate", {
+        domainName: appDomain,
+        validation: acm.CertificateValidation.fromDns(zone),
+      });
 
-    const distribution = new cloudfront.Distribution(this, "Distribution", {
-      domainNames: [appDomain],
-      certificate,
-      defaultRootObject: "index.html",
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
-      defaultBehavior: {
-        origin: origins.S3BucketOrigin.withOriginAccessControl(siteBucket),
+      const spaRewrite = new cloudfront.Function(this, "SpaRewrite", {
+        code: cloudfront.FunctionCode.fromInline(
+          [
+            "function handler(event) {",
+            "  var request = event.request;",
+            "  var uri = request.uri;",
+            "  if (uri.endsWith('/')) { request.uri = '/index.html'; }",
+            "  else if (!uri.includes('.')) { request.uri = '/index.html'; }",
+            "  return request;",
+            "}",
+          ].join("\n")
+        ),
+      });
+
+      const apiBehavior: cloudfront.BehaviorOptions = {
+        origin: new origins.HttpOrigin(apiDomain),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        functionAssociations: [{ function: spaRewrite, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
-      },
-      additionalBehaviors: {
-        "/trpc/*": apiBehavior,
-        "/health": apiBehavior,
-        "/uploads/*": {
-          origin: origins.S3BucketOrigin.withOriginAccessControl(uploadsBucket),
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+      };
+
+      const distribution = new cloudfront.Distribution(this, "Distribution", {
+        domainNames: [appDomain],
+        certificate,
+        defaultRootObject: "index.html",
+        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+        defaultBehavior: {
+          origin: origins.S3BucketOrigin.withOriginAccessControl(siteBucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          functionAssociations: [{ function: spaRewrite, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
         },
-      },
-    });
+        additionalBehaviors: {
+          "/trpc/*": apiBehavior,
+          "/health": apiBehavior,
+          "/uploads/*": {
+            origin: origins.S3BucketOrigin.withOriginAccessControl(uploadsBucket),
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          },
+        },
+      });
 
-    const distExists = fs.existsSync(path.join(FRONTEND_DIST, "index.html"));
-    new s3deploy.BucketDeployment(this, "DeploySite", {
-      sources: distExists
-        ? [s3deploy.Source.asset(FRONTEND_DIST)]
-        : [s3deploy.Source.data("index.html", "<!doctype html><title>Yalqui</title><h1>Desplegando…</h1>")],
-      destinationBucket: siteBucket,
-      distribution,
-      distributionPaths: ["/*"],
-    });
+      const distExists = fs.existsSync(path.join(FRONTEND_DIST, "index.html"));
+      new s3deploy.BucketDeployment(this, "DeploySite", {
+        sources: distExists
+          ? [s3deploy.Source.asset(FRONTEND_DIST)]
+          : [s3deploy.Source.data("index.html", "<!doctype html><title>Yalqui</title><h1>Desplegando…</h1>")],
+        destinationBucket: siteBucket,
+        distribution,
+        distributionPaths: ["/*"],
+      });
 
-    const cfTarget = route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution));
-    new route53.ARecord(this, "AliasApp", { zone, recordName, target: cfTarget });
-    new route53.AaaaRecord(this, "AliasAppV6", { zone, recordName, target: cfTarget });
+      const cfTarget = route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution));
+      new route53.ARecord(this, "AliasApp", { zone: zone!, recordName, target: cfTarget });
+      new route53.AaaaRecord(this, "AliasAppV6", { zone: zone!, recordName, target: cfTarget });
 
-    new CfnOutput(this, "SiteUrl", { value: `https://${appDomain}` });
-    new CfnOutput(this, "CloudFrontDomain", { value: distribution.distributionDomainName });
+      new CfnOutput(this, "SiteUrl", { value: `https://${appDomain}` });
+      new CfnOutput(this, "CloudFrontDomain", { value: distribution.distributionDomainName });
+    }
+
     new CfnOutput(this, "ApiEndpoint", { value: httpApi.apiEndpoint });
     new CfnOutput(this, "DbEndpoint", { value: db.dbInstanceEndpointAddress });
     new CfnOutput(this, "DbSecretName", { value: db.secret!.secretName });
