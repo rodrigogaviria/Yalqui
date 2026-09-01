@@ -106,8 +106,6 @@ export class InfraStack extends Stack {
       architecture: lambda.Architecture.ARM_64,
       memorySize: 512,
       timeout: Duration.seconds(20),
-      // 25 x 2 conexiones = 50, con margen sobre las ~85 de la t4g.micro.
-      reservedConcurrentExecutions: 25,
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       depsLockFilePath: ROOT_LOCK,
@@ -116,7 +114,7 @@ export class InfraStack extends Stack {
         ...dbEnv,
         JWT_SECRET: jwtSecret.secretValue.unsafeUnwrap(),
         JWT_EXPIRES_IN: "7d",
-        ...(conDominio ? { CORS_ORIGIN: `https://${appDomain}` } : {}),
+        CORS_ORIGIN: `https://${appDomain}`,
       },
     });
     db.connections.allowDefaultPortFrom(apiFn, "Lambda API a MySQL");
@@ -129,7 +127,6 @@ export class InfraStack extends Stack {
       architecture: lambda.Architecture.ARM_64,
       memorySize: 512,
       timeout: Duration.minutes(3),
-      reservedConcurrentExecutions: 1,
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       depsLockFilePath: ROOT_LOCK,
