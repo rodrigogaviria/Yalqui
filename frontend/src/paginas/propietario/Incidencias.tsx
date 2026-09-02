@@ -28,17 +28,18 @@ const SIGUIENTE: Record<string, { estado: keyof typeof ESTADO; texto: string }> 
 export function Incidencias({ unidades }: { unidades: Array<{ id: number; titulo: string }> }) {
   const [abriendo, setAbriendo] = useState(false);
   const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
-    const [lista, tipos] = await Promise.all([
+    const [lista, tipos, edificaciones] = await Promise.all([
       api.incidencias.mias.query({}),
       api.incidencias.tipos.query(),
+      api.inmuebles.misEdificaciones.query(),
     ]);
-    return { lista, tipos };
+    return { lista, tipos, edificaciones };
   });
 
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
   if (datos === null) return <p style={{ color: "var(--tinta-2)" }}>Cargando…</p>;
 
-  const { lista, tipos } = datos;
+  const { lista, tipos, edificaciones } = datos;
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -57,6 +58,7 @@ export function Incidencias({ unidades }: { unidades: Array<{ id: number; titulo
       {abriendo && (
         <Formulario
           unidades={unidades}
+          edificaciones={edificaciones}
           tipos={tipos}
           ocupado={ocupado === "nueva"}
           alReportar={(entrada) => void accion("nueva",
@@ -93,11 +95,19 @@ export function Incidencias({ unidades }: { unidades: Array<{ id: number; titulo
                   <div style={{ flex: "1 1 260px", minWidth: 0 }}>
                     <div style={{ fontSize: 15.5, fontWeight: 600 }}>{i.titulo}</div>
                     <div style={{ fontSize: 13, color: "var(--tinta-2)", marginTop: 2 }}>
-                      {i.tipo ?? "Sin tipo"} · {i.direccion}{i.complemento ? `, ${i.complemento}` : ""}
+                      {i.tipo ?? "Sin tipo"} ·{" "}
+                      {i.ambito === "area_comun"
+                        ? `Zonas comunes de ${i.edificacion ?? "la edificación"}`
+                        : `${i.direccion}${i.complemento ? `, ${i.complemento}` : ""}`}
                       {" · "}{etiqueta("prioridad", i.prioridad)}
                     </div>
                     {i.descripcion && (
                       <div style={{ fontSize: 13, color: "var(--tinta-2)", marginTop: 4 }}>{i.descripcion}</div>
+                    )}
+                    {i.celularReporta && (
+                      <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 3 }}>
+                        Contacto: <a href={`tel:${i.celularReporta}`}>{i.celularReporta}</a>
+                      </div>
                     )}
                     <div style={{ fontSize: 12.5, color: i.vencida ? "var(--mal)" : "var(--tinta-3)", marginTop: 4 }}>
                       Lo asume: {etiqueta("responsable", i.responsableCosto)}
@@ -141,20 +151,29 @@ export function Incidencias({ unidades }: { unidades: Array<{ id: number; titulo
   );
 }
 
-function Formulario({ unidades, tipos, ocupado, alReportar }: {
+function Formulario({ unidades, edificaciones, tipos, ocupado, alReportar }: {
   unidades: Array<{ id: number; titulo: string }>;
+  edificaciones: Array<{ id: number; nombre: string }>;
   tipos: Awaited<ReturnType<typeof api.incidencias.tipos.query>>;
   ocupado: boolean;
-  alReportar: (e: { inmuebleId: number; tipoIncidenciaId: number; titulo: string; descripcion?: string }) => void;
+  alReportar: (e: {
+    ambito: "unidad" | "area_comun";
+    inmuebleId?: number; edificacionId?: number;
+    tipoIncidenciaId: number; titulo: string;
+    descripcion?: string; celularReporta?: string;
+  }) => void;
 }) {
+  const [ambito, setAmbito] = useState<"unidad" | "area_comun">("unidad");
   const [inmuebleId, setInmuebleId] = useState(String(unidades[0]?.id ?? ""));
+  const [edificacionId, setEdificacionId] = useState(String(edificaciones[0]?.id ?? ""));
   const [tipoId, setTipoId] = useState(String(tipos[0]?.id ?? ""));
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [celular, setCelular] = useState("");
 
   const tipo = tipos.find((t) => String(t.id) === tipoId);
 
-  if (unidades.length === 0) {
+  if (unidades.length === 0 && edificaciones.length === 0) {
     return <div className="aviso ojo">Registrá una unidad antes de reportar una incidencia.</div>;
   }
 
@@ -163,16 +182,39 @@ function Formulario({ unidades, tipos, ocupado, alReportar }: {
       <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Reportar una incidencia</h2>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
-        <Campo etiqueta="Unidad">
-          <select value={inmuebleId} onChange={(e) => setInmuebleId(e.target.value)}>
-            {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
+        <Campo etiqueta="Dónde">
+          <select value={ambito} onChange={(e) => setAmbito(e.target.value as "unidad")}>
+            <option value="unidad">En una unidad</option>
+            <option value="area_comun" disabled={edificaciones.length === 0}>
+              {edificaciones.length === 0 ? "En zonas comunes (no tenés edificación)" : "En zonas comunes"}
+            </option>
           </select>
         </Campo>
+
+        {ambito === "unidad" ? (
+          <Campo etiqueta="Unidad">
+            <select value={inmuebleId} onChange={(e) => setInmuebleId(e.target.value)}>
+              {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
+            </select>
+          </Campo>
+        ) : (
+          <Campo etiqueta="Edificación">
+            <select value={edificacionId} onChange={(e) => setEdificacionId(e.target.value)}>
+              {edificaciones.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select>
+          </Campo>
+        )}
+
         <Campo etiqueta="Tipo"
           ayuda={tipo?.slaHoras ? `Se atiende en ${tipo.slaHoras} horas` : undefined}>
           <select value={tipoId} onChange={(e) => setTipoId(e.target.value)}>
             {tipos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
           </select>
+        </Campo>
+
+        <Campo etiqueta="A quién llamar" ayuda="Si lo dejás vacío se usa tu teléfono">
+          <input value={celular} onChange={(e) => setCelular(e.target.value)}
+            placeholder="3001234567" />
         </Campo>
       </div>
 
@@ -195,10 +237,14 @@ function Formulario({ unidades, tipos, ocupado, alReportar }: {
       <div>
         <button className="boton" disabled={ocupado || titulo.trim().length < 4}
           onClick={() => alReportar({
-            inmuebleId: Number(inmuebleId),
+            ambito,
+            ...(ambito === "unidad"
+              ? { inmuebleId: Number(inmuebleId) }
+              : { edificacionId: Number(edificacionId) }),
             tipoIncidenciaId: Number(tipoId),
             titulo: titulo.trim(),
             ...(descripcion.trim() === "" ? {} : { descripcion: descripcion.trim() }),
+            ...(celular.trim() === "" ? {} : { celularReporta: celular.trim() }),
           })}>
           {ocupado ? "Reportando…" : "Reportar"}
         </button>

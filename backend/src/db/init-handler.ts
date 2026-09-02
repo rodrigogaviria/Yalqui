@@ -90,7 +90,14 @@ async function migrar(soloVerificar: boolean): Promise<ResultadoMigracion[]> {
 }
 
 export interface EventoInit {
-  mode?: "migrate" | "status" | "seed";
+  mode?: "migrate" | "status" | "seed" | "promote" | "delete-user";
+  /** Para `promote` y `delete-user`: a qué cuenta aplica. */
+  email?: string;
+  /** Para `promote`: qué rol otorgar. Hoy solo tiene sentido admin_yalqui — es
+   *  el único rol global, y es el que resuelve el problema del huevo y la
+   *  gallina: sin un primer administrador, nadie puede otorgar roles desde la
+   *  pantalla de administración. */
+  rol?: "admin_yalqui";
 }
 
 export async function handler(event: EventoInit = {}) {
@@ -108,6 +115,13 @@ export async function handler(event: EventoInit = {}) {
     return { mode, resultado: "PENDIENTE_DE_DEFINIR — sin datos de demostración" };
   }
 
+  if (mode === "promote") {
+    return promover(event.email, event.rol ?? "admin_yalqui");
+  }
+  if (mode === "delete-user") {
+    return borrarUsuario(event.email);
+  }
+
   const migraciones = await migrar(false);
   const conflictos = migraciones.filter((m) => m.estado === "checksum_distinto");
   return {
@@ -117,4 +131,101 @@ export async function handler(event: EventoInit = {}) {
     conflictos: conflictos.map((c) => c.version),
     migraciones,
   };
+}
+
+/**
+ * Otorga un rol a una cuenta ya registrada. Pensado para el primer
+ * `admin_yalqui`: ese rol es el único con el que se pueden otorgar los demás
+ * desde la pantalla de administración, y sin uno ya en la base no hay forma de
+ * crear el siguiente por ahí. La cuenta tiene que existir — se registra por el
+ * flujo normal, `auth.registrar`, para que la contraseña quede cifrada con el
+ * mismo scrypt que cualquier otra.
+ *
+ * Idempotente: otorgarlo dos veces no duplica la fila ni falla, igual que
+ * `otorgarRol` en el servidor.
+ */
+async function promover(email: string | undefined, rol: string) {
+  if (!email) throw new Error("Falta el correo de la cuenta a promover");
+
+  const conn = await conectar();
+  try {
+    const [usuarios] = await conn.query<any[]>(
+      "SELECT id, nombre, apellido FROM usuarios WHERE email = ?",
+      [email],
+    );
+    const usuario = usuarios[0];
+    if (!usuario) {
+      throw new Error(`No existe ninguna cuenta con el correo ${email}. Registrala primero con auth.registrar.`);
+    }
+
+    // El único rol global es admin_yalqui, y ambito_id va en 0 por convención:
+    // no hay «sobre qué» cuando el alcance es todo el sistema.
+    await conn.execute(
+      `INSERT INTO usuario_roles (usuario_id, rol, ambito_tipo, ambito_id)
+       VALUES (?, ?, 'global', 0)
+       ON DUPLICATE KEY UPDATE revocado_at = NULL, otorgado_at = CURRENT_TIMESTAMP`,
+      [usuario.id, rol],
+    );
+
+    return { mode: "promote", email, usuarioId: usuario.id, rol, ok: true };
+  } finally {
+    await conn.end();
+  }
+}
+
+/**
+ * Borra una cuenta, pero solo si no tiene nada colgando de ella.
+ *
+ * Existe para limpiar cuentas de prueba — como la que se usa para verificar
+ * que el registro funciona después de un despliegue — sin arriesgarse a
+ * romper una referencia real. Si la cuenta tiene algún rol, inmueble,
+ * aplicación o contrato, se niega en vez de intentar arrastrar el borrado: eso
+ * requeriría decidir qué hacer con cada tabla relacionada, y esta función no
+ * es el lugar para esa decisión.
+ */
+async function borrarUsuario(email: string | undefined) {
+  if (!email) throw new Error("Falta el correo de la cuenta a borrar");
+
+  const conn = await conectar();
+  try {
+    const [usuarios] = await conn.query<any[]>("SELECT id FROM usuarios WHERE email = ?", [email]);
+    const usuario = usuarios[0];
+    if (!usuario) return { mode: "delete-user", email, ok: false, motivo: "No existe esa cuenta" };
+
+    const revisiones: Array<[string, string]> = [
+      ["usuario_roles", "usuario_id"],
+      ["inmuebles", "propietario_id"],
+      ["inmueble_propietarios", "usuario_id"],
+      ["aplicaciones", "inquilino_id"],
+      ["contratos", "propietario_id"],
+      ["visitas", "interesado_id"],
+    ];
+
+    for (const [tabla, columna] of revisiones) {
+      const [filas] = await conn.query<any[]>(
+        `SELECT COUNT(*) AS n FROM ${tabla} WHERE ${columna} = ?`,
+        [usuario.id],
+      );
+      if (Number(filas[0].n) > 0) {
+        return {
+          mode: "delete-user", email, ok: false,
+          motivo: `Tiene ${filas[0].n} fila(s) en ${tabla}: no se borra una cuenta con datos reales`,
+        };
+      }
+    }
+
+    await conn.beginTransaction();
+    try {
+      await conn.execute("DELETE FROM consentimientos WHERE usuario_id = ?", [usuario.id]);
+      await conn.execute("DELETE FROM usuarios WHERE id = ?", [usuario.id]);
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    }
+
+    return { mode: "delete-user", email, usuarioId: usuario.id, ok: true };
+  } finally {
+    await conn.end();
+  }
 }

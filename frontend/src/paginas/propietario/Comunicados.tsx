@@ -27,7 +27,13 @@ const CANALES: Array<[string, string]> = [
  */
 export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo: string }> }) {
   const [redactando, setRedactando] = useState(false);
-  const { datos, error, aviso, ocupado, accion } = usePantalla(() => api.comunicados.mios.query());
+  const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
+    const [lista, edificaciones] = await Promise.all([
+      api.comunicados.mios.query(),
+      api.inmuebles.misEdificaciones.query(),
+    ]);
+    return { lista, edificaciones };
+  });
 
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
   if (datos === null) return <p style={{ color: "var(--tinta-2)" }}>Cargando…</p>;
@@ -55,6 +61,7 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
       {redactando && (
         <Formulario
           unidades={unidades}
+          edificaciones={datos.edificaciones}
           ocupado={ocupado === "nuevo"}
           alRedactar={(entrada) => void accion("nuevo",
             () => api.comunicados.redactar.mutate(entrada),
@@ -62,20 +69,22 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
         />
       )}
 
-      {datos.total === 0 ? (
+      {datos.lista.total === 0 ? (
         <Vacio titulo="Todavía no escribiste ninguno">
           Sirven para avisar de un mantenimiento, recordar una fecha de pago o notificar
           un incremento con la antelación que exige la ley.
         </Vacio>
       ) : (
         <div style={{ display: "grid", gap: 10 }}>
-          {datos.comunicados.map((c) => (
+          {datos.lista.comunicados.map((c) => (
             <article key={c.id} className="tarjeta" style={{ padding: "15px 18px", display: "grid", gap: 9 }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 260px", minWidth: 0 }}>
                   <div style={{ fontSize: 15.5, fontWeight: 600 }}>{c.titulo}</div>
                   <div style={{ fontSize: 13, color: "var(--tinta-2)", marginTop: 2 }}>
-                    {c.direccion}{c.complemento ? `, ${c.complemento}` : ""}
+                    {c.ambito === "edificacion"
+                      ? `Todo ${c.edificacion ?? "el edificio"}`
+                      : `${c.direccion}${c.complemento ? `, ${c.complemento}` : ""}`}
                     {" · "}{TIPOS.find(([v]) => v === c.tipo)?.[1] ?? c.tipo}
                   </div>
                 </div>
@@ -113,21 +122,26 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
   );
 }
 
-function Formulario({ unidades, ocupado, alRedactar }: {
+function Formulario({ unidades, edificaciones, ocupado, alRedactar }: {
   unidades: Array<{ id: number; titulo: string }>;
+  edificaciones: Array<{ id: number; nombre: string; numUnidades: number | null }>;
   ocupado: boolean;
   alRedactar: (e: {
-    inmuebleId: number; titulo: string; cuerpo: string;
+    ambito: "unidad" | "edificacion";
+    inmuebleId?: number; edificacionId?: number;
+    titulo: string; cuerpo: string;
     tipo: "aviso"; canales: Array<"app" | "whatsapp" | "email">;
   }) => void;
 }) {
+  const [ambito, setAmbito] = useState<"unidad" | "edificacion">("unidad");
   const [inmuebleId, setInmuebleId] = useState(String(unidades[0]?.id ?? ""));
+  const [edificacionId, setEdificacionId] = useState(String(edificaciones[0]?.id ?? ""));
   const [tipo, setTipo] = useState("aviso");
   const [titulo, setTitulo] = useState("");
   const [cuerpo, setCuerpo] = useState("");
   const [canales, setCanales] = useState<string[]>(["app"]);
 
-  if (unidades.length === 0) {
+  if (unidades.length === 0 && edificaciones.length === 0) {
     return <div className="aviso ojo">Registrá una unidad antes de escribir un comunicado.</div>;
   }
 
@@ -136,11 +150,35 @@ function Formulario({ unidades, ocupado, alRedactar }: {
       <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Redactar</h2>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
-        <Campo etiqueta="Unidad">
-          <select value={inmuebleId} onChange={(e) => setInmuebleId(e.target.value)}>
-            {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
+        <Campo
+          etiqueta="A quién"
+          ayuda={ambito === "edificacion" ? "Le llega a todas las unidades del edificio" : undefined}
+        >
+          <select value={ambito} onChange={(e) => setAmbito(e.target.value as "unidad")}>
+            <option value="unidad">A una unidad</option>
+            <option value="edificacion" disabled={edificaciones.length === 0}>
+              {edificaciones.length === 0 ? "A una edificación (no tenés)" : "A toda una edificación"}
+            </option>
           </select>
         </Campo>
+
+        {ambito === "unidad" ? (
+          <Campo etiqueta="Unidad">
+            <select value={inmuebleId} onChange={(e) => setInmuebleId(e.target.value)}>
+              {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
+            </select>
+          </Campo>
+        ) : (
+          <Campo etiqueta="Edificación">
+            <select value={edificacionId} onChange={(e) => setEdificacionId(e.target.value)}>
+              {edificaciones.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nombre}{e.numUnidades ? ` · ${e.numUnidades} unidades` : ""}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        )}
         <Campo etiqueta="Tipo">
           <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
             {TIPOS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
@@ -179,7 +217,10 @@ function Formulario({ unidades, ocupado, alRedactar }: {
         <button className="boton"
           disabled={ocupado || titulo.trim().length < 4 || cuerpo.trim().length < 10 || canales.length === 0}
           onClick={() => alRedactar({
-            inmuebleId: Number(inmuebleId),
+            ambito,
+            ...(ambito === "unidad"
+              ? { inmuebleId: Number(inmuebleId) }
+              : { edificacionId: Number(edificacionId) }),
             titulo: titulo.trim(),
             cuerpo: cuerpo.trim(),
             tipo: tipo as "aviso",

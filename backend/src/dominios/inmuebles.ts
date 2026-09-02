@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, publico, privado, exigirRol } from "../trpc/base.js";
 import {
-  inmuebles, inmueblePropietarios, inmuebleEtiquetas, etiquetas,
+  inmuebles, inmueblePropietarios, inmuebleEtiquetas, etiquetas, edificaciones,
   TIPOS_UNIDAD,
 } from "../db/schema/inventario.js";
 import { otorgarRol, ambitosCon } from "../auth/roles.js";
@@ -136,6 +136,32 @@ export const inmueblesRouter = router({
 
     await otorgarRol(ctx.db, ctx.usuario.id, "propietario", "inmueble", inmuebleId);
     return { inmuebleId, uuid, estado: "borrador" as const };
+  }),
+
+  /**
+   * Las edificaciones del usuario, sea como dueño o como administrador.
+   *
+   * Hacen falta para lo que se dirige al edificio y no a una unidad: un
+   * comunicado de corte de agua, una incidencia en el ascensor.
+   */
+  misEdificaciones: privado.query(async ({ ctx }) => {
+    const ids = [
+      ...ambitosCon(ctx.usuario.roles, "propietario", "edificacion"),
+      ...ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion"),
+    ];
+    if (ids.length === 0) return [];
+
+    return ctx.db
+      .select({
+        id: edificaciones.id,
+        nombre: edificaciones.nombre,
+        direccion: edificaciones.direccion,
+        ciudad: edificaciones.ciudad,
+        numUnidades: edificaciones.numUnidades,
+      })
+      .from(edificaciones)
+      .where(inArray(edificaciones.id, ids))
+      .orderBy(asc(edificaciones.nombre));
   }),
 
   /** Las unidades del usuario, agrupables por etiqueta. */

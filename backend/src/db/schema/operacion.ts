@@ -71,6 +71,9 @@ export const incidencias = mysqlTable("incidencias", {
 	edificacionId: int("edificacion_id", { unsigned: true }).references(() => edificaciones.id, { onDelete: "cascade" } ),
 	contratoId: int("contrato_id", { unsigned: true }).references(() => contratos.id, { onDelete: "set null" } ),
 	reportadaPorId: int("reportada_por_id", { unsigned: true }).notNull().references(() => usuarios.id, { onDelete: "restrict" } ),
+	/** De quién es el número para coordinar la visita del técnico. Puede no ser
+	 *  el de la cuenta: quien reporta a veces da el de quien va a abrir. */
+	celularReporta: varchar("celular_reporta", { length: 30 }),
 	/** El tipo sale del catálogo administrable. La `categoria` de abajo es el
 	 *  ENUM anterior: se conserva por los índices y ya no se escribe. */
 	tipoIncidenciaId: int("tipo_incidencia_id", { unsigned: true }),

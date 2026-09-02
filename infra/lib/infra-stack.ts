@@ -84,8 +84,9 @@ export class InfraStack extends Stack {
       DB_HOST: db.dbInstanceEndpointAddress,
       DB_PORT: db.dbInstanceEndpointPort,
       DB_NAME: "yalqui",
-      // Una t4g.micro admite ~85 conexiones. Este limite y la concurrencia
-      // reservada de abajo se mueven juntos: subir uno sin el otro agota la base.
+      // Una t4g.micro admite ~85 conexiones y cada contenedor de la Lambda abre
+      // hasta este número. Sin concurrencia reservada, el techo lo pone el
+      // límite de la cuenta: con 10 concurrentes son 20 conexiones, holgado.
       DB_POOL_LIMIT: "2",
       DB_USER: db.secret!.secretValueFromJson("username").unsafeUnwrap(),
       DB_PASSWORD: db.secret!.secretValueFromJson("password").unsafeUnwrap(),
@@ -106,8 +107,12 @@ export class InfraStack extends Stack {
       architecture: lambda.Architecture.ARM_64,
       memorySize: 512,
       timeout: Duration.seconds(20),
-      // 25 x 2 conexiones = 50, con margen sobre las ~85 de la t4g.micro.
-      reservedConcurrentExecutions: 25,
+      // Sin concurrencia reservada.
+      //
+      // Reservar apartaría ese cupo del total de la cuenta, que está en 10, y
+      // AWS exige dejar 10 sin reservar: cualquier reserva fallaría el
+      // despliegue. Con el tráfico actual el límite de la cuenta ya es el techo,
+      // y es más bajo que cualquier número que tendría sentido reservar.
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       depsLockFilePath: ROOT_LOCK,
@@ -129,7 +134,6 @@ export class InfraStack extends Stack {
       architecture: lambda.Architecture.ARM_64,
       memorySize: 512,
       timeout: Duration.minutes(3),
-      reservedConcurrentExecutions: 1,
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       depsLockFilePath: ROOT_LOCK,
