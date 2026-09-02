@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, mensajeDeError } from "../../lib/api";
 import { Seccion } from "./piezas";
 import { CatalogoEditable, type CampoCatalogo } from "./CatalogoEditable";
+import { FormularioRegistro } from "./FormularioRegistro";
 
 type Tipo = Awaited<ReturnType<typeof api.admin.catalogos.tipos.query>>[number];
 type Parametro = Awaited<ReturnType<typeof api.admin.catalogos.parametros.query>>[number];
@@ -100,6 +101,23 @@ export function Comercial({ avisar }: { avisar: (m: string) => void }) {
     finally { setOcupado(false); }
   }
 
+  const camposPlan: CampoCatalogo[] = [
+    { clave: "codigo", titulo: "Código", tipo: "texto", editable: false, ancho: 150 },
+    { clave: "nombre", titulo: "Plan", tipo: "texto" },
+    { clave: "precioMes", titulo: "Precio al mes", tipo: "dinero", ancho: 170 },
+    { clave: "cicloDefault", titulo: "Ciclo", tipo: "seleccion", diccionario: "ciclo", ancho: 130 },
+  ];
+
+  const camposServicioYalqui: CampoCatalogo[] = [
+    { clave: "codigo", titulo: "Código", tipo: "texto", editable: false, ancho: 180 },
+    {
+      clave: "nombre", titulo: "Servicio", tipo: "texto",
+      detalle: (f) => (f["descripcion"] as string | null) ?? null,
+    },
+    { clave: "modeloCobro", titulo: "Cobro", tipo: "seleccion", diccionario: "modeloCobro", ancho: 140 },
+    { clave: "precioBase", titulo: "Precio", tipo: "dinero", ancho: 160, opcional: true },
+  ];
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {error && <div className="aviso malo" role="alert">{error}</div>}
@@ -108,15 +126,20 @@ export function Comercial({ avisar }: { avisar: (m: string) => void }) {
         titulo="Planes"
         nota="La suscripción se cobra por inmueble. En Básico, que es gratis, un propietario igual puede comprar servicios a la carta."
       >
+        <FormularioRegistro
+          titulo="Registrar plan"
+          ocupado={ocupado}
+          campos={camposPlan}
+          alRegistrar={(v) => accion(
+            () => api.admin.catalogos.crearPlan.mutate(v as never),
+            "Plan registrado",
+          )}
+        />
+
         {planes && (
           <CatalogoEditable
             filas={planes}
-            campos={[
-              { clave: "codigo", titulo: "Código", tipo: "texto", editable: false, ancho: 150 },
-              { clave: "nombre", titulo: "Plan", tipo: "texto" },
-              { clave: "precioMes", titulo: "Precio al mes", tipo: "dinero", ancho: 170 },
-              { clave: "cicloDefault", titulo: "Ciclo", tipo: "seleccion", diccionario: "ciclo", ancho: 130 },
-            ]}
+            campos={camposPlan}
             ocupado={ocupado}
             alGuardar={(id, cambios) => accion(
               () => api.admin.catalogos.editarPlan.mutate({ planId: id, ...cambios }),
@@ -134,18 +157,20 @@ export function Comercial({ avisar }: { avisar: (m: string) => void }) {
         titulo="Servicios de Yalqui"
         nota="Se cobran por unidad y son independientes del plan. Nunca se mezclan con el canon: son dos flujos de dinero distintos, y el arriendo va directo del inquilino al propietario."
       >
+        <FormularioRegistro
+          titulo="Registrar servicio de Yalqui"
+          ocupado={ocupado}
+          campos={camposServicioYalqui}
+          alRegistrar={(v) => accion(
+            () => api.admin.catalogos.crearServicioYalqui.mutate(v as never),
+            "Servicio registrado",
+          )}
+        />
+
         {servicios && (
           <CatalogoEditable
             filas={servicios}
-            campos={[
-              { clave: "codigo", titulo: "Código", tipo: "texto", editable: false, ancho: 180 },
-              {
-                clave: "nombre", titulo: "Servicio", tipo: "texto",
-                detalle: (f) => (f["descripcion"] as string | null) ?? null,
-              },
-              { clave: "modeloCobro", titulo: "Cobro", tipo: "seleccion", diccionario: "modeloCobro", ancho: 140 },
-              { clave: "precioBase", titulo: "Precio", tipo: "dinero", ancho: 160 },
-            ]}
+            campos={camposServicioYalqui}
             ocupado={ocupado}
             alGuardar={(id, cambios) => accion(
               () => api.admin.catalogos.editarServicioYalqui.mutate({ servicioId: id, ...cambios }),
@@ -199,6 +224,16 @@ export function Parametros({ avisar }: { avisar: (m: string) => void }) {
 
   const categorias = [...new Set(parametros.map((p) => p.categoria))];
 
+  const camposParametro: CampoCatalogo[] = [
+    { clave: "clave", titulo: "Clave", tipo: "texto" },
+    { clave: "nombre", titulo: "Nombre", tipo: "texto" },
+    { clave: "valor", titulo: "Valor", tipo: "texto" },
+    { clave: "tipo", titulo: "Tipo de dato", tipo: "texto" },
+    { clave: "categoria", titulo: "Categoría", tipo: "texto" },
+    { clave: "descripcion", titulo: "Descripción", tipo: "texto", opcional: true },
+    { clave: "unidad", titulo: "Unidad", tipo: "texto", opcional: true },
+  ];
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {error && <div className="aviso malo" role="alert">{error}</div>}
@@ -207,6 +242,21 @@ export function Parametros({ avisar }: { avisar: (m: string) => void }) {
         Las tasas tributarias vienen cargadas con los valores vigentes en Colombia, pero
         están <strong>pendientes de confirmar con un contador</strong> antes de emitir la primera factura.
       </div>
+
+      <FormularioRegistro
+        titulo="Registrar parámetro"
+        campos={camposParametro}
+        alRegistrar={async (v) => {
+          await api.admin.catalogos.crearParametro.mutate(v as never);
+          avisar("Parámetro registrado");
+          await cargar();
+        }}
+      />
+
+      <p style={{ fontSize: 12.5, color: "var(--tinta-3)", margin: 0 }}>
+        Uno nuevo no hace nada por sí solo: solo tiene efecto si algún punto del código lo lee
+        por su clave. Sirve para dejarlo listo antes de que el código lo consuma.
+      </p>
 
       {categorias.map((cat) => (
         <Seccion key={cat} titulo={etiquetaCategoria(cat)}>

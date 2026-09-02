@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, mensajeDeError } from "../../lib/api";
 import { Seccion } from "./piezas";
 import { CatalogoEditable, type CampoCatalogo } from "./CatalogoEditable";
+import { FormularioRegistro } from "./FormularioRegistro";
 
 /** Envuelve el ciclo cargar → editar → recargar, que es idéntico en todos. */
 function useCatalogo<T>(traer: () => Promise<T[]>, avisar: (m: string) => void) {
@@ -40,7 +41,7 @@ export function ServiciosAdicionales({ avisar }: { avisar: (m: string) => void }
     { clave: "categoria", titulo: "Categoría", tipo: "seleccion", diccionario: "categoriaAjuste", ancho: 150 },
     { clave: "tipoCalculo", titulo: "Cálculo", tipo: "seleccion", diccionario: "tipoCalculo", ancho: 150 },
     { clave: "periodicidad", titulo: "Periodicidad", tipo: "seleccion", diccionario: "periodicidad", ancho: 130 },
-    { clave: "valorSugerido", titulo: "Valor sugerido", tipo: "dinero", ancho: 160 },
+    { clave: "valorSugerido", titulo: "Valor sugerido", tipo: "dinero", ancho: 160, opcional: true },
   ];
 
   return (
@@ -49,6 +50,17 @@ export function ServiciosAdicionales({ avisar }: { avisar: (m: string) => void }
       nota="Lo que se puede cobrar además del canon. El valor sugerido es un punto de partida para que el formulario no arranque en cero; el precio real de cada unidad se fija en la unidad, y queda congelado en el contrato al firmar."
     >
       {error && <div className="aviso malo" role="alert">{error}</div>}
+
+      <FormularioRegistro
+        titulo="Registrar servicio"
+        ocupado={ocupado}
+        campos={[...campos, { clave: "permiteCantidad", titulo: "Permite varias unidades", tipo: "booleano" }]}
+        alRegistrar={(v) => accion(
+          () => api.admin.operativos.crearServicio.mutate(v as never),
+          "Servicio registrado",
+        )}
+      />
+
       {filas && (
         <CatalogoEditable
           filas={filas}
@@ -96,6 +108,15 @@ export function IngresosEgresos({ avisar }: { avisar: (m: string) => void }) {
       {error && <div className="aviso malo" role="alert">{error}</div>}
 
       <Seccion titulo="Tipos de ingreso" nota="Con qué conceptos entra dinero a un inmueble.">
+        <FormularioRegistro
+          titulo="Registrar tipo de ingreso"
+          ocupado={ocupado}
+          campos={campos.filter((c) => c.clave !== "deducible")}
+          alRegistrar={(v) => accion(
+            () => api.admin.operativos.crearMovimiento.mutate({ ...v, tipo: "ingreso" } as never),
+            "Tipo de ingreso registrado",
+          )}
+        />
         {filas && (
           <CatalogoEditable filas={filas.filter((f) => f.tipo === "ingreso")}
             campos={campos.filter((c) => c.clave !== "deducible")}
@@ -107,6 +128,15 @@ export function IngresosEgresos({ avisar }: { avisar: (m: string) => void }) {
         titulo="Tipos de egreso"
         nota="Un egreso de la edificación se prorratea entre sus unidades; uno de la unidad no. Es la diferencia entre pintar la fachada y arreglar un grifo. Lo deducible baja la renta del propietario."
       >
+        <FormularioRegistro
+          titulo="Registrar tipo de egreso"
+          ocupado={ocupado}
+          campos={campos}
+          alRegistrar={(v) => accion(
+            () => api.admin.operativos.crearMovimiento.mutate({ ...v, tipo: "egreso" } as never),
+            "Tipo de egreso registrado",
+          )}
+        />
         {filas && (
           <CatalogoEditable filas={filas.filter((f) => f.tipo === "egreso")}
             campos={campos} ocupado={ocupado} alGuardar={guardar} alAnular={anular} />
@@ -130,7 +160,7 @@ export function TiposIncidencia({ avisar }: { avisar: (m: string) => void }) {
     },
     { clave: "ambito", titulo: "Ámbito", tipo: "seleccion", diccionario: "ambitoIncidencia", ancho: 140 },
     { clave: "prioridadSugerida", titulo: "Prioridad", tipo: "seleccion", diccionario: "prioridad", ancho: 120 },
-    { clave: "slaHoras", titulo: "SLA (horas)", tipo: "numero", ancho: 120 },
+    { clave: "slaHoras", titulo: "SLA (horas)", tipo: "numero", ancho: 120, opcional: true },
     { clave: "responsableSugerido", titulo: "Lo asume", tipo: "seleccion", diccionario: "responsable", ancho: 140 },
   ];
 
@@ -140,6 +170,17 @@ export function TiposIncidencia({ avisar }: { avisar: (m: string) => void }) {
       nota="El SLA en horas calcula solo el vencimiento de cada incidencia, sin que nadie lo escriba a mano. Estos mismos tipos son el vocabulario de especialidades de los proveedores: uno atiende los que sabe resolver, y así no hay dos listas que se desincronicen."
     >
       {error && <div className="aviso malo" role="alert">{error}</div>}
+
+      <FormularioRegistro
+        titulo="Registrar tipo de incidencia"
+        ocupado={ocupado}
+        campos={campos}
+        alRegistrar={(v) => accion(
+          () => api.admin.operativos.crearIncidencia.mutate(v as never),
+          "Tipo registrado",
+        )}
+      />
+
       {filas && (
         <CatalogoEditable
           filas={filas}
@@ -167,10 +208,10 @@ export function Proveedores({ avisar }: { avisar: (m: string) => void }) {
 
   const campos: CampoCatalogo[] = [
     { clave: "razonSocial", titulo: "Razón social", tipo: "texto" },
-    { clave: "nit", titulo: "NIT", tipo: "texto", ancho: 150 },
-    { clave: "ciudad", titulo: "Ciudad", tipo: "texto", ancho: 160 },
-    { clave: "telefono", titulo: "Teléfono", tipo: "texto", ancho: 150 },
-    { clave: "email", titulo: "Correo", tipo: "texto", ancho: 220 },
+    { clave: "nit", titulo: "NIT", tipo: "texto", ancho: 150, opcional: true },
+    { clave: "ciudad", titulo: "Ciudad", tipo: "texto", ancho: 160, opcional: true },
+    { clave: "telefono", titulo: "Teléfono", tipo: "texto", ancho: 150, opcional: true },
+    { clave: "email", titulo: "Correo", tipo: "texto", ancho: 220, opcional: true },
   ];
 
   return (
@@ -179,10 +220,21 @@ export function Proveedores({ avisar }: { avisar: (m: string) => void }) {
       nota="Quiénes atienden las incidencias. Sus especialidades son códigos de tipos de incidencia."
     >
       {error && <div className="aviso malo" role="alert">{error}</div>}
+
+      <FormularioRegistro
+        titulo="Registrar proveedor"
+        ocupado={ocupado}
+        campos={campos}
+        alRegistrar={(v) => accion(
+          () => api.admin.operativos.crearProveedor.mutate(v as never),
+          "Proveedor registrado",
+        )}
+      />
+
       {filas && filas.length === 0 && (
         <p style={{ color: "var(--tinta-3)", fontSize: 14, padding: "4px 0 14px" }}>
-          Todavía no hay proveedores registrados. Se dan de alta desde el flujo de incidencias,
-          cuando se asigna uno por primera vez.
+          Todavía no hay proveedores registrados. También se dan de alta solos desde el flujo
+          de incidencias, cuando se asigna uno por primera vez.
         </p>
       )}
       {filas && filas.length > 0 && (

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, admin } from "../../trpc/base.js";
-import { cambiosDe, codigoCatalogo } from "./comun.js";
+import { cambiosDe, codigoCatalogo, comoConflicto } from "./comun.js";
 import {
   tiposMovimiento, tiposIncidencia, tiposDocumento, requisitos, requisitoDocumentos,
   TIPOS_MOVIMIENTO, AMBITOS_GASTO, RESPONSABLES, PRIORIDADES, AMBITOS_INCIDENCIA,
@@ -10,7 +10,7 @@ import {
 } from "../../db/schema/administracion.js";
 import { catalogoAjustes } from "../../db/schema/inventario.js";
 import { proveedores } from "../../db/schema/operacion.js";
-import { plantillasContrato } from "../../db/schema/contrato.js";
+import { plantillasContrato, MARCOS_LEGALES } from "../../db/schema/contrato.js";
 
 const id = z.number().int().positive();
 const codigo = z.string().trim().regex(codigoCatalogo, "Minúsculas, sin espacios ni tildes");
@@ -41,17 +41,21 @@ export const operativosRouter = router({
       valorSugerido: dinero.optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [res] = await ctx.db.insert(catalogoAjustes).values({
-        codigo: input.codigo,
-        nombre: input.nombre,
-        descripcion: input.descripcion ?? null,
-        categoria: input.categoria,
-        tipoCalculo: input.tipoCalculo,
-        periodicidad: input.periodicidad,
-        permiteCantidad: input.permiteCantidad,
-        valorSugerido: input.valorSugerido?.toFixed(2) ?? null,
-      });
-      return { id: nuevoId(res) };
+      try {
+        const [res] = await ctx.db.insert(catalogoAjustes).values({
+          codigo: input.codigo,
+          nombre: input.nombre,
+          descripcion: input.descripcion ?? null,
+          categoria: input.categoria,
+          tipoCalculo: input.tipoCalculo,
+          periodicidad: input.periodicidad,
+          permiteCantidad: input.permiteCantidad,
+          valorSugerido: input.valorSugerido?.toFixed(2) ?? null,
+        });
+        return { id: nuevoId(res) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un servicio con ese código");
+      }
     }),
 
   editarServicio: admin
@@ -95,12 +99,16 @@ export const operativosRouter = router({
       if (input.tipo === "ingreso" && input.deducible) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Un ingreso no puede ser deducible" });
       }
-      const [res] = await ctx.db.insert(tiposMovimiento).values({
-        codigo: input.codigo, nombre: input.nombre, tipo: input.tipo,
-        descripcion: input.descripcion ?? null, deducible: input.deducible,
-        ambito: input.ambito, responsable: input.responsable,
-      });
-      return { id: nuevoId(res) };
+      try {
+        const [res] = await ctx.db.insert(tiposMovimiento).values({
+          codigo: input.codigo, nombre: input.nombre, tipo: input.tipo,
+          descripcion: input.descripcion ?? null, deducible: input.deducible,
+          ambito: input.ambito, responsable: input.responsable,
+        });
+        return { id: nuevoId(res) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un concepto con ese código");
+      }
     }),
 
   editarMovimiento: admin
@@ -146,14 +154,18 @@ export const operativosRouter = router({
       responsableSugerido: z.enum(RESPONSABLES).default("por_definir"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [res] = await ctx.db.insert(tiposIncidencia).values({
-        codigo: input.codigo, nombre: input.nombre,
-        descripcion: input.descripcion ?? null, ambito: input.ambito,
-        prioridadSugerida: input.prioridadSugerida,
-        slaHoras: input.slaHoras ?? null,
-        responsableSugerido: input.responsableSugerido,
-      });
-      return { id: nuevoId(res) };
+      try {
+        const [res] = await ctx.db.insert(tiposIncidencia).values({
+          codigo: input.codigo, nombre: input.nombre,
+          descripcion: input.descripcion ?? null, ambito: input.ambito,
+          prioridadSugerida: input.prioridadSugerida,
+          slaHoras: input.slaHoras ?? null,
+          responsableSugerido: input.responsableSugerido,
+        });
+        return { id: nuevoId(res) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un tipo de incidencia con ese código");
+      }
     }),
 
   editarIncidencia: admin
@@ -190,13 +202,17 @@ export const operativosRouter = router({
       tamanoMaxMb: z.number().int().min(1).max(50).default(10),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [res] = await ctx.db.insert(tiposDocumento).values({
-        codigo: input.codigo, nombre: input.nombre,
-        descripcion: input.descripcion ?? null,
-        vigenciaDias: input.vigenciaDias ?? null,
-        formatos: input.formatos, tamanoMaxMb: input.tamanoMaxMb,
-      });
-      return { id: nuevoId(res) };
+      try {
+        const [res] = await ctx.db.insert(tiposDocumento).values({
+          codigo: input.codigo, nombre: input.nombre,
+          descripcion: input.descripcion ?? null,
+          vigenciaDias: input.vigenciaDias ?? null,
+          formatos: input.formatos, tamanoMaxMb: input.tamanoMaxMb,
+        });
+        return { id: nuevoId(res) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un tipo de documento con ese código");
+      }
     }),
 
   editarDocumento: admin
@@ -252,12 +268,16 @@ export const operativosRouter = router({
       obligatorio: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [res] = await ctx.db.insert(requisitos).values({
-        codigo: input.codigo, nombre: input.nombre,
-        descripcion: input.descripcion ?? null,
-        aplicaA: input.aplicaA, modo: input.modo, obligatorio: input.obligatorio,
-      });
-      return { id: nuevoId(res) };
+      try {
+        const [res] = await ctx.db.insert(requisitos).values({
+          codigo: input.codigo, nombre: input.nombre,
+          descripcion: input.descripcion ?? null,
+          aplicaA: input.aplicaA, modo: input.modo, obligatorio: input.obligatorio,
+        });
+        return { id: nuevoId(res) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un requisito con ese código");
+      }
     }),
 
   editarRequisito: admin
@@ -323,6 +343,32 @@ export const operativosRouter = router({
    * qué plantilla y qué versión se firmaron, y pisar el texto sin cambiar la
    * versión haría imposible reconstruir lo que la gente aceptó.
    */
+  /**
+   * Da de alta una plantilla, siempre en borrador.
+   *
+   * Nunca nace vigente: se revisa el texto y se pone en vigencia aparte, desde
+   * `activarPlantilla`. Publicar por accidente una plantilla a medio escribir
+   * significaría que el próximo contrato generado la usara.
+   */
+  crearPlantilla: admin
+    .input(z.object({
+      codigo: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{1,39}$/, "Minúsculas, sin espacios ni tildes"),
+      nombre: z.string().trim().min(2).max(191),
+      marcoLegal: z.enum(MARCOS_LEGALES),
+      cuerpo: z.string().trim().min(50).max(200_000),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [res] = await ctx.db.insert(plantillasContrato).values({
+        codigo: input.codigo,
+        nombre: input.nombre,
+        marcoLegal: input.marcoLegal,
+        version: 1,
+        estado: "borrador",
+        cuerpo: input.cuerpo,
+      });
+      return { id: Number((res as { insertId: number }).insertId) };
+    }),
+
   editarPlantilla: admin
     .input(z.object({
       plantillaId: id,
@@ -419,6 +465,28 @@ export const operativosRouter = router({
   proveedores: admin.query(({ ctx }) =>
     ctx.db.select().from(proveedores).orderBy(asc(proveedores.razonSocial)),
   ),
+
+  crearProveedor: admin
+    .input(z.object({
+      razonSocial: z.string().trim().min(2).max(191),
+      nit: z.string().trim().max(30).optional(),
+      ciudad: z.string().trim().max(120).optional(),
+      telefono: z.string().trim().max(30).optional(),
+      email: z.string().trim().email().max(191).optional(),
+      /** Códigos de `tipos_incidencia` que sabe resolver. */
+      especialidades: z.array(z.string().trim().max(40)).max(30).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [res] = await ctx.db.insert(proveedores).values({
+        razonSocial: input.razonSocial,
+        nit: input.nit ?? null,
+        ciudad: input.ciudad ?? null,
+        telefono: input.telefono ?? null,
+        email: input.email ?? null,
+        especialidades: input.especialidades ?? null,
+      });
+      return { id: Number((res as { insertId: number }).insertId) };
+    }),
 
   editarProveedor: admin
     .input(z.object({

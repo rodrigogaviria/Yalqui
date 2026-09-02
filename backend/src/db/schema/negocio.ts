@@ -14,7 +14,7 @@ import { inspecciones } from "./operacion.js";
 
 export const servicios = mysqlTable("servicios", {
 	id: int({ unsigned: true }).autoincrement().notNull(),
-	codigo: mysqlEnum(['pricing_engine','legal','screening','negotiate','cobranza','seguro_arrendamiento','factoraje','promocion']).notNull(),
+	codigo: varchar('codigo', { length: 60 }).notNull(),
 	nombre: varchar({ length: 120 }).notNull(),
 	descripcion: varchar({ length: 255 }),
 	modeloCobro: mysqlEnum("modelo_cobro", ['unico','recurrente','por_uso','porcentaje']).notNull(),

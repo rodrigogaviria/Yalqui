@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, mensajeDeError } from "../../lib/api";
 import { etiqueta } from "../../lib/etiquetas";
 import { Seccion } from "./piezas";
+import { Campo } from "../../componentes/Campo";
 
 type Plantilla = Awaited<ReturnType<typeof api.admin.operativos.plantillas.query>>[number];
 
@@ -18,6 +19,11 @@ export function Plantillas({ avisar }: { avisar: (m: string) => void }) {
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [editando, setEditando] = useState<number | null>(null);
   const [borrador, setBorrador] = useState("");
+  const [registrando, setRegistrando] = useState(false);
+  const [nuevoCodigo, setNuevoCodigo] = useState("");
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [nuevoMarco, setNuevoMarco] = useState("vivienda_urbana");
+  const [nuevoCuerpo, setNuevoCuerpo] = useState("");
 
   const cargar = useCallback(async () => {
     try { setFilas(await api.admin.operativos.plantillas.query()); setError(null); }
@@ -41,8 +47,75 @@ export function Plantillas({ avisar }: { avisar: (m: string) => void }) {
     <Seccion
       titulo="Plantillas de contrato"
       nota="Al generar un contrato se elige la plantilla vigente del marco legal que le corresponde a la unidad. Solo puede haber una vigente por marco: con dos, el contrato dependería de cuál devuelva primero la base."
+      accion={
+        <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
+          onClick={() => setRegistrando((v) => !v)}>
+          {registrando ? "Cancelar" : "+ Registrar plantilla"}
+        </button>
+      }
     >
       {error && <div className="aviso malo" role="alert">{error}</div>}
+
+      {registrando && (
+        <div style={{
+          border: "1px solid var(--violeta)", borderRadius: 11, padding: 16,
+          background: "var(--violeta-tenue)", display: "grid", gap: 12,
+        }}>
+          <div style={{ fontSize: 14.5, fontWeight: 600 }}>Registrar plantilla</div>
+          <p style={{ margin: 0, fontSize: 12.5, color: "var(--tinta-2)" }}>
+            Nace en borrador. Se revisa el texto y se pone en vigencia aparte, desde el botón de
+            cada fila — así nunca se publica por accidente algo a medio escribir.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+            <Campo etiqueta="Código">
+              <input value={nuevoCodigo} onChange={(e) => setNuevoCodigo(e.target.value)}
+                placeholder="vivienda_urbana_v3" />
+            </Campo>
+            <Campo etiqueta="Nombre">
+              <input value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)}
+                placeholder="Arrendamiento de vivienda urbana" />
+            </Campo>
+            <Campo etiqueta="Marco legal">
+              <select value={nuevoMarco} onChange={(e) => setNuevoMarco(e.target.value)}>
+                <option value="vivienda_urbana">Vivienda urbana (Ley 820)</option>
+                <option value="comercial">Comercial</option>
+                <option value="habitacion">Habitación</option>
+                <option value="parqueadero">Parqueadero</option>
+                <option value="mixto">Mixto</option>
+              </select>
+            </Campo>
+          </div>
+
+          <Campo etiqueta="Cuerpo" ayuda="Pegá el texto completo. Los marcadores entre llaves se reemplazan al generar.">
+            <textarea
+              value={nuevoCuerpo}
+              onChange={(e) => setNuevoCuerpo(e.target.value)}
+              rows={14}
+              style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, lineHeight: 1.6 }}
+            />
+          </Campo>
+
+          <div>
+            <button className="boton" style={{ height: 38, fontSize: 13.5 }}
+              disabled={ocupado !== null
+                || nuevoCodigo.trim().length < 2 || nuevoNombre.trim().length < 2
+                || nuevoCuerpo.trim().length < 50}
+              onClick={() => void accion(0,
+                () => api.admin.operativos.crearPlantilla.mutate({
+                  codigo: nuevoCodigo.trim(), nombre: nuevoNombre.trim(),
+                  marcoLegal: nuevoMarco as never, cuerpo: nuevoCuerpo,
+                }),
+                "Plantilla registrada, en borrador",
+              ).then(() => {
+                setRegistrando(false);
+                setNuevoCodigo(""); setNuevoNombre(""); setNuevoCuerpo("");
+              })}>
+              Guardar
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="aviso ojo">
         Están redactadas a partir de la Ley 820 de 2003 y el Código Civil, pero

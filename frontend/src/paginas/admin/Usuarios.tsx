@@ -31,6 +31,14 @@ export function Usuarios({ avisar }: { avisar: (m: string) => void }) {
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [registrando, setRegistrando] = useState(false);
+  const [nEmail, setNEmail] = useState("");
+  const [nNombre, setNNombre] = useState("");
+  const [nApellido, setNApellido] = useState("");
+  const [nDocumento, setNDocumento] = useState("CC");
+  const [nNumero, setNNumero] = useState("");
+  const [nTelefono, setNTelefono] = useState("");
+  const [enlace, setEnlace] = useState<string | null>(null);
 
   const [rol, setRol] = useState<Rol>("propietario");
   const [ambitoTipo, setAmbitoTipo] = useState<Ambito>("inmueble");
@@ -77,7 +85,87 @@ export function Usuarios({ avisar }: { avisar: (m: string) => void }) {
     <div style={{ display: "grid", gap: 16 }}>
       {error && <div className="aviso malo" role="alert">{error}</div>}
 
-      <Seccion titulo="Usuarios" nota="Buscá por correo, nombre o documento.">
+      <Seccion
+        titulo="Usuarios"
+        nota="Buscá por correo, nombre o documento."
+        accion={
+          <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
+            onClick={() => { setRegistrando((v) => !v); setEnlace(null); }}>
+            {registrando ? "Cancelar" : "+ Registrar usuario"}
+          </button>
+        }
+      >
+        {registrando && (
+          <div style={{
+            border: "1px solid var(--violeta)", borderRadius: 11, padding: 16,
+            background: "var(--violeta-tenue)", display: "grid", gap: 12, marginBottom: 14,
+          }}>
+            <div style={{ fontSize: 14.5, fontWeight: 600 }}>Registrar usuario</div>
+            <p style={{ margin: 0, fontSize: 12.5, color: "var(--tinta-2)" }}>
+              Nace sin contraseña, con un enlace de un solo uso para que la persona elija la
+              suya. Nadie más puede entrar con esa cuenta hasta que la active.
+            </p>
+
+            {enlace ? (
+              <div className="aviso bueno">
+                Cuenta creada. Enlace de activación: <span className="num">{enlace}</span>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12 }}>
+                  <Campo etiqueta="Correo">
+                    <input value={nEmail} onChange={(e) => setNEmail(e.target.value)} />
+                  </Campo>
+                  <Campo etiqueta="Nombre">
+                    <input value={nNombre} onChange={(e) => setNNombre(e.target.value)} />
+                  </Campo>
+                  <Campo etiqueta="Apellido">
+                    <input value={nApellido} onChange={(e) => setNApellido(e.target.value)} />
+                  </Campo>
+                  <Campo etiqueta="Tipo de documento">
+                    <select value={nDocumento} onChange={(e) => setNDocumento(e.target.value)}>
+                      <option value="CC">CC</option>
+                      <option value="CE">CE</option>
+                      <option value="NIT">NIT</option>
+                      <option value="PA">PA</option>
+                    </select>
+                  </Campo>
+                  <Campo etiqueta="Número de documento">
+                    <input value={nNumero} onChange={(e) => setNNumero(e.target.value)} />
+                  </Campo>
+                  <Campo etiqueta="Teléfono" ayuda="Opcional">
+                    <input value={nTelefono} onChange={(e) => setNTelefono(e.target.value)} />
+                  </Campo>
+                </div>
+                <div>
+                  <button className="boton" style={{ height: 38, fontSize: 13.5 }}
+                    disabled={ocupado || !nEmail.includes("@") || nNombre.trim() === "" || nApellido.trim() === "" || nNumero.trim().length < 4}
+                    onClick={() => void (async () => {
+                      setOcupado(true);
+                      setError(null);
+                      try {
+                        const r = await api.admin.usuarios.crear.mutate({
+                          email: nEmail.trim(), nombre: nNombre.trim(), apellido: nApellido.trim(),
+                          tipoDocumento: nDocumento as "CC", numeroDocumento: nNumero.trim(),
+                          ...(nTelefono.trim() === "" ? {} : { telefono: nTelefono.trim() }),
+                        });
+                        setEnlace(r.enlaceActivacion);
+                        avisar("Usuario registrado");
+                        await cargar(busqueda);
+                      } catch (e) {
+                        setError(mensajeDeError(e));
+                      } finally {
+                        setOcupado(false);
+                      }
+                    })()}>
+                    {ocupado ? "Guardando…" : "Guardar"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end", paddingBottom: 4 }}>
           <div style={{ flex: "1 1 280px" }}>
             <Campo etiqueta="Buscar">

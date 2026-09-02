@@ -21,6 +21,8 @@ export interface CampoCatalogo {
   /** El código de un catálogo no se edita: es la llave con la que el código lo
    *  referencia. Renombrar lo que se lee es otra cosa y sí se puede. */
   editable?: boolean;
+  /** Al registrar, no bloquea el botón de guardar si queda vacío. */
+  opcional?: boolean;
   /** Texto bajo el valor, para explicar sin ocupar otra columna. */
   detalle?: (fila: Record<string, unknown>) => string | null;
 }
@@ -149,7 +151,7 @@ function Valor({ campo, fila }: { campo: CampoCatalogo; fila: Fila }) {
   );
 }
 
-function Entrada({ campo, valor, alCambiar }: {
+export function Entrada({ campo, valor, alCambiar }: {
   campo: CampoCatalogo;
   valor: unknown;
   alCambiar: (v: unknown) => void;

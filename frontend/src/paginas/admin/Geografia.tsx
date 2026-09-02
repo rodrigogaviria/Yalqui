@@ -16,8 +16,16 @@ export function Geografia({ avisar }: { avisar: (m: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
+  const [nuevoDepto, setNuevoDepto] = useState("");
+  const [daneDepto, setDaneDepto] = useState("");
+  const [editandoDepto, setEditandoDepto] = useState<number | null>(null);
+  const [nombreEditado, setNombreEditado] = useState("");
+
   const [nuevaCiudad, setNuevaCiudad] = useState("");
   const [daneCiudad, setDaneCiudad] = useState("");
+  const [editandoCiudad, setEditandoCiudad] = useState<number | null>(null);
+  const [editandoBarrio, setEditandoBarrio] = useState<number | null>(null);
+
   const [nuevoBarrio, setNuevoBarrio] = useState("");
   const [localidad, setLocalidad] = useState("");
   const [estrato, setEstrato] = useState("");
@@ -70,11 +78,63 @@ export function Geografia({ avisar }: { avisar: (m: string) => void }) {
         titulo="Departamentos"
         nota="Los 32 departamentos más Bogotá D.C., con su código DANE. Desactivar uno apaga también sus ciudades: dejarlas encendidas bajo un padre apagado las haría aparecer en un selector que ya no tiene cómo llegar a ellas."
       >
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", paddingBottom: 4 }}>
+          <div style={{ flex: "1 1 220px" }}>
+            <Campo etiqueta="Nuevo departamento">
+              <input value={nuevoDepto} onChange={(e) => setNuevoDepto(e.target.value)} placeholder="Chocó" />
+            </Campo>
+          </div>
+          <div style={{ width: 140 }}>
+            <Campo etiqueta="Código DANE" ayuda="Dos dígitos">
+              <input value={daneDepto} onChange={(e) => setDaneDepto(e.target.value)} placeholder="27" />
+            </Campo>
+          </div>
+          <button className="boton" style={{ height: 42 }} disabled={ocupado || nuevoDepto.trim().length < 2}
+            onClick={() => void accion(async () => {
+              await api.admin.geografia.crearDepartamento.mutate({
+                paisId: 1,
+                nombre: nuevoDepto.trim(),
+                ...(daneDepto.trim() === "" ? {} : { codigoDane: daneDepto.trim() }),
+              });
+              setNuevoDepto(""); setDaneDepto("");
+              await cargarDeptos();
+            }, "Departamento agregado")}>
+            Agregar
+          </button>
+        </div>
+
         <Tabla columnas={["DANE", "Departamento", "Ciudades", "Activo", ""]}>
           {departamentos.map((d) => (
             <tr key={d.id} style={{ background: deptoSel === d.id ? "var(--violeta-tenue)" : undefined }}>
               <Celda ancho={70}><span className="num">{d.codigoDane ?? "—"}</span></Celda>
-              <Celda>{d.nombre}</Celda>
+              <Celda>
+                {editandoDepto === d.id ? (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input value={nombreEditado} onChange={(e) => setNombreEditado(e.target.value)}
+                      autoFocus style={{ maxWidth: 200 }} />
+                    <button className="boton" style={{ height: 30, fontSize: 12.5, padding: "0 9px" }}
+                      disabled={ocupado || nombreEditado.trim().length < 2}
+                      onClick={() => void accion(async () => {
+                        await api.admin.geografia.editarDepartamento.mutate({
+                          departamentoId: d.id, nombre: nombreEditado.trim(),
+                        });
+                        setEditandoDepto(null);
+                        await cargarDeptos();
+                      }, "Departamento renombrado")}>
+                      Guardar
+                    </button>
+                    <button className="boton fantasma" style={{ height: 30, fontSize: 12.5, padding: "0 9px" }}
+                      onClick={() => setEditandoDepto(null)}>
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <span onClick={() => { setEditandoDepto(d.id); setNombreEditado(d.nombre); }}
+                    style={{ cursor: "pointer" }} title="Tocar para renombrar">
+                    {d.nombre}
+                  </span>
+                )}
+              </Celda>
               <Celda ancho={90}>{deptoSel === d.id ? ciudades.length : ""}</Celda>
               <Celda ancho={70}>
                 <Interruptor
@@ -132,7 +192,34 @@ export function Geografia({ avisar }: { avisar: (m: string) => void }) {
             {ciudades.map((c) => (
               <tr key={c.id} style={{ background: ciudadSel === c.id ? "var(--violeta-tenue)" : undefined }}>
                 <Celda ancho={70}><span className="num">{c.codigoDane ?? "—"}</span></Celda>
-                <Celda>{c.nombre}</Celda>
+                <Celda>
+                  {editandoCiudad === c.id ? (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input value={nombreEditado} onChange={(e) => setNombreEditado(e.target.value)}
+                        autoFocus style={{ maxWidth: 180 }} />
+                      <button className="boton" style={{ height: 30, fontSize: 12.5, padding: "0 9px" }}
+                        disabled={ocupado || nombreEditado.trim().length < 2}
+                        onClick={() => void accion(async () => {
+                          await api.admin.geografia.editarCiudad.mutate({
+                            ciudadId: c.id, nombre: nombreEditado.trim(),
+                          });
+                          setEditandoCiudad(null);
+                          await cargarCiudades(deptoSel!);
+                        }, "Ciudad renombrada")}>
+                        Guardar
+                      </button>
+                      <button className="boton fantasma" style={{ height: 30, fontSize: 12.5, padding: "0 9px" }}
+                        onClick={() => setEditandoCiudad(null)}>
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <span onClick={() => { setEditandoCiudad(c.id); setNombreEditado(c.nombre); }}
+                      style={{ cursor: "pointer" }} title="Tocar para renombrar">
+                      {c.nombre}
+                    </span>
+                  )}
+                </Celda>
                 <Celda ancho={80}>{c.esCapital ? "Sí" : ""}</Celda>
                 <Celda ancho={70}>
                   <Interruptor
@@ -200,7 +287,34 @@ export function Geografia({ avisar }: { avisar: (m: string) => void }) {
             <Tabla columnas={["Barrio", "Localidad", "Estrato", "Activo"]}>
               {barrios.map((b) => (
                 <tr key={b.id}>
-                  <Celda>{b.nombre}</Celda>
+                  <Celda>
+                    {editandoBarrio === b.id ? (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input value={nombreEditado} onChange={(e) => setNombreEditado(e.target.value)}
+                          autoFocus style={{ maxWidth: 160 }} />
+                        <button className="boton" style={{ height: 30, fontSize: 12.5, padding: "0 9px" }}
+                          disabled={ocupado || nombreEditado.trim().length < 2}
+                          onClick={() => void accion(async () => {
+                            await api.admin.geografia.editarBarrio.mutate({
+                              barrioId: b.id, nombre: nombreEditado.trim(),
+                            });
+                            setEditandoBarrio(null);
+                            await cargarBarrios(ciudadSel!);
+                          }, "Barrio renombrado")}>
+                          Guardar
+                        </button>
+                        <button className="boton fantasma" style={{ height: 30, fontSize: 12.5, padding: "0 9px" }}
+                          onClick={() => setEditandoBarrio(null)}>
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <span onClick={() => { setEditandoBarrio(b.id); setNombreEditado(b.nombre); }}
+                        style={{ cursor: "pointer" }} title="Tocar para renombrar">
+                        {b.nombre}
+                      </span>
+                    )}
+                  </Celda>
                   <Celda>{b.localidad ?? "—"}</Celda>
                   <Celda ancho={80}>{b.estrato ?? "—"}</Celda>
                   <Celda ancho={70}>

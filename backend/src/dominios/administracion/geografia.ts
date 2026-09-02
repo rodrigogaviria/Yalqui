@@ -3,7 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, publico, admin } from "../../trpc/base.js";
 import { paises, departamentos, ciudades, barrios } from "../../db/schema/administracion.js";
-import { cambiosDe } from "./comun.js";
+import { cambiosDe, comoConflicto } from "./comun.js";
 
 const nombre = z.string().trim().min(2).max(120);
 const id = z.number().int().positive();
@@ -71,12 +71,16 @@ export const geografiaRouter = router({
   crearDepartamento: admin
     .input(z.object({ paisId: id, nombre, codigoDane: z.string().trim().length(2).optional() }))
     .mutation(async ({ ctx, input }) => {
-      const [res] = await ctx.db.insert(departamentos).values({
-        paisId: input.paisId,
-        nombre: input.nombre,
-        codigoDane: input.codigoDane ?? null,
-      });
-      return { id: Number((res as { insertId: number }).insertId) };
+      try {
+        const [res] = await ctx.db.insert(departamentos).values({
+          paisId: input.paisId,
+          nombre: input.nombre,
+          codigoDane: input.codigoDane ?? null,
+        });
+        return { id: Number((res as { insertId: number }).insertId) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un departamento con ese nombre o ese código DANE");
+      }
     }),
 
   crearCiudad: admin
@@ -105,13 +109,17 @@ export const geografiaRouter = router({
         }
       }
 
-      const [res] = await ctx.db.insert(ciudades).values({
-        departamentoId: input.departamentoId,
-        nombre: input.nombre,
-        codigoDane: input.codigoDane ?? null,
-        esCapital: input.esCapital,
-      });
-      return { id: Number((res as { insertId: number }).insertId) };
+      try {
+        const [res] = await ctx.db.insert(ciudades).values({
+          departamentoId: input.departamentoId,
+          nombre: input.nombre,
+          codigoDane: input.codigoDane ?? null,
+          esCapital: input.esCapital,
+        });
+        return { id: Number((res as { insertId: number }).insertId) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe una ciudad con ese nombre en ese departamento");
+      }
     }),
 
   crearBarrio: admin
@@ -122,13 +130,17 @@ export const geografiaRouter = router({
       estrato: z.number().int().min(1).max(6).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [res] = await ctx.db.insert(barrios).values({
-        ciudadId: input.ciudadId,
-        nombre: input.nombre,
-        localidad: input.localidad ?? null,
-        estrato: input.estrato ?? null,
-      });
-      return { id: Number((res as { insertId: number }).insertId) };
+      try {
+        const [res] = await ctx.db.insert(barrios).values({
+          ciudadId: input.ciudadId,
+          nombre: input.nombre,
+          localidad: input.localidad ?? null,
+          estrato: input.estrato ?? null,
+        });
+        return { id: Number((res as { insertId: number }).insertId) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un barrio con ese nombre en esa ciudad");
+      }
     }),
 
   editarDepartamento: admin

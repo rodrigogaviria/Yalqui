@@ -22,3 +22,24 @@ export function cambiosDe(campos: Record<string, unknown>): Record<string, unkno
 /** El código de un catálogo: minúsculas, sin espacios ni tildes. Es la llave
  *  con la que el código lo referencia, no lo que la persona lee. */
 export const codigoCatalogo = /^[a-z][a-z0-9_]{1,39}$/;
+
+/**
+ * Convierte una violación de clave única en un error legible.
+ *
+ * Un `INSERT` con un código repetido llega desde MySQL como
+ * `ER_DUP_ENTRY` — un mensaje en inglés con el nombre del índice adentro, que
+ * no debería viajar tal cual hasta la pantalla. El resto de errores se
+ * relanza sin tocar: esto no es un manejador general, es la traducción de un
+ * caso puntual.
+ */
+export function comoConflicto(e: unknown, mensaje: string): never {
+  // Drizzle envuelve el error real de mysql2 en el suyo propio — el mensaje
+  // pasa a ser «Failed query: ...» y el código de MySQL queda un nivel más
+  // abajo, en `cause`.
+  const err = e as { code?: string; cause?: { code?: string } } | null;
+  const codigo = err?.code ?? err?.cause?.code;
+  if (codigo === "ER_DUP_ENTRY") {
+    throw new TRPCError({ code: "CONFLICT", message: mensaje });
+  }
+  throw e;
+}

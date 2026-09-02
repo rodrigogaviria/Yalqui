@@ -9,7 +9,7 @@ import { planes } from "../../db/schema/dinero.js";
 import { amenidades } from "../../db/schema/vecindad.js";
 import { canalesPublicacion } from "../../db/schema/publicacion.js";
 import { permisosRol } from "../../db/schema/operacion.js";
-import { cambiosDe } from "./comun.js";
+import { cambiosDe, comoConflicto } from "./comun.js";
 
 const id = z.number().int().positive();
 
@@ -72,6 +72,44 @@ export const catalogosRouter = router({
     ctx.db.select().from(parametros).orderBy(asc(parametros.orden), asc(parametros.clave)),
   ),
 
+  /**
+   * Da de alta un parámetro nuevo.
+   *
+   * Uno creado acá no hace nada por sí solo: solo tiene efecto si algún punto
+   * del código lo lee por su `clave`. Sirve para dejarlo listo antes de que el
+   * código lo consuma — la clave se define primero, el código que la lee llega
+   * después — no al revés.
+   */
+  crearParametro: admin
+    .input(z.object({
+      clave: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{1,79}$/, "Minúsculas, sin espacios ni tildes"),
+      nombre: z.string().trim().min(2).max(160),
+      valor: z.string().trim().max(500),
+      tipo: z.enum(TIPOS_PARAMETRO).default("texto"),
+      categoria: z.string().trim().min(2).max(60).default("general"),
+      descripcion: z.string().trim().max(500).optional(),
+      unidad: z.string().trim().max(20).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [ya] = await ctx.db
+        .select({ id: parametros.id })
+        .from(parametros)
+        .where(eq(parametros.clave, input.clave))
+        .limit(1);
+      if (ya) throw new TRPCError({ code: "CONFLICT", message: "Ya existe un parámetro con esa clave" });
+
+      await ctx.db.insert(parametros).values({
+        clave: input.clave,
+        nombre: input.nombre,
+        valor: input.valor,
+        tipo: input.tipo,
+        categoria: input.categoria,
+        descripcion: input.descripcion ?? null,
+        unidad: input.unidad ?? null,
+      });
+      return { ok: true };
+    }),
+
   guardarParametro: admin
     .input(z.object({ clave: z.string().trim().max(80), valor: z.string().trim().max(500) }))
     .mutation(async ({ ctx, input }) => {
@@ -114,6 +152,33 @@ export const catalogosRouter = router({
       return { ok: true };
     }),
 
+  /** El código es la llave con la que una migración futura puede referenciar
+   *  este plan por nombre estable, igual que "seguro_arrendamiento" identifica
+   *  a Yalqui Seguro. No se vuelve a editar una vez creado. */
+  crearPlan: admin
+    .input(z.object({
+      codigo: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{1,39}$/, "Minúsculas, sin espacios ni tildes"),
+      nombre: z.string().trim().min(2).max(120),
+      descripcion: z.string().trim().max(500).optional(),
+      precioMes: z.number().min(0).max(99_999_999),
+      cicloDefault: z.enum(["mensual", "anual"]).default("mensual"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const [res] = await ctx.db.insert(planes).values({
+          codigo: input.codigo,
+          nombre: input.nombre,
+          descripcion: input.descripcion ?? null,
+          precioMes: input.precioMes.toFixed(2),
+          cicloDefault: input.cicloDefault,
+          moneda: "COP",
+        });
+        return { id: Number((res as { insertId: number }).insertId) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un plan con ese código");
+      }
+    }),
+
   editarPlan: admin
     .input(z.object({
       planId: z.number().int().positive(),
@@ -127,6 +192,46 @@ export const catalogosRouter = router({
       const set = cambiosDe({ ...resto, precioMes: precioMes?.toFixed(2) });
       await ctx.db.update(planes).set(set).where(eq(planes.id, planId));
       return { ok: true };
+    }),
+
+  crearServicioYalqui: admin
+    .input(z.object({
+      codigo: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{1,59}$/, "Minúsculas, sin espacios ni tildes"),
+      nombre: z.string().trim().min(2).max(120),
+      descripcion: z.string().trim().max(255).optional(),
+      modeloCobro: z.enum(["unico", "recurrente", "por_uso", "porcentaje"]),
+      precioBase: z.number().min(0).max(99_999_999).optional(),
+      porcentaje: z.number().min(0).max(100).optional(),
+      requiereContrato: z.boolean().default(false),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Un servicio por porcentaje no tiene precio fijo, y uno que no es por
+      // porcentaje no tiene sentido con uno puesto: mezclar los dos dejaría
+      // ambiguo cuál manda al facturar.
+      if (input.modeloCobro === "porcentaje" && input.porcentaje === undefined) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Un servicio por porcentaje necesita el porcentaje" });
+      }
+      if (input.modeloCobro !== "porcentaje" && input.precioBase === undefined) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Poné el precio base" });
+      }
+
+      try {
+        const [res] = await ctx.db.insert(servicios).values({
+          codigo: input.codigo,
+          nombre: input.nombre,
+          descripcion: input.descripcion ?? null,
+          modeloCobro: input.modeloCobro,
+          precioBase: input.precioBase?.toFixed(2) ?? null,
+          porcentaje: input.porcentaje?.toFixed(3) ?? null,
+          // `requiere_contrato` quedó como TINYINT al introspectar la tabla en
+          // vez de BOOLEAN, la misma deriva que ya se corrigió en otras columnas.
+          requiereContrato: input.requiereContrato ? 1 : 0,
+          moneda: "COP",
+        });
+        return { id: Number((res as { insertId: number }).insertId) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un servicio con ese código");
+      }
     }),
 
   editarServicioYalqui: admin

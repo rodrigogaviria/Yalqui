@@ -44,6 +44,8 @@ import m019 from "./019_texto_contrato.sql";
 import m020 from "./020_plantilla_real.sql";
 // @ts-ignore
 import m021 from "./021_incidencia_contacto.sql";
+// @ts-ignore
+import m022 from "./022_catalogo_extensible_servicios.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -73,4 +75,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "019", nombre: "texto_contrato", sql: m019 as string },
   { version: "020", nombre: "plantilla_real", sql: m020 as string },
   { version: "021", nombre: "incidencia_contacto", sql: m021 as string },
+  { version: "022", nombre: "catalogo_extensible_servicios", sql: m022 as string },
 ];

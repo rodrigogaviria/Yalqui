@@ -4,10 +4,70 @@ import { TRPCError } from "@trpc/server";
 import { router, admin } from "../../trpc/base.js";
 import type { Database } from "../../db/index.js";
 import { usuarios, usuarioRoles, ROLES, AMBITOS } from "../../db/schema/identidad.js";
+import { nuevoToken, expiraEn } from "../../auth/tokens-enlace.js";
 
 const id = z.number().int().positive();
 
 export const usuariosRouter = router({
+  /**
+   * Da de alta una cuenta desde la administración.
+   *
+   * Nace sin contraseña usable, con un enlace de activación — el mismo
+   * mecanismo que usa `marcarAlquilado` para el inquilino. Que la
+   * administración eligiera la clave le daría acceso a la cuenta de otra
+   * persona; con el enlace, quien la recibe la activa y desde ese momento
+   * nadie más puede entrar con ella.
+   */
+  crear: admin
+    .input(z.object({
+      email: z.string().trim().toLowerCase().email().max(191),
+      nombre: z.string().trim().min(1).max(120),
+      apellido: z.string().trim().min(1).max(120),
+      tipoDocumento: z.enum(["CC", "CE", "NIT", "PA"]),
+      numeroDocumento: z.string().trim().min(4).max(40),
+      telefono: z.string().trim().max(30).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [ya] = await ctx.db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .where(eq(usuarios.email, input.email))
+        .limit(1);
+      if (ya) throw new TRPCError({ code: "CONFLICT", message: "Ese correo ya tiene cuenta" });
+
+      const [porDocumento] = await ctx.db
+        .select({ email: usuarios.email })
+        .from(usuarios)
+        .where(and(
+          eq(usuarios.tipoDocumento, input.tipoDocumento),
+          eq(usuarios.numeroDocumento, input.numeroDocumento),
+        ))
+        .limit(1);
+      if (porDocumento) {
+        throw new TRPCError({ code: "CONFLICT", message: "Ese documento ya tiene una cuenta" });
+      }
+
+      const { token, hash } = nuevoToken();
+      const [res] = await ctx.db.insert(usuarios).values({
+        email: input.email,
+        passwordHash: "sin-contrasena",
+        activacionToken: hash,
+        activacionExpiraAt: expiraEn(168),
+        creadaPorId: ctx.usuario.id,
+        nombre: input.nombre,
+        apellido: input.apellido,
+        telefono: input.telefono ?? null,
+        tipoDocumento: input.tipoDocumento,
+        numeroDocumento: input.numeroDocumento,
+        estado: "pendiente",
+      });
+
+      return {
+        usuarioId: Number((res as { insertId: number }).insertId),
+        enlaceActivacion: `/activar?t=${token}`,
+      };
+    }),
+
   /** Listado con búsqueda. La página es chica a propósito: es una pantalla de
    *  administración, no un exportador. */
   listar: admin
