@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { api, mensajeDeError } from "../lib/api";
 import { Dinero, pesos } from "../componentes/Dinero";
-import { Cifra } from "./propietario/comun";
 
 type Unidad = Awaited<ReturnType<typeof api.inmuebles.mias.query>>["unidades"][number];
 type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
@@ -11,6 +10,21 @@ const BOTON = { height: 38, fontSize: 13.5, padding: "0 10px" } as const;
 /** Dirección y complemento, que es como se nombra una unidad en todos lados. */
 function titulo(u: { direccion: string; complemento: string | null }): string {
   return `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`;
+}
+
+/** Una cifra chica, para vivir varias juntas dentro de un mismo bloque en vez
+ *  de cada una en su propia tarjeta. */
+function MiniCifra({ titulo, valor, tono = "normal" }: {
+  titulo: string; valor: string; tono?: "normal" | "bien" | "mal" | "ojo";
+}) {
+  const color = tono === "bien" ? "var(--bien)" : tono === "mal" ? "var(--mal)"
+    : tono === "ojo" ? "var(--ojo)" : "var(--tinta)";
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: "var(--tinta-2)" }}>{titulo}</div>
+      <div className="num" style={{ fontSize: 17, fontWeight: 600, marginTop: 3, color }}>{valor}</div>
+    </div>
+  );
 }
 
 const NOMBRE_TIPO: Record<string, string> = {
@@ -94,10 +108,14 @@ export function Portafolio({
     return <p style={{ color: "var(--tinta-2)" }}>Cargando tus unidades…</p>;
   }
 
-  // El canon del mes cuenta solo lo arrendado: lo publicado todavía no produce.
   const arrendadas = unidades.filter((u) => u.estado === "arrendado");
   const disponibles = unidades.length - arrendadas.length;
-  const totalArrendamientos = arrendadas.reduce((t, u) => t + Number(u.canonBase), 0);
+
+  // Potenciales es el techo: lo que rentarían las unidades si estuvieran
+  // todas ocupadas. Actuales es lo que de verdad se está cobrando hoy — la
+  // distancia entre los dos números es lo que vale ir a ocupar.
+  const arrendamientosPotenciales = unidades.reduce((t, u) => t + Number(u.canonBase), 0);
+  const arrendamientosActuales = arrendadas.reduce((t, u) => t + Number(u.canonBase), 0);
 
   // Lo esperado del mes se reparte en tres estados según la factura: ya
   // llegó el pago y se verificó, todavía no vence, o venció sin pagarse.
@@ -107,7 +125,7 @@ export function Portafolio({
   const recaudado = (facturas ?? [])
     .filter((f) => f.situacion === "pagada")
     .reduce((t, f) => t + Number(f.total), 0);
-  const pendienteNoVencido = (facturas ?? [])
+  const pendiente = (facturas ?? [])
     .filter((f) => f.situacion === "porVencer")
     .reduce((t, f) => t + Number(f.saldo), 0);
   const vencido = (facturas ?? [])
@@ -141,21 +159,31 @@ export function Portafolio({
       )}
 
       {unidades.length > 0 && (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14 }}>
-            <Cifra titulo="Número de unidades" valor={String(unidades.length)} />
-            <Cifra titulo="Ocupadas" valor={String(arrendadas.length)} />
-            <Cifra titulo="Disponibles" valor={String(disponibles)} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 14 }}>
+          <div className="tarjeta" style={{ padding: "17px 19px" }}>
+            <div style={{ fontSize: 12.5, color: "var(--tinta-2)" }}># Unidades</div>
+            <div className="num" style={{ fontFamily: '"Kufam",sans-serif', fontSize: 26, fontWeight: 600, marginTop: 5 }}>
+              {unidades.length}
+            </div>
+            <div style={{ display: "flex", gap: 16, marginTop: 9, fontSize: 13, color: "var(--tinta-2)" }}>
+              <span>Ocupadas <strong className="num" style={{ color: "var(--tinta)" }}>{arrendadas.length}</strong></span>
+              <span>Disponibles <strong className="num" style={{ color: "var(--tinta)" }}>{disponibles}</strong></span>
+            </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14 }}>
-            <Cifra titulo="Total de los arrendamientos" valor={pesos(totalArrendamientos)} />
-            <Cifra titulo="Recaudado" valor={pesos(recaudado)} tono="bien" />
-            <Cifra titulo="Pendiente no vencido" valor={pesos(pendienteNoVencido)}
-              tono={pendienteNoVencido > 0 ? "ojo" : "normal"} />
-            <Cifra titulo="Vencido" valor={pesos(vencido)} tono={vencido > 0 ? "mal" : "normal"} />
+          <div className="tarjeta" style={{ padding: "17px 19px" }}>
+            <div style={{
+              display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))",
+              gap: 14, rowGap: 12,
+            }}>
+              <MiniCifra titulo="Potenciales" valor={pesos(arrendamientosPotenciales)} />
+              <MiniCifra titulo="Actuales" valor={pesos(arrendamientosActuales)} />
+              <MiniCifra titulo="Recaudado" valor={pesos(recaudado)} tono="bien" />
+              <MiniCifra titulo="Pendiente" valor={pesos(pendiente)} tono={pendiente > 0 ? "ojo" : "normal"} />
+              <MiniCifra titulo="Vencido" valor={pesos(vencido)} tono={vencido > 0 ? "mal" : "normal"} />
+            </div>
           </div>
-        </>
+        </div>
       )}
 
       {unidades.length === 0 ? (
