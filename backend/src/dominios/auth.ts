@@ -116,6 +116,7 @@ export const authRouter = router({
           email: usuarios.email,
           passwordHash: usuarios.passwordHash,
           estado: usuarios.estado,
+          debeCambiarContrasena: usuarios.debeCambiarContrasena,
         })
         .from(usuarios)
         .where(eq(usuarios.email, input.email))
@@ -140,7 +141,7 @@ export const authRouter = router({
         .where(eq(usuarios.id, fila.id));
 
       const { token, expiraEn } = await emitirToken({ usuarioId: fila.id, email: fila.email });
-      return { usuarioId: fila.id, token, expiraEn };
+      return { usuarioId: fila.id, token, expiraEn, debeCambiarContrasena: fila.debeCambiarContrasena };
     }),
 
   /**
@@ -195,11 +196,49 @@ export const authRouter = router({
     }),
 
   /** Quién soy y qué puedo. Los roles salen de la base, no del token. */
-  sesion: privado.query(({ ctx }) => ({
-    id: ctx.usuario.id,
-    email: ctx.usuario.email,
-    roles: ctx.usuario.roles,
-  })),
+  sesion: privado.query(async ({ ctx }) => {
+    const [fila] = await ctx.db
+      .select({ debeCambiarContrasena: usuarios.debeCambiarContrasena })
+      .from(usuarios)
+      .where(eq(usuarios.id, ctx.usuario.id))
+      .limit(1);
+    return {
+      id: ctx.usuario.id,
+      email: ctx.usuario.email,
+      roles: ctx.usuario.roles,
+      debeCambiarContrasena: fila?.debeCambiarContrasena ?? false,
+    };
+  }),
+
+  /**
+   * El cambio de contraseña obligatorio, para cuando la puso otra persona.
+   *
+   * No pide la contraseña actual como sí exige `cambiarContrasena`: ya se
+   * demostró quién es al entrar con la temporal, y volver a pedirla acá no
+   * suma seguridad, solo un paso más antes de poder usar la cuenta. Solo
+   * funciona mientras la bandera siga en true — no es una puerta trasera para
+   * cambiarse la contraseña sin la actual en cualquier otro momento.
+   */
+  primerCambioContrasena: privado
+    .input(z.object({ nueva: contrasena }))
+    .mutation(async ({ ctx, input }) => {
+      const [fila] = await ctx.db
+        .select({ debeCambiarContrasena: usuarios.debeCambiarContrasena })
+        .from(usuarios)
+        .where(eq(usuarios.id, ctx.usuario.id))
+        .limit(1);
+
+      if (!fila?.debeCambiarContrasena) {
+        throw new TRPCError({ code: "CONFLICT", message: "Esta cuenta no tiene un cambio pendiente" });
+      }
+
+      await ctx.db
+        .update(usuarios)
+        .set({ passwordHash: await cifrarContrasena(input.nueva), debeCambiarContrasena: false })
+        .where(eq(usuarios.id, ctx.usuario.id));
+
+      return { ok: true };
+    }),
 
   /** Cambia la contraseña. Exige la actual aunque haya sesión: una sesión
    *  robada no debería poder cerrarle la cuenta al dueño. */
@@ -218,7 +257,7 @@ export const authRouter = router({
 
       await ctx.db
         .update(usuarios)
-        .set({ passwordHash: await cifrarContrasena(input.nueva) })
+        .set({ passwordHash: await cifrarContrasena(input.nueva), debeCambiarContrasena: false })
         .where(eq(usuarios.id, ctx.usuario.id));
 
       return { ok: true };

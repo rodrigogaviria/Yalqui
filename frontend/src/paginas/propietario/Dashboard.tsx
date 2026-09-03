@@ -74,7 +74,7 @@ export function Dashboard({ alIr }: { alIr: (clave: string) => void }) {
 
       {datos.alertas.length === 0 && (
         <div className="aviso bueno" role="status">
-          No hay nada pendiente: ningún pago por verificar, ninguna aplicación sin revisar
+          No hay nada pendiente: ningún pago por verificar, ningún interesado sin revisar
           y ninguna incidencia abierta.
         </div>
       )}

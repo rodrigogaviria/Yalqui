@@ -160,14 +160,13 @@ export function Portafolio({
 
       {unidades.length > 0 && (
         // Flex y no grid: el bloque de unidades es chico a propósito y no
-        // debería crecer para igualar al de dinero. Con grid de columnas
-        // iguales quedaba estirado a la mitad de la fila sin necesitarlo, y
-        // le quitaba a la tarjeta de dinero el ancho que sus cinco cifras
-        // necesitan antes de tener que partirse en dos filas.
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-          <div className="tarjeta" style={{ padding: "14px 17px", flex: "0 1 200px" }}>
-            <div style={{ fontSize: 12, color: "var(--tinta-2)" }}># Unidades</div>
-            <div className="num" style={{ fontFamily: '"Kufam",sans-serif', fontSize: 22, fontWeight: 600, marginTop: 3 }}>
+        // debería crecer para igualar al de dinero. `nowrap` los mantiene
+        // siempre en una sola fila; en pantallas angostas el contenedor
+        // scrollea en vez de apilarlos o aplastar las cifras de dinero.
+        <div style={{ display: "flex", gap: 14, flexWrap: "nowrap", overflowX: "auto", paddingBottom: 2 }}>
+          <div className="tarjeta" style={{ padding: "14px 17px", flex: "0 0 200px" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--violeta-hondo)" }}># Unidades</div>
+            <div className="num" style={{ fontFamily: '"Kufam",sans-serif', fontSize: 22, fontWeight: 600, marginTop: 5 }}>
               {unidades.length}
             </div>
             <div style={{ display: "flex", gap: 12, marginTop: 7, fontSize: 12.5, color: "var(--tinta-2)" }}>
@@ -176,7 +175,10 @@ export function Portafolio({
             </div>
           </div>
 
-          <div className="tarjeta" style={{ padding: "17px 19px", flex: "1 1 420px" }}>
+          <div className="tarjeta" style={{ padding: "14px 19px", flex: "1 1 420px", minWidth: 480 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--violeta-hondo)", marginBottom: 10 }}>
+              $ Arrendamientos
+            </div>
             <div style={{
               display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))",
               gap: 14, rowGap: 12,

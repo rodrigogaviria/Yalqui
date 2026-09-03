@@ -40,6 +40,9 @@ export function Usuarios({ avisar }: { avisar: (m: string) => void }) {
   const [nTelefono, setNTelefono] = useState("");
   const [enlace, setEnlace] = useState<string | null>(null);
 
+  const [cambiandoClave, setCambiandoClave] = useState(false);
+  const [nuevaClave, setNuevaClave] = useState("");
+
   const [rol, setRol] = useState<Rol>("propietario");
   const [ambitoTipo, setAmbitoTipo] = useState<Ambito>("inmueble");
   const [ambitoId, setAmbitoId] = useState("");
@@ -211,22 +214,61 @@ export function Usuarios({ avisar }: { avisar: (m: string) => void }) {
           titulo={`${detalle.usuario.nombre} ${detalle.usuario.apellido}`}
           nota={detalle.usuario.email}
           accion={
-            <button
-              className={detalle.usuario.estado === "suspendido" ? "boton" : "boton riesgo"}
-              style={{ height: 38, fontSize: 14 }}
-              disabled={ocupado}
-              onClick={() => void accion(
-                () => api.admin.usuarios.cambiarEstado.mutate({
-                  usuarioId: detalle.usuario.id,
-                  estado: detalle.usuario.estado === "suspendido" ? "activo" : "suspendido",
-                }),
-                detalle.usuario.estado === "suspendido" ? "Cuenta reactivada" : "Cuenta suspendida",
-              )}
-            >
-              {detalle.usuario.estado === "suspendido" ? "Reactivar cuenta" : "Suspender cuenta"}
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="boton fantasma"
+                style={{ height: 38, fontSize: 14 }}
+                onClick={() => { setCambiandoClave((v) => !v); setNuevaClave(""); }}
+              >
+                {cambiandoClave ? "Cancelar" : "Cambiar contraseña"}
+              </button>
+              <button
+                className={detalle.usuario.estado === "suspendido" ? "boton" : "boton riesgo"}
+                style={{ height: 38, fontSize: 14 }}
+                disabled={ocupado}
+                onClick={() => void accion(
+                  () => api.admin.usuarios.cambiarEstado.mutate({
+                    usuarioId: detalle.usuario.id,
+                    estado: detalle.usuario.estado === "suspendido" ? "activo" : "suspendido",
+                  }),
+                  detalle.usuario.estado === "suspendido" ? "Cuenta reactivada" : "Cuenta suspendida",
+                )}
+              >
+                {detalle.usuario.estado === "suspendido" ? "Reactivar cuenta" : "Suspender cuenta"}
+              </button>
+            </div>
           }
         >
+          {cambiandoClave && (
+            <div style={{
+              border: "1px solid var(--violeta)", borderRadius: 11, padding: 16,
+              background: "var(--violeta-tenue)", display: "grid", gap: 10, marginBottom: 4,
+            }}>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--tinta-2)" }}>
+                Pone una contraseña temporal. La cuenta queda marcada para cambio obligatorio:
+                en el próximo ingreso, esta persona tiene que reemplazarla por la suya antes de
+                ver nada.
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <Campo etiqueta="Contraseña nueva" ayuda="Seis caracteres o más">
+                    <input value={nuevaClave} onChange={(e) => setNuevaClave(e.target.value)} />
+                  </Campo>
+                </div>
+                <button className="boton" style={{ height: 42 }}
+                  disabled={ocupado || nuevaClave.length < 6}
+                  onClick={() => void accion(
+                    () => api.admin.usuarios.cambiarContrasena.mutate({
+                      usuarioId: detalle.usuario.id, nueva: nuevaClave,
+                    }),
+                    "Contraseña reiniciada",
+                  ).then(() => { setCambiandoClave(false); setNuevaClave(""); })}>
+                  Guardar
+                </button>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", paddingBottom: 6 }}>
             <div style={{ flex: "1 1 220px" }}>
               <Campo etiqueta="Rol">

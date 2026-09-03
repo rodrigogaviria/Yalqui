@@ -110,7 +110,7 @@ export const dashboardRouter = router({
           ? [{ clave: "pagos", texto: `${pagos!.n} pago${Number(pagos!.n) === 1 ? "" : "s"} esperando que lo verifiques` }]
           : []),
         ...(Number(apps?.n ?? 0) > 0
-          ? [{ clave: "aplicaciones", texto: `${apps!.n} aplicación${Number(apps!.n) === 1 ? "" : "es"} sin revisar` }]
+          ? [{ clave: "aplicaciones", texto: `${apps!.n} interesado${Number(apps!.n) === 1 ? "" : "s"} sin revisar` }]
           : []),
         ...(vencido > 0
           ? [{ clave: "pagos", texto: "Hay canon vencido sin pagar" }]

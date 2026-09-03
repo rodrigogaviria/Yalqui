@@ -36,7 +36,7 @@ export function Aplicaciones() {
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Aplicaciones"
+        titulo="Interesados"
         nota="Quién quiere arrendar tus unidades. El canon ofrecido lo calcula el servidor con los ajustes que configuraste, no lo escribe el candidato."
       />
 
@@ -50,9 +50,9 @@ export function Aplicaciones() {
       </Cifras>
 
       {datos.total === 0 ? (
-        <Vacio titulo="Todavía nadie aplicó">
-          Las aplicaciones llegan después de la visita: el sistema le manda al interesado
-          un enlace para precalificarse, y si le da, aplica.
+        <Vacio titulo="Todavía no hay interesados">
+          Llegan después de la visita: el sistema le manda a la persona un enlace para
+          precalificarse, y si le da, queda como interesado en la unidad.
         </Vacio>
       ) : (
         <div style={{ display: "grid", gap: 10 }}>
@@ -104,7 +104,7 @@ export function Aplicaciones() {
                         () => api.aplicaciones.decidir.mutate({
                           inmuebleId: a.inmuebleId, aplicacionId: a.id, decision: "aprobada",
                         }),
-                        "Aplicación aprobada. Ya podés generar el contrato.")}>
+                        "Interesado aprobado. Ya podés generar el contrato.")}>
                       {ocupado === a.id ? "…" : "Aprobar"}
                     </button>
                     <button className="boton riesgo" style={{ height: 38, fontSize: 13.5 }}
@@ -114,7 +114,7 @@ export function Aplicaciones() {
                           inmuebleId: a.inmuebleId, aplicacionId: a.id, decision: "rechazada",
                           motivo: "No se ajusta a lo que busco",
                         }),
-                        "Aplicación rechazada.")}>
+                        "Interesado rechazado.")}>
                       Rechazar
                     </button>
                   </div>

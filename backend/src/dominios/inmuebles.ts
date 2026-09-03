@@ -8,7 +8,7 @@ import {
   TIPOS_UNIDAD,
 } from "../db/schema/inventario.js";
 import { otorgarRol, ambitosCon } from "../auth/roles.js";
-import { nuevoToken, expiraEn } from "../auth/tokens-enlace.js";
+import { cifrarContrasena } from "../auth/password.js";
 import { usuarios } from "../db/schema/identidad.js";
 import { aplicaciones } from "../db/schema/demanda.js";
 import { garantes } from "../db/schema/score.js";
@@ -273,6 +273,83 @@ export const inmueblesRouter = router({
    * relación con fechas, no un atributo. Los anteriores se conservan porque
    * saber quién vivió antes importa para una referencia o un reclamo.
    */
+  /**
+   * Corrige los datos de contacto de un inquilino que el propietario mismo
+   * dio de alta — al marcar la unidad como alquilada, se puede escribir mal
+   * un correo o un teléfono.
+   *
+   * Solo mientras la cuenta siga sin activar. Una vez que la persona entra y
+   * elige su contraseña, la identidad es suya: el propietario ya no puede
+   * tocarla, igual que no puede ver ni cambiar esa contraseña.
+   */
+  editarInquilino: delPropietario
+    .input(z.object({
+      inmuebleId: z.number().int().positive(),
+      usuarioId: z.number().int().positive(),
+      nombre: z.string().trim().min(1).max(120).optional(),
+      apellido: z.string().trim().min(1).max(120).optional(),
+      telefono: z.string().trim().max(30).optional(),
+      email: z.string().trim().toLowerCase().email().max(191).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { inmuebleId, usuarioId, ...campos } = input;
+      const set = Object.fromEntries(Object.entries(campos).filter(([, v]) => v !== undefined));
+      if (Object.keys(set).length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No hay nada que cambiar" });
+      }
+
+      // El guardia solo comprueba que la unidad sea suya. Falta comprobar que
+      // ese usuario sea de verdad un inquilino o designado de esta unidad —
+      // si no, cualquier propietario con una sola unidad podría editar a
+      // cualquiera con solo adivinar su id.
+      const [esDesignado] = await ctx.db
+        .select({ id: aplicaciones.id })
+        .from(aplicaciones)
+        .where(and(
+          eq(aplicaciones.inmuebleId, inmuebleId),
+          eq(aplicaciones.inquilinoId, usuarioId),
+          eq(aplicaciones.estado, "aprobada"),
+        ))
+        .limit(1);
+      const [esActual] = esDesignado ? [] : await ctx.db
+        .select({ id: contratos.id })
+        .from(contratos)
+        .where(and(
+          eq(contratos.inmuebleId, inmuebleId),
+          eq(contratos.inquilinoId, usuarioId),
+        ))
+        .limit(1);
+
+      if (!esDesignado && !esActual) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Esa persona no es inquilino de esta unidad" });
+      }
+
+      const [u] = await ctx.db
+        .select({ debeCambiarContrasena: usuarios.debeCambiarContrasena })
+        .from(usuarios)
+        .where(eq(usuarios.id, usuarioId))
+        .limit(1);
+      if (!u) throw new TRPCError({ code: "NOT_FOUND", message: "Ese usuario no existe" });
+      if (!u.debeCambiarContrasena) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Ya entró y cambió su contraseña: sus datos ahora los administra desde la suya",
+        });
+      }
+
+      if (set.email !== undefined) {
+        const [yaExiste] = await ctx.db
+          .select({ id: usuarios.id })
+          .from(usuarios)
+          .where(and(eq(usuarios.email, set.email as string), sql`${usuarios.id} <> ${usuarioId}`))
+          .limit(1);
+        if (yaExiste) throw new TRPCError({ code: "CONFLICT", message: "Ese correo ya tiene cuenta" });
+      }
+
+      await ctx.db.update(usuarios).set(set).where(eq(usuarios.id, usuarioId));
+      return { ok: true };
+    }),
+
   inquilinos: delPropietario.input(soloId).query(async ({ ctx, input }) => {
     const filas = await ctx.db
       .select({
@@ -289,7 +366,7 @@ export const inmueblesRouter = router({
         telefono: usuarios.telefono,
         tipoDocumento: usuarios.tipoDocumento,
         numeroDocumento: usuarios.numeroDocumento,
-        token: usuarios.activacionToken,
+        token: usuarios.debeCambiarContrasena,
       })
       .from(contratos)
       .innerJoin(usuarios, eq(usuarios.id, contratos.inquilinoId))
@@ -307,7 +384,7 @@ export const inmueblesRouter = router({
         email: usuarios.email,
         telefono: usuarios.telefono,
         canonOfrecido: aplicaciones.canonOfrecido,
-        token: usuarios.activacionToken,
+        token: usuarios.debeCambiarContrasena,
       })
       .from(aplicaciones)
       .innerJoin(usuarios, eq(usuarios.id, aplicaciones.inquilinoId))
@@ -330,9 +407,10 @@ export const inmueblesRouter = router({
       .where(inArray(garantes.aplicacionId, idsAplicacion));
 
     const conContrato = new Set(filas.map((f) => f.usuarioId));
-    /** Sigue sin activarse: la cuenta existe pero su dueño nunca entró. */
-    const marcar = <T extends { token: string | null }>({ token, ...resto }: T) =>
-      ({ ...resto, sinActivar: token !== null });
+    /** Sigue con la contraseña que le puso otro: no entró todavía, o entró
+     *  pero no la cambió. */
+    const marcar = <T extends { token: boolean }>({ token, ...resto }: T) =>
+      ({ ...resto, sinActivar: token });
 
     return {
       actuales: filas
@@ -479,8 +557,11 @@ export const inmueblesRouter = router({
         });
       }
 
-      const { token, hash } = nuevoToken();
       const canon = input.canonAcordado ?? Number(u.canonBase);
+      // Contraseña temporal y no un enlace: el propietario se la dice de
+      // palabra o por WhatsApp sin depender de que un correo llegue. Queda
+      // inválida en el primer ingreso, cuando el sistema obliga a cambiarla.
+      const CONTRASENA_TEMPORAL = "123456";
 
       const resultado = await ctx.db.transaction(async (tx) => {
         let inquilinoId: number;
@@ -489,21 +570,17 @@ export const inmueblesRouter = router({
         if (existente) {
           inquilinoId = existente.id;
         } else {
-          // El hash es un valor que ningún scrypt puede producir, así que
-          // `verificarContrasena` siempre falla contra él: la cuenta existe
-          // pero nadie puede entrar hasta activarla.
           const [res] = await tx.insert(usuarios).values({
             email: input.email,
-            passwordHash: "sin-contrasena",
-            activacionToken: hash,
-            activacionExpiraAt: expiraEn(168),
+            passwordHash: await cifrarContrasena(CONTRASENA_TEMPORAL),
+            debeCambiarContrasena: true,
             creadaPorId: ctx.usuario.id,
             nombre: input.nombre,
             apellido: input.apellido,
             telefono: input.telefono ?? null,
             tipoDocumento: input.tipoDocumento,
             numeroDocumento: input.numeroDocumento,
-            estado: "pendiente",
+            estado: "activo",
           });
           inquilinoId = Number((res as { insertId: number }).insertId);
           cuentaNueva = true;
@@ -549,9 +626,9 @@ export const inmueblesRouter = router({
         ...resultado,
         canon,
         mesesPlazo: input.mesesPlazo,
-        /** Solo cuando la cuenta es nueva. Es la única vez que se ve el token:
-         *  en la base queda su hash, igual que una contraseña. */
-        enlaceActivacion: resultado.cuentaNueva ? `/activar?t=${token}` : null,
+        /** Solo cuando la cuenta es nueva: si ya existía, conserva la que
+         *  tenía y no hay nada que comunicarle. */
+        contrasenaTemporal: resultado.cuentaNueva ? CONTRASENA_TEMPORAL : null,
       };
     }),
 

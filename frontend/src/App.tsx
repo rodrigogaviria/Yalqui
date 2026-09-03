@@ -19,6 +19,7 @@ import { Alquilar } from "./paginas/propietario/Alquilar";
 import { GenerarContrato } from "./paginas/propietario/GenerarContrato";
 import { VerInquilinos } from "./paginas/propietario/VerInquilinos";
 import { Activar } from "./paginas/Activar";
+import { CambioContrasenaObligatorio } from "./paginas/CambioContrasenaObligatorio";
 import { EnConstruccion } from "./paginas/EnConstruccion";
 
 type Sesion = Awaited<ReturnType<typeof api.auth.sesion.query>>;
@@ -147,6 +148,10 @@ export default function App() {
 
   if (!usuario) {
     return <Entrar alEntrar={() => { setCargando(true); void revisarSesion(); }} />;
+  }
+
+  if (usuario.debeCambiarContrasena) {
+    return <CambioContrasenaObligatorio alCambiar={() => { setCargando(true); void revisarSesion(); }} />;
   }
 
   const opcionActual = vista.tipo === "menu"

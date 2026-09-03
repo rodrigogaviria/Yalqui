@@ -39,7 +39,7 @@ export function Contratos() {
 
       {datos.total === 0 ? (
         <Vacio titulo="Todavía no hay contratos">
-          El contrato se genera desde una aplicación aprobada. El sistema arma el marco
+          El contrato se genera cuando aprobás a un interesado. El sistema arma el marco
           legal según el tipo de unidad — en vivienda urbana rige la Ley 820.
         </Vacio>
       ) : (

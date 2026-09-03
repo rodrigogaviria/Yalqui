@@ -2,6 +2,7 @@ import { z } from "zod";
 import { and, desc, eq, isNull, like, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, admin } from "../../trpc/base.js";
+import { cifrarContrasena } from "../../auth/password.js";
 import type { Database } from "../../db/index.js";
 import { usuarios, usuarioRoles, ROLES, AMBITOS } from "../../db/schema/identidad.js";
 import { nuevoToken, expiraEn } from "../../auth/tokens-enlace.js";
@@ -266,6 +267,22 @@ export const usuariosRouter = router({
       }
 
       await ctx.db.update(usuarios).set({ estado: input.estado })
+        .where(eq(usuarios.id, input.usuarioId));
+      return { ok: true };
+    }),
+
+  /**
+   * Reinicia la contraseña de cualquier cuenta, sin conocer la que tenía.
+   *
+   * Queda marcada para cambio obligatorio: la que puso la administración es
+   * temporal por definición, y esa persona la reemplaza por la suya en el
+   * primer ingreso, igual que un inquilino recién dado de alta.
+   */
+  cambiarContrasena: admin
+    .input(z.object({ usuarioId: id, nueva: z.string().min(6).max(200) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.update(usuarios)
+        .set({ passwordHash: await cifrarContrasena(input.nueva), debeCambiarContrasena: true })
         .where(eq(usuarios.id, input.usuarioId));
       return { ok: true };
     }),

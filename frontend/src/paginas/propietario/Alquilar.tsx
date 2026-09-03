@@ -81,10 +81,6 @@ export function Alquilar({ inmuebleId, direccion, canonBase, alVolver, alContrat
   }
 
   if (hecho) {
-    const enlace = hecho.enlaceActivacion === null
-      ? null
-      : `${window.location.origin}${hecho.enlaceActivacion}`;
-
     return (
       <div style={{ display: "grid", gap: 18, maxWidth: 680 }}>
         <div>
@@ -94,45 +90,45 @@ export function Alquilar({ inmuebleId, direccion, canonBase, alVolver, alContrat
           </p>
         </div>
 
-        {enlace ? (
+        {hecho.contrasenaTemporal !== null ? (
           <section className="tarjeta" style={{ padding: 22, display: "grid", gap: 12 }}>
-            <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Pasale este enlace a {nombre}</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Decile esto a {nombre}</h2>
             <p style={{ margin: 0, fontSize: 14, color: "var(--tinta-2)" }}>
-              La cuenta existe pero no tiene contraseña: nadie puede entrar hasta que
-              ella la active y elija la suya. Vos no la vas a saber, y así debe ser —
-              es la cuenta con la que va a firmar el contrato.
+              Le creamos la cuenta con esta contraseña temporal. Se la decís de palabra o
+              por WhatsApp — no hace falta que le llegue ningún correo. La primera vez que
+              entre, el sistema la va a obligar a cambiarla por una que solo ella conozca.
             </p>
 
             <div style={{
               display: "flex", gap: 8, alignItems: "center", background: "var(--papel-2)",
               border: "1px solid var(--linea)", borderRadius: 9, padding: "10px 12px",
             }}>
-              <code style={{
-                flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden",
-                textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>
-                {enlace}
+              <span style={{ fontSize: 13, color: "var(--tinta-2)" }}>Correo</span>
+              <code className="num" style={{ flex: 1, fontSize: 13.5 }}>{email}</code>
+            </div>
+            <div style={{
+              display: "flex", gap: 8, alignItems: "center", background: "var(--papel-2)",
+              border: "1px solid var(--linea)", borderRadius: 9, padding: "10px 12px",
+            }}>
+              <span style={{ fontSize: 13, color: "var(--tinta-2)" }}>Contraseña</span>
+              <code className="num" style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>
+                {hecho.contrasenaTemporal}
               </code>
               <button
                 className="boton fantasma"
                 style={{ height: 34, fontSize: 13, padding: "0 12px" }}
                 onClick={() => {
-                  void navigator.clipboard.writeText(enlace);
+                  void navigator.clipboard.writeText(hecho.contrasenaTemporal!);
                   setCopiado(true);
                 }}
               >
                 {copiado ? "Copiado" : "Copiar"}
               </button>
             </div>
-
-            <p style={{ margin: 0, fontSize: 12.5, color: "var(--tinta-3)" }}>
-              Vence en siete días. Es la única vez que se muestra: en la base queda
-              cifrado, igual que una contraseña.
-            </p>
           </section>
         ) : (
           <div className="aviso bueno">
-            Esa persona ya tenía cuenta en Yalqui, así que no hace falta activar nada.
+            Esa persona ya tenía cuenta en Yalqui, así que sigue entrando con la que ya tenía.
           </div>
         )}
 
