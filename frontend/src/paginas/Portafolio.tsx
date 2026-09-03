@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { api, mensajeDeError } from "../lib/api";
 import { Dinero, pesos } from "../componentes/Dinero";
+import { Cifra } from "./propietario/comun";
 
 type Unidad = Awaited<ReturnType<typeof api.inmuebles.mias.query>>["unidades"][number];
+type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
 
 const BOTON = { height: 38, fontSize: 13.5, padding: "0 10px" } as const;
 
@@ -30,6 +32,7 @@ export function Portafolio({
   alActuar: () => void;
 }) {
   const [unidades, setUnidades] = useState<Unidad[] | null>(null);
+  const [facturas, setFacturas] = useState<Factura[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupada, setOcupada] = useState<number | null>(null);
   /** La unidad cuyo intento de publicación falló, para ofrecerle completarla
@@ -38,8 +41,12 @@ export function Portafolio({
 
   const cargar = useCallback(async () => {
     try {
-      const r = await api.inmuebles.mias.query();
+      const [r, f] = await Promise.all([
+        api.inmuebles.mias.query(),
+        api.facturacion.misFacturas.query(),
+      ]);
       setUnidades(r.unidades);
+      setFacturas(f.facturas);
       setError(null);
     } catch (e) {
       setError(mensajeDeError(e));
@@ -89,7 +96,23 @@ export function Portafolio({
 
   // El canon del mes cuenta solo lo arrendado: lo publicado todavía no produce.
   const arrendadas = unidades.filter((u) => u.estado === "arrendado");
-  const canonMes = arrendadas.reduce((t, u) => t + Number(u.canonBase), 0);
+  const disponibles = unidades.length - arrendadas.length;
+  const totalArrendamientos = arrendadas.reduce((t, u) => t + Number(u.canonBase), 0);
+
+  // Lo esperado del mes se reparte en tres estados según la factura: ya
+  // llegó el pago y se verificó, todavía no vence, o venció sin pagarse.
+  // `saldo` y no `total` para lo pendiente y lo vencido: es lo que
+  // efectivamente falta cobrar, no el valor completo de la factura si ya
+  // hubo un abono parcial.
+  const recaudado = (facturas ?? [])
+    .filter((f) => f.situacion === "pagada")
+    .reduce((t, f) => t + Number(f.total), 0);
+  const pendienteNoVencido = (facturas ?? [])
+    .filter((f) => f.situacion === "porVencer")
+    .reduce((t, f) => t + Number(f.saldo), 0);
+  const vencido = (facturas ?? [])
+    .filter((f) => f.situacion === "vencida")
+    .reduce((t, f) => t + Number(f.saldo), 0);
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -118,26 +141,21 @@ export function Portafolio({
       )}
 
       {unidades.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14 }}>
-          <div className="tarjeta" style={{ padding: "17px 19px" }}>
-            <div style={{ fontSize: 12.5, color: "var(--tinta-2)" }}>Canon del mes</div>
-            <div className="num" style={{ fontFamily: '"Kufam",sans-serif', fontSize: 26, fontWeight: 600, marginTop: 5 }}>
-              {pesos(canonMes)}
-            </div>
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14 }}>
+            <Cifra titulo="Número de unidades" valor={String(unidades.length)} />
+            <Cifra titulo="Ocupadas" valor={String(arrendadas.length)} />
+            <Cifra titulo="Disponibles" valor={String(disponibles)} />
           </div>
-          <div className="tarjeta" style={{ padding: "17px 19px" }}>
-            <div style={{ fontSize: 12.5, color: "var(--tinta-2)" }}>Publicadas</div>
-            <div className="num" style={{ fontFamily: '"Kufam",sans-serif', fontSize: 26, fontWeight: 600, marginTop: 5 }}>
-              {unidades.filter((u) => u.estado === "publicado").length}
-            </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14 }}>
+            <Cifra titulo="Total de los arrendamientos" valor={pesos(totalArrendamientos)} />
+            <Cifra titulo="Recaudado" valor={pesos(recaudado)} tono="bien" />
+            <Cifra titulo="Pendiente no vencido" valor={pesos(pendienteNoVencido)}
+              tono={pendienteNoVencido > 0 ? "ojo" : "normal"} />
+            <Cifra titulo="Vencido" valor={pesos(vencido)} tono={vencido > 0 ? "mal" : "normal"} />
           </div>
-          <div className="tarjeta" style={{ padding: "17px 19px" }}>
-            <div style={{ fontSize: 12.5, color: "var(--tinta-2)" }}>En borrador</div>
-            <div className="num" style={{ fontFamily: '"Kufam",sans-serif', fontSize: 26, fontWeight: 600, marginTop: 5 }}>
-              {unidades.filter((u) => u.estado === "borrador").length}
-            </div>
-          </div>
-        </div>
+        </>
       )}
 
       {unidades.length === 0 ? (
