@@ -17,13 +17,24 @@ const ROLES = [
   ["proveedor", "Proveedor"],
 ] as const;
 
-const AMBITOS = [
-  ["global", "Global"], ["inmueble", "Inmueble"],
-  ["edificacion", "Edificación"], ["contrato", "Contrato"],
-] as const;
-
 type Rol = (typeof ROLES)[number][0];
-type Ambito = (typeof AMBITOS)[number][0];
+type Ambito = "global" | "inmueble" | "edificacion" | "contrato";
+
+/**
+ * El ámbito no es una elección aparte: lo determina el rol. «Propietario» es
+ * siempre de un inmueble, «inquilino» siempre de un contrato — no existe la
+ * combinación «propietario de una edificación». Antes se pedían las dos cosas
+ * por separado y nada impedía escoger una pareja sin sentido.
+ */
+const AMBITO_DE_ROL: Record<Rol, Ambito> = {
+  admin_yalqui: "global",
+  propietario: "inmueble",
+  socio_propietario: "inmueble",
+  administrador_inmueble: "edificacion",
+  inquilino: "contrato",
+  personal_propiedad: "edificacion",
+  proveedor: "inmueble",
+};
 
 export function Usuarios({ avisar }: { avisar: (m: string) => void }) {
   const [listado, setListado] = useState<Listado | null>(null);
@@ -44,7 +55,6 @@ export function Usuarios({ avisar }: { avisar: (m: string) => void }) {
   const [nuevaClave, setNuevaClave] = useState("");
 
   const [rol, setRol] = useState<Rol>("propietario");
-  const [ambitoTipo, setAmbitoTipo] = useState<Ambito>("inmueble");
   const [ambitoId, setAmbitoId] = useState("");
 
   const cargar = useCallback(async (texto: string) => {
@@ -80,8 +90,7 @@ export function Usuarios({ avisar }: { avisar: (m: string) => void }) {
   // El rol global solo existe para la administración de Yalqui; el resto no
   // significa nada sin decir sobre qué. La pantalla sigue esa misma regla para
   // que no se pueda armar una combinación que el servidor va a rechazar.
-  const esAdminYalqui = rol === "admin_yalqui";
-  const ambitoEfectivo: Ambito = esAdminYalqui ? "global" : ambitoTipo === "global" ? "inmueble" : ambitoTipo;
+  const ambitoEfectivo = AMBITO_DE_ROL[rol];
   const pideId = ambitoEfectivo !== "global";
 
   return (
@@ -277,30 +286,22 @@ export function Usuarios({ avisar }: { avisar: (m: string) => void }) {
                 </select>
               </Campo>
             </div>
-            <div style={{ flex: "0 1 180px" }}>
-              <Campo etiqueta="Ámbito" ayuda={esAdminYalqui ? "La administración es siempre global" : undefined}>
-                <select value={ambitoEfectivo} disabled={esAdminYalqui}
-                  onChange={(e) => setAmbitoTipo(e.target.value as Ambito)}>
-                  {AMBITOS.filter(([v]) => esAdminYalqui ? v === "global" : v !== "global")
-                    .map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-                </select>
-              </Campo>
-            </div>
             {pideId && (
-              <div style={{ width: 130 }}>
-                <Campo etiqueta={`Id de ${etiqueta("ambitoRol", ambitoEfectivo).toLowerCase()}`}>
+              <div style={{ width: 160 }}>
+                <Campo etiqueta={`Id de ${etiqueta("ambitoRol", ambitoEfectivo).toLowerCase()}`}
+                  ayuda="Opcional acá: si lo dejás vacío, el servidor te dice qué falta">
                   <input type="number" min={1} value={ambitoId} onChange={(e) => setAmbitoId(e.target.value)} />
                 </Campo>
               </div>
             )}
             <button className="boton" style={{ height: 42 }}
-              disabled={ocupado || (pideId && ambitoId.trim() === "")}
+              disabled={ocupado}
               onClick={() => void accion(
                 () => api.admin.usuarios.otorgarRol.mutate({
                   usuarioId: detalle.usuario.id,
                   rol,
                   ambitoTipo: ambitoEfectivo,
-                  ambitoId: pideId ? Number(ambitoId) : 0,
+                  ambitoId: ambitoId.trim() === "" ? 0 : Number(ambitoId),
                 }),
                 "Rol otorgado",
               )}>
