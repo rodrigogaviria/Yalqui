@@ -159,19 +159,24 @@ export function Portafolio({
       )}
 
       {unidades.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 14 }}>
-          <div className="tarjeta" style={{ padding: "17px 19px" }}>
-            <div style={{ fontSize: 12.5, color: "var(--tinta-2)" }}># Unidades</div>
-            <div className="num" style={{ fontFamily: '"Kufam",sans-serif', fontSize: 26, fontWeight: 600, marginTop: 5 }}>
+        // Flex y no grid: el bloque de unidades es chico a propósito y no
+        // debería crecer para igualar al de dinero. Con grid de columnas
+        // iguales quedaba estirado a la mitad de la fila sin necesitarlo, y
+        // le quitaba a la tarjeta de dinero el ancho que sus cinco cifras
+        // necesitan antes de tener que partirse en dos filas.
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+          <div className="tarjeta" style={{ padding: "14px 17px", flex: "0 1 200px" }}>
+            <div style={{ fontSize: 12, color: "var(--tinta-2)" }}># Unidades</div>
+            <div className="num" style={{ fontFamily: '"Kufam",sans-serif', fontSize: 22, fontWeight: 600, marginTop: 3 }}>
               {unidades.length}
             </div>
-            <div style={{ display: "flex", gap: 16, marginTop: 9, fontSize: 13, color: "var(--tinta-2)" }}>
+            <div style={{ display: "flex", gap: 12, marginTop: 7, fontSize: 12.5, color: "var(--tinta-2)" }}>
               <span>Ocupadas <strong className="num" style={{ color: "var(--tinta)" }}>{arrendadas.length}</strong></span>
               <span>Disponibles <strong className="num" style={{ color: "var(--tinta)" }}>{disponibles}</strong></span>
             </div>
           </div>
 
-          <div className="tarjeta" style={{ padding: "17px 19px" }}>
+          <div className="tarjeta" style={{ padding: "17px 19px", flex: "1 1 420px" }}>
             <div style={{
               display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))",
               gap: 14, rowGap: 12,
