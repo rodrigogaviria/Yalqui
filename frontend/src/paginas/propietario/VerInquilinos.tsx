@@ -20,6 +20,7 @@ export function VerInquilinos({ inmuebleId, direccion, alVolver, alGenerarContra
   const { datos, error, aviso, ocupado, accion } =
     usePantalla(() => api.inmuebles.inquilinos.query({ inmuebleId }));
   const [editando, setEditando] = useState<number | null>(null);
+  const [editandoCodeudor, setEditandoCodeudor] = useState<number | null>(null);
 
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
   if (datos === null) return <p style={{ color: "var(--tinta-2)" }}>Cargando…</p>;
@@ -74,18 +75,28 @@ export function VerInquilinos({ inmuebleId, direccion, alVolver, alGenerarContra
                 () => api.inmuebles.editarInquilino.mutate({ inmuebleId, usuarioId: d.usuarioId, ...campos }),
                 "Datos actualizados",
               ).then(() => setEditando(null))}
-              lineas={[
-                `Canon acordado ${pesos(Number(d.canonOfrecido))}`,
-                ...(d.codeudor
-                  ? [`Codeudor: ${d.codeudor.nombre}${d.codeudor.numeroDocumento ? ` · ${d.codeudor.numeroDocumento}` : ""}${d.codeudor.email ? ` · ${d.codeudor.email}` : ""}`]
-                  : ["Sin codeudor"]),
-              ]}
+              lineas={[`Canon acordado ${pesos(Number(d.canonOfrecido))}`]}
               accion={
                 <button className="boton" style={{ height: 36, fontSize: 13.5 }}
                   onClick={() => alGenerarContrato(d.aplicacionId)}>
                   Generar contrato
                 </button>
               }
+            />
+          ))}
+
+          {datos.designados.filter((d) => d.codeudor !== null).map((d) => (
+            <CodeudorFicha
+              key={d.codeudor!.id}
+              codeudor={d.codeudor!}
+              editando={editandoCodeudor === d.codeudor!.id}
+              alEditar={() => setEditandoCodeudor(d.codeudor!.id)}
+              alCancelar={() => setEditandoCodeudor(null)}
+              ocupado={ocupado === -d.codeudor!.id}
+              alGuardar={(campos) => accion(-d.codeudor!.id,
+                () => api.inmuebles.editarCodeudor.mutate({ inmuebleId, garanteId: d.codeudor!.id, ...campos }),
+                "Codeudor actualizado",
+              ).then(() => setEditandoCodeudor(null))}
             />
           ))}
         </section>
@@ -142,6 +153,118 @@ export function VerInquilinos({ inmuebleId, direccion, alVolver, alGenerarContra
           ))}
         </section>
       )}
+    </div>
+  );
+}
+
+interface CamposCodeudor {
+  nombre?: string;
+  tipoDocumento?: "CC" | "CE" | "NIT" | "PA";
+  numeroDocumento?: string;
+  telefono?: string;
+  email?: string;
+}
+
+type Codeudor = {
+  id: number;
+  nombre: string;
+  tipoDocumento: "CC" | "CE" | "NIT" | "PA" | null;
+  numeroDocumento: string | null;
+  telefono: string | null;
+  email: string | null;
+};
+
+/**
+ * El codeudor, aparte del inquilino que respalda.
+ *
+ * Se puede editar mientras no exista contrato: `editarCodeudor` lo rechaza en
+ * cuanto hay uno firmado, porque en ese momento el dato ya quedó atado a una
+ * firma y cambiarlo sería reescribir a quién respaldó.
+ */
+function CodeudorFicha({ codeudor, editando, alEditar, alCancelar, alGuardar, ocupado }: {
+  codeudor: Codeudor;
+  editando: boolean;
+  alEditar: () => void;
+  alCancelar: () => void;
+  alGuardar: (campos: CamposCodeudor) => void;
+  ocupado: boolean;
+}) {
+  const [bNombre, setBNombre] = useState(codeudor.nombre);
+  const [bTipoDoc, setBTipoDoc] = useState(codeudor.tipoDocumento ?? "CC");
+  const [bNumero, setBNumero] = useState(codeudor.numeroDocumento ?? "");
+  const [bTelefono, setBTelefono] = useState(codeudor.telefono ?? "");
+  const [bEmail, setBEmail] = useState(codeudor.email ?? "");
+
+  if (editando) {
+    return (
+      <div style={{
+        padding: "13px 15px", borderRadius: 10, border: "1px solid var(--violeta)",
+        background: "var(--violeta-tenue)", display: "grid", gap: 10,
+      }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--tinta-2)" }}>Codeudor</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
+          <Campo etiqueta="Nombre">
+            <input value={bNombre} onChange={(e) => setBNombre(e.target.value)} />
+          </Campo>
+          <Campo etiqueta="Tipo de documento">
+            <select value={bTipoDoc} onChange={(e) => setBTipoDoc(e.target.value as typeof bTipoDoc)}>
+              <option value="CC">CC</option>
+              <option value="CE">CE</option>
+              <option value="NIT">NIT</option>
+              <option value="PA">PA</option>
+            </select>
+          </Campo>
+          <Campo etiqueta="Número de documento">
+            <input value={bNumero} onChange={(e) => setBNumero(e.target.value)} />
+          </Campo>
+          <Campo etiqueta="Teléfono">
+            <input value={bTelefono} onChange={(e) => setBTelefono(e.target.value)} />
+          </Campo>
+          <Campo etiqueta="Correo">
+            <input value={bEmail} onChange={(e) => setBEmail(e.target.value)} />
+          </Campo>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="boton" style={{ height: 36, fontSize: 13.5 }}
+            disabled={ocupado || bNombre.trim().length < 3}
+            onClick={() => alGuardar({
+              ...(bNombre.trim() !== codeudor.nombre ? { nombre: bNombre.trim() } : {}),
+              ...(bTipoDoc !== (codeudor.tipoDocumento ?? "CC") ? { tipoDocumento: bTipoDoc } : {}),
+              ...(bNumero.trim() !== (codeudor.numeroDocumento ?? "") ? { numeroDocumento: bNumero.trim() } : {}),
+              ...(bTelefono.trim() !== (codeudor.telefono ?? "") ? { telefono: bTelefono.trim() } : {}),
+              ...(bEmail.trim() !== (codeudor.email ?? "") ? { email: bEmail.trim() } : {}),
+            })}>
+            {ocupado ? "…" : "Guardar"}
+          </button>
+          <button className="boton fantasma" style={{ height: 36, fontSize: 13.5 }}
+            disabled={ocupado} onClick={alCancelar}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      padding: "13px 15px", borderRadius: 10, border: "1px dashed var(--linea)",
+      display: "grid", gap: 4,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, color: "var(--tinta-3)" }}>Codeudor</span>
+        <span style={{ fontSize: 14.5, fontWeight: 600 }}>{codeudor.nombre}</span>
+        <button className="boton fantasma" style={{ height: 26, fontSize: 12, padding: "0 9px" }}
+          onClick={alEditar}>
+          Editar
+        </button>
+      </div>
+      <div style={{ fontSize: 12.5, color: "var(--tinta-2)" }}>
+        {codeudor.tipoDocumento && codeudor.numeroDocumento
+          ? `${codeudor.tipoDocumento} ${codeudor.numeroDocumento}`
+          : "Sin documento"}
+        {codeudor.telefono && <> · <a href={`tel:${codeudor.telefono}`}>{codeudor.telefono}</a></>}
+        {codeudor.email && <> · <a href={`mailto:${codeudor.email}`}>{codeudor.email}</a></>}
+      </div>
     </div>
   );
 }

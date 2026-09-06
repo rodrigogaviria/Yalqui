@@ -13,6 +13,8 @@ import { usuarios } from "../db/schema/identidad.js";
 import { aplicaciones } from "../db/schema/demanda.js";
 import { garantes } from "../db/schema/score.js";
 import { contratos } from "../db/schema/contrato.js";
+import { pagosArriendo } from "../db/schema/dinero.js";
+import { incidencias } from "../db/schema/operacion.js";
 
 const dinero = z.number().nonnegative().max(9_999_999_999).multipleOf(0.01);
 
@@ -185,7 +187,45 @@ export const inmueblesRouter = router({
       .where(inArray(inmuebles.id, ids))
       .orderBy(desc(inmuebles.createdAt));
 
-    return { total: filas.length, unidades: filas };
+    // Los contratos vivos de estas unidades, para poder llegar de ahí a sus
+    // pagos. Una unidad puede tener contratos terminados atrás, pero solo el
+    // vigente (o en mora) dice cuándo fue el último pago que importa hoy.
+    const misContratos = await ctx.db
+      .select({ id: contratos.id, inmuebleId: contratos.inmuebleId })
+      .from(contratos)
+      .where(and(inArray(contratos.inmuebleId, ids), inArray(contratos.estado, ["vigente", "en_mora"])));
+
+    const idsContrato = misContratos.map((c) => c.id);
+    const ultimoPago = idsContrato.length === 0 ? [] : await ctx.db
+      .select({
+        contratoId: pagosArriendo.contratoId,
+        ultimo: sql<string>`MAX(${pagosArriendo.verificadoAt})`,
+      })
+      .from(pagosArriendo)
+      .where(and(inArray(pagosArriendo.contratoId, idsContrato), eq(pagosArriendo.estado, "verificado")))
+      .groupBy(pagosArriendo.contratoId);
+
+    const incidenciasAbiertas = await ctx.db
+      .select({ inmuebleId: incidencias.inmuebleId, n: sql<number>`COUNT(*)` })
+      .from(incidencias)
+      .where(and(
+        inArray(incidencias.inmuebleId, ids),
+        inArray(incidencias.estado, ["abierta", "asignada", "en_progreso", "espera_aprobacion"]),
+      ))
+      .groupBy(incidencias.inmuebleId);
+
+    const unidades = filas.map((u) => {
+      const contrato = misContratos.find((c) => c.inmuebleId === u.id);
+      const pago = contrato ? ultimoPago.find((p) => p.contratoId === contrato.id) : undefined;
+      const incid = incidenciasAbiertas.find((i) => i.inmuebleId === u.id);
+      return {
+        ...u,
+        fechaUltimoPago: pago?.ultimo ?? null,
+        incidenciasAbiertas: Number(incid?.n ?? 0),
+      };
+    });
+
+    return { total: unidades.length, unidades };
   }),
 
   /** El detalle de una unidad propia, con sus etiquetas. */
@@ -350,6 +390,62 @@ export const inmueblesRouter = router({
       return { ok: true };
     }),
 
+  /**
+   * Corrige los datos del codeudor de un designado.
+   *
+   * A diferencia del inquilino, el codeudor nunca tiene cuenta propia — no
+   * hay «ya activó, ahora es suyo» que lo bloquee. Sigue siendo dato del
+   * propietario mientras la persona a la que respalda siga sin firmar
+   * contrato; una vez que hay contrato, el codeudor queda registrado ahí y
+   * cambiarlo después sería reescribir a quién respaldó una firma ya puesta.
+   */
+  editarCodeudor: delPropietario
+    .input(z.object({
+      inmuebleId: z.number().int().positive(),
+      garanteId: z.number().int().positive(),
+      nombre: z.string().trim().min(3).max(191).optional(),
+      tipoDocumento: z.enum(["CC", "CE", "NIT", "PA"]).optional(),
+      numeroDocumento: z.string().trim().min(4).max(40).optional(),
+      telefono: z.string().trim().max(30).optional(),
+      email: z.string().trim().toLowerCase().email().max(191).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { inmuebleId, garanteId, ...campos } = input;
+      const set = Object.fromEntries(Object.entries(campos).filter(([, v]) => v !== undefined));
+      if (Object.keys(set).length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No hay nada que cambiar" });
+      }
+
+      const [g] = await ctx.db
+        .select({ aplicacionId: garantes.aplicacionId, contratoId: garantes.contratoId })
+        .from(garantes)
+        .where(eq(garantes.id, garanteId))
+        .limit(1);
+      if (!g) throw new TRPCError({ code: "NOT_FOUND", message: "Ese codeudor no existe" });
+
+      if (g.contratoId !== null) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Ya hay un contrato firmado con estos datos: no se editan después",
+        });
+      }
+      if (g.aplicacionId === null) {
+        throw new TRPCError({ code: "CONFLICT", message: "Este codeudor no está atado a ninguna aplicación" });
+      }
+
+      const [ap] = await ctx.db
+        .select({ inmuebleId: aplicaciones.inmuebleId })
+        .from(aplicaciones)
+        .where(eq(aplicaciones.id, g.aplicacionId))
+        .limit(1);
+      if (!ap || ap.inmuebleId !== inmuebleId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Ese codeudor no es de esta unidad" });
+      }
+
+      await ctx.db.update(garantes).set(set).where(eq(garantes.id, garanteId));
+      return { ok: true };
+    }),
+
   inquilinos: delPropietario.input(soloId).query(async ({ ctx, input }) => {
     const filas = await ctx.db
       .select({
@@ -397,11 +493,13 @@ export const inmueblesRouter = router({
     const idsAplicacion = designados.map((d) => d.aplicacionId);
     const codeudores = idsAplicacion.length === 0 ? [] : await ctx.db
       .select({
+        id: garantes.id,
         aplicacionId: garantes.aplicacionId,
         nombre: garantes.nombre,
-        email: garantes.email,
-        telefono: garantes.telefono,
+        tipoDocumento: garantes.tipoDocumento,
         numeroDocumento: garantes.numeroDocumento,
+        telefono: garantes.telefono,
+        email: garantes.email,
       })
       .from(garantes)
       .where(inArray(garantes.aplicacionId, idsAplicacion));

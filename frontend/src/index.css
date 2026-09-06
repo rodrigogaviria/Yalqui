@@ -9,6 +9,10 @@
      a los botones de fondo blanco sin competir con el botón principal. */
   --violeta-medio: #b9a3ec;
   --cian: #75f6ff;
+  /* El azul de la casita del logo. --cian es el tono claro del degradé del
+     ícono; este es una versión más oscura de la misma familia, para que el
+     texto "yalqui" sea legible en fondo blanco cuando lleva este color. */
+  --azul-marca: #2E86C1;
   --amarillo: #ffe100;
 
   --tinta: #17122b;

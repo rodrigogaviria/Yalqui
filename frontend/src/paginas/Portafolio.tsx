@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { api, mensajeDeError } from "../lib/api";
-import { Dinero, pesos } from "../componentes/Dinero";
+import { pesos } from "../componentes/Dinero";
 
 type Unidad = Awaited<ReturnType<typeof api.inmuebles.mias.query>>["unidades"][number];
 type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
@@ -23,6 +23,23 @@ function MiniCifra({ titulo, valor, tono = "normal" }: {
     <div>
       <div style={{ fontSize: 12, color: "var(--tinta-2)" }}>{titulo}</div>
       <div className="num" style={{ fontSize: 17, fontWeight: 600, marginTop: 3, color }}>{valor}</div>
+    </div>
+  );
+}
+
+/** Una cifra del cuerpo blanco de la tarjeta de unidad. */
+function UnidadStat({ titulo, valor, tono = "normal" }: {
+  titulo: string; valor: string; tono?: "normal" | "ojo";
+}) {
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: "var(--tinta-2)" }}>{titulo}</div>
+      <div className="num" style={{
+        fontSize: 15.5, fontWeight: 600, marginTop: 3,
+        color: tono === "ojo" ? "var(--ojo)" : "var(--tinta)",
+      }}>
+        {valor}
+      </div>
     </div>
   );
 }
@@ -164,7 +181,10 @@ export function Portafolio({
         // siempre en una sola fila; en pantallas angostas el contenedor
         // scrollea en vez de apilarlos o aplastar las cifras de dinero.
         <div style={{ display: "flex", gap: 14, flexWrap: "nowrap", overflowX: "auto", paddingBottom: 2 }}>
-          <div className="tarjeta" style={{ padding: "14px 17px", flex: "0 0 200px" }}>
+          <div className="tarjeta" style={{
+            padding: "14px 17px", flex: "0 0 200px",
+            background: "var(--violeta-tenue)", borderColor: "var(--violeta-medio)",
+          }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--violeta-hondo)" }}># Unidades</div>
             <div className="num" style={{ fontFamily: '"Kufam",sans-serif', fontSize: 22, fontWeight: 600, marginTop: 5 }}>
               {unidades.length}
@@ -175,7 +195,10 @@ export function Portafolio({
             </div>
           </div>
 
-          <div className="tarjeta" style={{ padding: "14px 19px", flex: "1 1 420px", minWidth: 480 }}>
+          <div className="tarjeta" style={{
+            padding: "14px 19px", flex: "1 1 420px", minWidth: 480,
+            background: "var(--violeta-tenue)", borderColor: "var(--violeta-medio)",
+          }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--violeta-hondo)", marginBottom: 10 }}>
               $ Arrendamientos
             </div>
@@ -204,64 +227,93 @@ export function Portafolio({
           <button className="boton" onClick={alCrearUnidad}>Registrar unidad</button>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gap: 12 }}>
           {unidades.map((u) => (
-            <article key={u.id} className="tarjeta"
-              style={{ padding: "15px 18px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-              <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-                <div style={{ fontSize: 15.5, fontWeight: 600 }}>
-                  {u.direccion}{u.complemento ? `, ${u.complemento}` : ""}
+            <article key={u.id} className="tarjeta" style={{ padding: 0, overflow: "hidden" }}>
+              {/* La cabecera es siempre morada, esté ocupada o disponible: el
+                  color identifica «esto es una unidad», y el botón adentro es
+                  el que dice en qué estado está — no hace falta que el fondo
+                  cambie también para decir lo mismo dos veces. */}
+              <div style={{
+                background: "var(--violeta)", color: "#fff",
+                padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+              }}>
+                <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="#fff"
+                  aria-hidden="true" style={{ flexShrink: 0, opacity: 0.9 }}>
+                  <path d="M3.6 9.6 10 4.2l6.4 5.4v7a.8.8 0 0 1-.8.8H4.4a.8.8 0 0 1-.8-.8v-7Z"
+                    strokeWidth="1.7" strokeLinejoin="round" />
+                  <path d="M8 17.4v-4.2h4v4.2" strokeWidth="1.5" strokeLinejoin="round" />
+                </svg>
+
+                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                  <div style={{ fontSize: 15.5, fontWeight: 600 }}>
+                    {u.direccion}{u.complemento ? `, ${u.complemento}` : ""}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.82)", marginTop: 1 }}>
+                    {NOMBRE_TIPO[u.tipo] ?? u.tipo} · {u.ciudad} · <span className="num">{u.codigoPublico}</span>
+                  </div>
                 </div>
-                <div style={{ fontSize: 13, color: "var(--tinta-2)", marginTop: 2 }}>
-                  {NOMBRE_TIPO[u.tipo] ?? u.tipo} · {u.ciudad} · <span className="num">{u.codigoPublico}</span>
-                </div>
+
+                <button
+                  style={{
+                    height: 38, fontSize: 13.5, padding: "0 16px", borderRadius: 8, border: "none",
+                    background: "#fff", color: "var(--violeta-hondo)", fontWeight: 600,
+                    cursor: ocupada === u.id ? "wait" : "pointer", fontFamily: "inherit",
+                    opacity: ocupada === u.id ? 0.7 : 1,
+                  }}
+                  disabled={ocupada === u.id}
+                  title={u.estado === "arrendado"
+                    ? "Está alquilada. Tocá para liberarla."
+                    : "Está disponible. Tocá para registrar al inquilino."}
+                  onClick={() => u.estado === "arrendado"
+                    ? void liberar(u.id)
+                    : alAlquilar(u.id, titulo(u), Number(u.canonBase))}
+                >
+                  {ocupada === u.id
+                    ? "…"
+                    : u.estado === "arrendado" ? "Disponible, Un Nuevo Reto" : "Genial, Ya Alquilé"}
+                </button>
               </div>
 
-              {/* El botón dice en qué estado está y, al tocarlo, ofrece el
-                  cambio. Un rótulo aparte más un botón dirían lo mismo dos
-                  veces y ocuparían el doble. */}
-              <button
-                className={u.estado === "arrendado" ? "boton" : "boton fantasma"}
-                style={{ height: 40, fontSize: 14, minWidth: 118 }}
-                disabled={ocupada === u.id}
-                title={u.estado === "arrendado"
-                  ? "Está alquilada. Tocá para liberarla."
-                  : "Está disponible. Tocá para registrar al inquilino."}
-                onClick={() => u.estado === "arrendado"
-                  ? void liberar(u.id)
-                  : alAlquilar(u.id, titulo(u), Number(u.canonBase))}
-              >
-                {ocupada === u.id ? "…" : u.estado === "arrendado" ? "Alquilado" : "Disponible"}
-              </button>
+              {/* El cuerpo blanco: lo que importa saber de esta unidad hoy —
+                  cuánto renta, cuándo pagaron por última vez, qué hay abierto. */}
+              <div style={{ padding: "15px 18px", display: "grid", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 14 }}>
+                  <UnidadStat titulo="Renta actual"
+                    valor={u.estado === "arrendado" ? pesos(Number(u.canonBase)) : "—"} />
+                  <UnidadStat titulo="Fecha último pago"
+                    valor={u.fechaUltimoPago
+                      ? new Date(u.fechaUltimoPago).toLocaleDateString("es-CO")
+                      : "Sin pagos aún"} />
+                  <UnidadStat titulo="Incidencias abiertas" valor={String(u.incidenciasAbiertas)}
+                    tono={u.incidenciasAbiertas > 0 ? "ojo" : "normal"} />
+                </div>
 
-              <div style={{ width: 150, textAlign: "right" }}>
-                <Dinero valor={u.canonBase} className="" />
-                <div style={{ fontSize: 12, color: "var(--tinta-3)", marginTop: 1 }}>canon base</div>
-              </div>
-
-              {/* Los mismos cuatro botones en el mismo orden y ancho en todas
-                  las filas. Antes «Publicar» solo aparecía en borrador, así que
-                  cada tarjeta tenía una distribución distinta y la vista
-                  saltaba de una a otra. Lo que no aplica va deshabilitado. */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 116px)", gap: 8 }}>
-                <button className="boton fantasma" style={BOTON}
-                  onClick={() => alConfigurarUnidad(u.id, titulo(u))}>
-                  Precio
-                </button>
-                <button className="boton fantasma" style={BOTON}
-                  onClick={() => alEditarUnidad(u.id)}>
-                  Editar
-                </button>
-                <button className="boton fantasma" style={BOTON}
-                  disabled={u.estado !== "borrador" || ocupada === u.id}
-                  title={u.estado !== "borrador" ? "Solo se publica una unidad en borrador" : undefined}
-                  onClick={() => publicar(u.id)}>
-                  {ocupada === u.id ? "…" : "Publicar"}
-                </button>
-                <button className="boton fantasma" style={BOTON}
-                  onClick={() => alVerInquilinos(u.id, titulo(u))}>
-                  Inquilinos
-                </button>
+                {/* Los mismos cuatro botones en el mismo orden y ancho en
+                    todas las filas. Antes «Publicar» solo aparecía en
+                    borrador, así que cada tarjeta tenía una distribución
+                    distinta y la vista saltaba de una a otra. Lo que no
+                    aplica va deshabilitado. */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(100px,140px))", gap: 8 }}>
+                  <button className="boton fantasma" style={BOTON}
+                    onClick={() => alConfigurarUnidad(u.id, titulo(u))}>
+                    Precio
+                  </button>
+                  <button className="boton fantasma" style={BOTON}
+                    onClick={() => alEditarUnidad(u.id)}>
+                    Editar
+                  </button>
+                  <button className="boton fantasma" style={BOTON}
+                    disabled={u.estado !== "borrador" || ocupada === u.id}
+                    title={u.estado !== "borrador" ? "Solo se publica una unidad en borrador" : undefined}
+                    onClick={() => publicar(u.id)}>
+                    {ocupada === u.id ? "…" : "Publicar"}
+                  </button>
+                  <button className="boton fantasma" style={BOTON}
+                    onClick={() => alVerInquilinos(u.id, titulo(u))}>
+                    Inquilinos
+                  </button>
+                </div>
               </div>
             </article>
           ))}
