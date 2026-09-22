@@ -48,6 +48,8 @@ import m021 from "./021_incidencia_contacto.sql";
 import m022 from "./022_catalogo_extensible_servicios.sql";
 // @ts-ignore
 import m023 from "./023_contrasena_temporal.sql";
+// @ts-ignore
+import m024 from "./024_reservas.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -79,4 +81,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "021", nombre: "incidencia_contacto", sql: m021 as string },
   { version: "022", nombre: "catalogo_extensible_servicios", sql: m022 as string },
   { version: "023", nombre: "contrasena_temporal", sql: m023 as string },
+  { version: "024", nombre: "reservas", sql: m024 as string },
 ];

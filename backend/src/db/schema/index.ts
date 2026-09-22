@@ -11,3 +11,4 @@ export * from "./comunicacion.js";
 export * from "./publicacion.js";
 export * from "./finanzas.js";
 export * from "./vecindad.js";
+export * from "./reservas.js";

@@ -123,6 +123,13 @@ const TIPO_MOVIMIENTO: Record<string, string> = {
   egreso: "Egreso",
 };
 
+const ESTADO_RESERVA: Record<string, string> = {
+  pendiente: "Pendiente",
+  aprobada: "Aprobada",
+  rechazada: "Rechazada",
+  cancelada: "Cancelada",
+};
+
 const DICCIONARIOS = {
   categoriaAjuste: CATEGORIA_AJUSTE,
   tipoCalculo: TIPO_CALCULO,
@@ -141,6 +148,7 @@ const DICCIONARIOS = {
   estadoUnidad: ESTADO_UNIDAD,
   estadoCuenta: ESTADO_CUENTA,
   tipoMovimiento: TIPO_MOVIMIENTO,
+  estadoReserva: ESTADO_RESERVA,
 } as const;
 
 export type Diccionario = keyof typeof DICCIONARIOS;

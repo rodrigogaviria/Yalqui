@@ -2,10 +2,20 @@ import { useCallback, useEffect, useState } from "react";
 import { api, mensajeDeError } from "../lib/api";
 import { etiqueta } from "../lib/etiquetas";
 import { pesos } from "../componentes/Dinero";
+import { Campo } from "../componentes/Campo";
 
 type Canon = Awaited<ReturnType<typeof api.configuracion.canon.query>>;
 type Ajuste = Awaited<ReturnType<typeof api.configuracion.ajustes.query>>[number];
 type Requisito = Awaited<ReturnType<typeof api.configuracion.requisitos.query>>[number];
+type AreaComun = Awaited<ReturnType<typeof api.reservas.areasComunes.query>>[number];
+type Reserva = Awaited<ReturnType<typeof api.reservas.mias.query>>["reservas"][number];
+
+const PASTILLA_ESTADO: Record<Reserva["estado"], string> = {
+  pendiente: "pausado",
+  aprobada: "arrendado",
+  rechazada: "mora",
+  cancelada: "borrador",
+};
 
 /**
  * Lo que el propietario decide sobre una unidad suya: cuánto vale, qué cobra
@@ -25,21 +35,31 @@ export function ConfigurarUnidad({
   const [canon, setCanon] = useState<Canon | null>(null);
   const [ajustes, setAjustes] = useState<Ajuste[]>([]);
   const [requisitos, setRequisitos] = useState<Requisito[]>([]);
+  const [areas, setAreas] = useState<AreaComun[]>([]);
+  const [listaReservas, setListaReservas] = useState<Reserva[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState<number | null>(null);
+  const [ocupado, setOcupado] = useState<number | string | null>(null);
   const [precios, setPrecios] = useState<Record<number, string>>({});
+  const [nuevaArea, setNuevaArea] = useState({ nombre: "", descripcion: "", capacidad: "" });
+  const [nuevaReserva, setNuevaReserva] = useState({
+    areaComunId: "", solicitante: "", fecha: "", horaInicio: "", horaFin: "",
+  });
 
   const cargar = useCallback(async () => {
     try {
-      const [c, a, r] = await Promise.all([
+      const [c, a, r, ac, res] = await Promise.all([
         api.configuracion.canon.query({ inmuebleId }),
         api.configuracion.ajustes.query({ inmuebleId }),
         api.configuracion.requisitos.query({ inmuebleId }),
+        api.reservas.areasComunes.query({ inmuebleId }),
+        api.reservas.mias.query({ inmuebleId }),
       ]);
       setCanon(c);
       setAjustes(a);
       setRequisitos(r);
+      setAreas(ac);
+      setListaReservas(res.reservas);
       // El campo de precio arranca con lo configurado, y si no hay nada, con el
       // sugerido del catálogo: es lo que evita que el propietario tenga que
       // inventar un número de cero.
@@ -55,7 +75,7 @@ export function ConfigurarUnidad({
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  async function accion(clave: number, fn: () => Promise<unknown>, mensaje: string) {
+  async function accion(clave: number | string, fn: () => Promise<unknown>, mensaje: string) {
     setOcupado(clave);
     setError(null);
     try {
@@ -274,6 +294,216 @@ export function ConfigurarUnidad({
               </button>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------- */}
+      <section className="tarjeta" style={{ padding: 22, display: "grid", gap: 14 }}>
+        <div>
+          <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Áreas comunes</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "var(--tinta-2)" }}>
+            Lo que se puede reservar en tu edificio: salón social, BBQ, cancha. Sin ninguna
+            acá, la opción de Reservas de abajo no tiene qué ofrecer.
+          </p>
+        </div>
+
+        {areas.length > 0 && (
+          <div style={{ display: "grid", gap: 8 }}>
+            {areas.map((a) => (
+              <div key={a.id} style={{
+                display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                padding: "11px 13px", borderRadius: 10,
+                border: `1px solid ${a.activa ? "var(--violeta)" : "var(--linea)"}`,
+                background: a.activa ? "var(--violeta-tenue)" : "transparent",
+              }}>
+                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 600 }}>{a.nombre}</div>
+                  <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 1 }}>
+                    {a.descripcion}{a.descripcion && a.capacidad ? " · " : ""}
+                    {a.capacidad ? `hasta ${a.capacidad} personas` : ""}
+                  </div>
+                </div>
+                <button
+                  className={a.activa ? "boton riesgo" : "boton"}
+                  style={{ height: 38, fontSize: 13.5, padding: "0 14px" }}
+                  disabled={ocupado === `area-${a.id}`}
+                  onClick={() => void accion(
+                    `area-${a.id}`,
+                    () => api.reservas.activarAreaComun.mutate({ inmuebleId, areaComunId: a.id, activa: !a.activa }),
+                    a.activa ? `${a.nombre} ya no se puede reservar` : `${a.nombre} disponible para reservar`,
+                  )}
+                >
+                  {ocupado === `area-${a.id}` ? "…" : a.activa ? "Desactivar" : "Activar"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form
+          style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void accion(
+              "nueva-area",
+              () => api.reservas.crearAreaComun.mutate({
+                inmuebleId,
+                nombre: nuevaArea.nombre,
+                ...(nuevaArea.descripcion.trim() ? { descripcion: nuevaArea.descripcion.trim() } : {}),
+                ...(nuevaArea.capacidad ? { capacidad: Number(nuevaArea.capacidad) } : {}),
+              }),
+              `${nuevaArea.nombre} agregada`,
+            ).then(() => setNuevaArea({ nombre: "", descripcion: "", capacidad: "" }));
+          }}
+        >
+          <Campo etiqueta="Nueva área">
+            <input required placeholder="Salón social" value={nuevaArea.nombre}
+              onChange={(e) => setNuevaArea((v) => ({ ...v, nombre: e.target.value }))} />
+          </Campo>
+          <Campo etiqueta="Descripción (opcional)">
+            <input placeholder="Con cocina y mesas" value={nuevaArea.descripcion}
+              onChange={(e) => setNuevaArea((v) => ({ ...v, descripcion: e.target.value }))} />
+          </Campo>
+          <Campo etiqueta="Capacidad (opcional)">
+            <input type="number" min={1} style={{ width: 90 }} value={nuevaArea.capacidad}
+              onChange={(e) => setNuevaArea((v) => ({ ...v, capacidad: e.target.value }))} />
+          </Campo>
+          <button type="submit" className="boton" style={{ height: 38, fontSize: 13.5, padding: "0 16px" }}
+            disabled={ocupado === "nueva-area" || nuevaArea.nombre.trim().length < 2}>
+            {ocupado === "nueva-area" ? "…" : "Agregar"}
+          </button>
+        </form>
+      </section>
+
+      {/* ---------------------------------------------------------------- */}
+      <section className="tarjeta" style={{ padding: 22, display: "grid", gap: 14 }}>
+        <div>
+          <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>
+            Reservas
+            {listaReservas.some((r) => r.estado === "pendiente") && (
+              <span className="pastilla pausado" style={{ marginLeft: 8, fontSize: 12 }}>
+                {listaReservas.filter((r) => r.estado === "pendiente").length} por aprobar
+              </span>
+            )}
+          </h2>
+          <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "var(--tinta-2)" }}>
+            Toda reserva nace pendiente. La aprobás o la rechazás vos, acá mismo.
+          </p>
+        </div>
+
+        {areas.filter((a) => a.activa).length === 0 ? (
+          <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-3)" }}>
+            Activá un área común arriba para poder pedir una reserva.
+          </p>
+        ) : (
+          <form
+            style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void accion(
+                "nueva-reserva",
+                () => api.reservas.solicitar.mutate({
+                  inmuebleId,
+                  areaComunId: Number(nuevaReserva.areaComunId),
+                  ...(nuevaReserva.solicitante.trim() ? { solicitante: nuevaReserva.solicitante.trim() } : {}),
+                  fecha: new Date(nuevaReserva.fecha),
+                  horaInicio: nuevaReserva.horaInicio,
+                  horaFin: nuevaReserva.horaFin,
+                }),
+                "Reserva pedida, queda pendiente de aprobar",
+              ).then(() => setNuevaReserva({ areaComunId: "", solicitante: "", fecha: "", horaInicio: "", horaFin: "" }));
+            }}
+          >
+            <Campo etiqueta="Recurso">
+              <select required value={nuevaReserva.areaComunId}
+                onChange={(e) => setNuevaReserva((v) => ({ ...v, areaComunId: e.target.value }))}>
+                <option value="" disabled>Elegí una</option>
+                {areas.filter((a) => a.activa).map((a) => (
+                  <option key={a.id} value={a.id}>{a.nombre}</option>
+                ))}
+              </select>
+            </Campo>
+            <Campo etiqueta="Solicitante (opcional)">
+              <input placeholder="Tu nombre si no ponés otro" value={nuevaReserva.solicitante}
+                onChange={(e) => setNuevaReserva((v) => ({ ...v, solicitante: e.target.value }))} />
+            </Campo>
+            <Campo etiqueta="Fecha">
+              <input type="date" required value={nuevaReserva.fecha}
+                onChange={(e) => setNuevaReserva((v) => ({ ...v, fecha: e.target.value }))} />
+            </Campo>
+            <Campo etiqueta="Hora inicio">
+              <input type="time" required value={nuevaReserva.horaInicio}
+                onChange={(e) => setNuevaReserva((v) => ({ ...v, horaInicio: e.target.value }))} />
+            </Campo>
+            <Campo etiqueta="Hora fin">
+              <input type="time" required value={nuevaReserva.horaFin}
+                onChange={(e) => setNuevaReserva((v) => ({ ...v, horaFin: e.target.value }))} />
+            </Campo>
+            <button type="submit" className="boton" style={{ height: 38, fontSize: 13.5, padding: "0 16px" }}
+              disabled={ocupado === "nueva-reserva"}>
+              {ocupado === "nueva-reserva" ? "…" : "Pedir reserva"}
+            </button>
+          </form>
+        )}
+
+        <div style={{ display: "grid", gap: 8 }}>
+          {listaReservas.map((r) => (
+            <div key={r.id} style={{
+              display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+              padding: "11px 13px", borderRadius: 10, border: "1px solid var(--linea)",
+            }}>
+              <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 600 }}>
+                  {r.area} <span style={{ fontWeight: 400, color: "var(--tinta-2)" }}>· {r.solicitante}</span>
+                </div>
+                <div className="num" style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 1 }}>
+                  {new Date(r.fecha).toLocaleDateString("es-CO")} · {r.horaInicio.slice(0, 5)} a {r.horaFin.slice(0, 5)}
+                </div>
+              </div>
+
+              <span className={`pastilla ${PASTILLA_ESTADO[r.estado]}`}>{etiqueta("estadoReserva", r.estado)}</span>
+
+              {r.estado === "pendiente" && (
+                <>
+                  <button className="boton" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
+                    disabled={ocupado === `decidir-${r.id}`}
+                    onClick={() => void accion(
+                      `decidir-${r.id}`,
+                      () => api.reservas.decidir.mutate({ inmuebleId, reservaId: r.id, estado: "aprobada" }),
+                      "Reserva aprobada",
+                    )}
+                  >
+                    Aprobar
+                  </button>
+                  <button className="boton riesgo" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
+                    disabled={ocupado === `decidir-${r.id}`}
+                    onClick={() => void accion(
+                      `decidir-${r.id}`,
+                      () => api.reservas.decidir.mutate({ inmuebleId, reservaId: r.id, estado: "rechazada" }),
+                      "Reserva rechazada",
+                    )}
+                  >
+                    Rechazar
+                  </button>
+                </>
+              )}
+              {(r.estado === "pendiente" || r.estado === "aprobada") && (
+                <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
+                  disabled={ocupado === `cancelar-${r.id}`}
+                  onClick={() => void accion(
+                    `cancelar-${r.id}`,
+                    () => api.reservas.cancelar.mutate({ inmuebleId, reservaId: r.id }),
+                    "Reserva cancelada",
+                  )}
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+          ))}
+          {listaReservas.length === 0 && (
+            <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-3)" }}>Todavía no hay reservas.</p>
+          )}
         </div>
       </section>
     </div>
