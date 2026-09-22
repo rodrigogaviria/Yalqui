@@ -192,6 +192,49 @@ async function borrarUsuario(email: string | undefined) {
     const usuario = usuarios[0];
     if (!usuario) return { mode: "delete-user", email, ok: false, motivo: "No existe esa cuenta" };
 
+    // Una unidad de prueba —en borrador, sin contrato ni interesados— se
+    // borra junto con la cuenta: es el caso más común de una cuenta de
+    // verificación, que registra una unidad para probar un flujo y nunca
+    // llega a publicarla. Cualquier otra cosa real sigue negando el borrado
+    // más abajo, igual que siempre. El resto de lo colgado de la unidad
+    // —áreas comunes, reservas, ajustes, fotos— tiene ON DELETE CASCADE hacia
+    // `inmuebles` y se va solo; el rol de propietario sobre ella no, porque
+    // `usuario_roles` no tiene una fila por inmueble con la que enlazarlo.
+    const [inmueblesPropios] = await conn.query<any[]>(
+      "SELECT id, estado FROM inmuebles WHERE propietario_id = ?", [usuario.id],
+    );
+    const idsBorrables: number[] = [];
+    for (const u of inmueblesPropios) {
+      const [[{ n: nContratos }]] = await conn.query<any[]>(
+        "SELECT COUNT(*) AS n FROM contratos WHERE inmueble_id = ?", [u.id],
+      );
+      const [[{ n: nAplicaciones }]] = await conn.query<any[]>(
+        "SELECT COUNT(*) AS n FROM aplicaciones WHERE inmueble_id = ?", [u.id],
+      );
+      if (u.estado !== "borrador" || Number(nContratos) > 0 || Number(nAplicaciones) > 0) {
+        return {
+          mode: "delete-user", email, ok: false,
+          motivo: `Tiene la unidad #${u.id} con datos reales (publicada, con contrato o con interesados): no se borra`,
+        };
+      }
+      idsBorrables.push(u.id);
+    }
+
+    if (idsBorrables.length > 0) {
+      await conn.beginTransaction();
+      try {
+        await conn.query(
+          "DELETE FROM usuario_roles WHERE usuario_id = ? AND ambito_tipo = 'inmueble' AND ambito_id IN (?)",
+          [usuario.id, idsBorrables],
+        );
+        await conn.query("DELETE FROM inmuebles WHERE id IN (?)", [idsBorrables]);
+        await conn.commit();
+      } catch (e) {
+        await conn.rollback();
+        throw e;
+      }
+    }
+
     const revisiones: Array<[string, string]> = [
       ["usuario_roles", "usuario_id"],
       ["inmuebles", "propietario_id"],
