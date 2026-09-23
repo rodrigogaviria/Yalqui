@@ -77,10 +77,21 @@ export function VerInquilinos({ inmuebleId, direccion, alVolver, alGenerarContra
               ).then(() => setEditando(null))}
               lineas={[`Canon acordado ${pesos(Number(d.canonOfrecido))}`]}
               accion={
-                <button className="boton" style={{ height: 36, fontSize: 13.5 }}
-                  onClick={() => alGenerarContrato(d.aplicacionId)}>
-                  Generar contrato
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="boton" style={{ height: 36, fontSize: 13.5 }}
+                    onClick={() => alGenerarContrato(d.aplicacionId)}>
+                    Generar contrato
+                  </button>
+                  <button className="boton riesgo" style={{ height: 36, fontSize: 13.5 }}
+                    disabled={ocupado === -1000 - d.aplicacionId}
+                    title="Deshace esta designación: la unidad vuelve a quedar disponible"
+                    onClick={() => accion(-1000 - d.aplicacionId,
+                      () => api.inmuebles.retractarDesignacion.mutate({ inmuebleId, aplicacionId: d.aplicacionId }),
+                      "Designación retractada",
+                    )}>
+                    {ocupado === -1000 - d.aplicacionId ? "…" : "Retractar"}
+                  </button>
+                </div>
               }
             />
           ))}

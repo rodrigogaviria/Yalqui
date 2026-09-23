@@ -185,7 +185,7 @@ export const inmueblesRouter = router({
       })
       .from(inmuebles)
       .where(inArray(inmuebles.id, ids))
-      .orderBy(desc(inmuebles.createdAt));
+      .orderBy(asc(inmuebles.direccion), asc(inmuebles.complemento));
 
     // Los contratos vivos de estas unidades, para poder llegar de ahí a sus
     // pagos. Una unidad puede tener contratos terminados atrás, pero solo el
@@ -564,6 +564,54 @@ export const inmueblesRouter = router({
 
     return { estado: "borrador" as const };
   }),
+
+  /**
+   * Deshace una designación directa que todavía no se convirtió en contrato.
+   *
+   * Cubre el error de tipeo de `marcarAlquilado`: el propietario cargó al
+   * inquilino equivocado y quiere corregirlo antes de que nadie firme nada.
+   * Con un contrato ya generado desde ahí, esto se niega — ese camino es
+   * terminar el contrato, no borrar cómo se llegó a él.
+   */
+  retractarDesignacion: delPropietario
+    .input(soloId.extend({ aplicacionId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [a] = await ctx.db
+        .select({
+          estado: aplicaciones.estado,
+          contratoId: aplicaciones.contratoId,
+          inmuebleId: aplicaciones.inmuebleId,
+        })
+        .from(aplicaciones)
+        .where(eq(aplicaciones.id, input.aplicacionId))
+        .limit(1);
+
+      if (!a) throw new TRPCError({ code: "NOT_FOUND", message: "Esa aplicación no existe" });
+      if (a.inmuebleId !== input.inmuebleId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Esa aplicación no es de esta unidad" });
+      }
+      if (a.estado !== "aprobada") {
+        throw new TRPCError({ code: "CONFLICT", message: "Solo se retracta una designación aprobada y sin firmar" });
+      }
+      if (a.contratoId !== null) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Ya hay un contrato generado desde acá: terminalo, no la retractes",
+        });
+      }
+
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(aplicaciones).set({
+          estado: "retirada",
+          decididaAt: new Date(),
+          decididaPorId: ctx.usuario.id,
+        }).where(eq(aplicaciones.id, input.aplicacionId));
+
+        await tx.update(inmuebles).set({ estado: "borrador" }).where(eq(inmuebles.id, input.inmuebleId));
+      });
+
+      return { ok: true };
+    }),
 
   /**
    * Marca la unidad como alquilada y registra al inquilino.
