@@ -2,6 +2,8 @@ import { useState } from "react";
 import { api } from "../../lib/api";
 import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
+import { SubirPago } from "../../componentes/SubirPago";
+import { Ventana } from "../../componentes/Ventana";
 import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
 
 type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
@@ -19,7 +21,8 @@ const TONO: Record<string, { fondo: string; borde: string; texto: string; nombre
 export function Pagos() {
   const [vista, setVista] = useState<"lista" | "calendario">("calendario");
   const [mes, setMes] = useState(() => ({ anio: new Date().getFullYear(), mes: new Date().getMonth() }));
-  const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
+  const [subiendo, setSubiendo] = useState<{ unidad: string; inmuebleId: number; fecha: string } | null>(null);
+  const { datos, error, aviso, ocupado, accion, cargar, setAviso } = usePantalla(async () => {
     const [facturas, porVerificar, unidades, pagosUnidad] = await Promise.all([
       api.facturacion.misFacturas.query(),
       api.facturacion.porVerificar.query(),
@@ -125,7 +128,12 @@ export function Pagos() {
       )}
 
       {vista === "calendario" ? (
-        <Calendario facturas={cuenta.facturas} unidades={unidades} pagosUnidad={pagosUnidad} mes={mes} setMes={setMes} />
+        <Calendario facturas={cuenta.facturas} unidades={unidades} pagosUnidad={pagosUnidad} mes={mes} setMes={setMes}
+          alElegir={(u, dia) => setSubiendo({
+            unidad: `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`,
+            inmuebleId: u.id,
+            fecha: `${periodoDe(mes)}-${String(dia).padStart(2, "0")}`,
+          })} />
       ) : cuenta.total === 0 ? (
         <Vacio titulo="Todavía no hay facturas">
           Las facturas nacen del contrato: cuando una unidad quede arrendada, acá vas a
@@ -133,6 +141,17 @@ export function Pagos() {
         </Vacio>
       ) : (
         <Lista facturas={cuenta.facturas} accion={accion} ocupado={ocupado} />
+      )}
+
+      {subiendo && (
+        <Ventana titulo={`Subir pago · ${subiendo.unidad}`} alCerrar={() => setSubiendo(null)}>
+          <SubirPago inmuebleId={subiendo.inmuebleId} fechaInicial={subiendo.fecha}
+            alTerminar={(periodo) => {
+              setSubiendo(null);
+              setAviso(`Pago de ${subiendo.unidad} registrado (${periodo}).`);
+              void cargar();
+            }} />
+        </Ventana>
       )}
     </div>
   );
@@ -181,8 +200,9 @@ function resumenDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUnida
   };
 }
 
-function Calendario({ facturas, unidades, pagosUnidad, mes, setMes }: {
+function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: {
   facturas: Factura[]; unidades: Unidad[]; pagosUnidad: PagoUnidad[]; mes: Mes; setMes: (m: Mes) => void;
+  alElegir: (u: Unidad, dia: number) => void;
 }) {
   const arrendadas = unidades.filter((u) => u.estado === "arrendado");
   const ultimo = new Date(mes.anio, mes.mes + 1, 0).getDate();
@@ -249,16 +269,16 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes }: {
                     {(porDia.get(dia) ?? []).map(({ u, tono }) => {
                       const t = TONO[tono]!;
                       return (
-                        <span key={u.id}
+                        <button key={u.id} type="button" onClick={() => alElegir(u, dia)}
                           title={`${u.direccion}${u.complemento ? `, ${u.complemento}` : ""} · ${t.nombre} · gracia ${u.diasGracia} d`}
                           style={{
                             fontSize: 11.5, fontWeight: 600, padding: "2px 7px", borderRadius: 6,
                             background: tono === "vencida" ? "var(--mal)" : t.fondo,
                             color: tono === "vencida" ? "#fff" : t.texto,
-                            border: `1px solid ${t.borde}`,
+                            border: `1px solid ${t.borde}`, cursor: "pointer", fontFamily: "inherit",
                           }}>
                           {u.complemento || u.direccion}
-                        </span>
+                        </button>
                       );
                     })}
                   </div>
