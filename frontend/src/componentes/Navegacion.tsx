@@ -81,9 +81,6 @@ export function Navegacion({
               </div>
             </>
           )}
-          <div style={{ fontSize: 12, color: "var(--tinta-3)", marginTop: 7 }}>
-            Alcance: {perspectiva.alcance.toLowerCase()}
-          </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
