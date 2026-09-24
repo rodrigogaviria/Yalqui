@@ -60,10 +60,16 @@ export function Pagos() {
       {aviso && <div className="aviso bueno" role="status">{aviso}</div>}
 
       <Cifras>
-        <Cifra titulo={vista === "calendario" ? `Por cobrar · ${nombreMes(periodoDe(mes))}` : "Por cobrar"}
+        {vista === "calendario" && (
+          <>
+            <Cifra titulo="Total previsto" valor={pesos(delMes.previsto)} />
+            <Cifra titulo="Pagado" valor={pesos(delMes.pagado)} tono={delMes.pagado > 0 ? "bien" : "normal"} />
+          </>
+        )}
+        <Cifra titulo={"Por cobrar"}
           valor={pesos(vista === "calendario" ? delMes.porCobrar : cuenta.porCobrar)}
           tono={(vista === "calendario" ? delMes.porCobrar : cuenta.porCobrar) > 0 ? "ojo" : "normal"} />
-        <Cifra titulo={vista === "calendario" ? `Vencido · ${nombreMes(periodoDe(mes))}` : "Vencido"}
+        <Cifra titulo="Vencido"
           valor={pesos(vista === "calendario" ? delMes.vencido : cuenta.vencido)}
           tono={(vista === "calendario" ? delMes.vencido : cuenta.vencido) > 0 ? "mal" : "bien"} />
       </Cifras>
@@ -167,7 +173,12 @@ function resumenDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUnida
   const filas = situacionDelMes(unidades, facturas, pagos, m);
   const suma = (f: (t: keyof typeof TONO) => boolean) =>
     filas.filter((x) => f(x.tono)).reduce((t, x) => t + Number(x.u.canonBase), 0);
-  return { porCobrar: suma((t) => t !== "pagada"), vencido: suma((t) => t === "vencida") };
+  return {
+    previsto: suma(() => true),
+    pagado: suma((t) => t === "pagada"),
+    porCobrar: suma((t) => t !== "pagada"),
+    vencido: suma((t) => t === "vencida"),
+  };
 }
 
 function Calendario({ facturas, unidades, pagosUnidad, mes, setMes }: {
