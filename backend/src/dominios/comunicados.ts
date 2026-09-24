@@ -156,38 +156,12 @@ export const comunicadosRouter = router({
   enviar: privado
     .input(z.object({ comunicadoId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const [c] = await ctx.db
-        .select({
-          inmuebleId: comunicados.inmuebleId,
-          edificacionId: comunicados.edificacionId,
-          estado: comunicados.estado,
-        })
-        .from(comunicados)
-        .where(eq(comunicados.id, input.comunicadoId))
-        .limit(1);
-
-      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Ese comunicado no existe" });
-
-      const destinos = (await ctx.db
-        .select({ id: comunicadoUnidades.inmuebleId })
-        .from(comunicadoUnidades)
-        .where(eq(comunicadoUnidades.comunicadoId, input.comunicadoId))).map((d) => d.id);
-      const mias = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
-
-      const puede = destinos.length > 0
-        ? destinos.every((id) => mias.includes(id))
-        : c.inmuebleId !== null
-          ? mias.includes(c.inmuebleId)
-          : c.edificacionId !== null && (
-              ambitosCon(ctx.usuario.roles, "propietario", "edificacion").includes(c.edificacionId)
-              || ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion").includes(c.edificacionId)
-            );
-
-      if (!puede) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
-      }
+      const c = await comunicadoPropio(ctx, input.comunicadoId);
       if (c.estado === "enviado") {
         throw new TRPCError({ code: "CONFLICT", message: "Ese comunicado ya se envió" });
+      }
+      if (c.estado === "cancelado") {
+        throw new TRPCError({ code: "CONFLICT", message: "Ese comunicado se descartó" });
       }
 
       await ctx.db
@@ -197,4 +171,53 @@ export const comunicadosRouter = router({
 
       return { estado: "enviado" as const };
     }),
+
+  /** Descarta un borrador que no se va a mandar. Uno ya enviado no se toca: es historial. */
+  descartar: privado
+    .input(z.object({ comunicadoId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const c = await comunicadoPropio(ctx, input.comunicadoId);
+      if (c.estado !== "borrador") {
+        throw new TRPCError({ code: "CONFLICT", message: "Solo se descarta un borrador" });
+      }
+      await ctx.db.update(comunicados).set({ estado: "cancelado" })
+        .where(eq(comunicados.id, input.comunicadoId));
+      return { estado: "cancelado" as const };
+    }),
 });
+
+/** El comunicado, si el usuario tiene permiso sobre todo su alcance. */
+async function comunicadoPropio(
+  ctx: { db: import("../db/index.js").Database; usuario: { roles: import("../auth/roles.js").RolOtorgado[] } },
+  comunicadoId: number,
+) {
+  const [c] = await ctx.db
+    .select({
+      inmuebleId: comunicados.inmuebleId,
+      edificacionId: comunicados.edificacionId,
+      estado: comunicados.estado,
+    })
+    .from(comunicados)
+    .where(eq(comunicados.id, comunicadoId))
+    .limit(1);
+
+  if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Ese comunicado no existe" });
+
+  const destinos = (await ctx.db
+    .select({ id: comunicadoUnidades.inmuebleId })
+    .from(comunicadoUnidades)
+    .where(eq(comunicadoUnidades.comunicadoId, comunicadoId))).map((d) => d.id);
+  const mias = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+
+  const puede = destinos.length > 0
+    ? destinos.every((id) => mias.includes(id))
+    : c.inmuebleId !== null
+      ? mias.includes(c.inmuebleId)
+      : c.edificacionId !== null && (
+          ambitosCon(ctx.usuario.roles, "propietario", "edificacion").includes(c.edificacionId)
+          || ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion").includes(c.edificacionId)
+        );
+
+  if (!puede) throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
+  return c;
+}

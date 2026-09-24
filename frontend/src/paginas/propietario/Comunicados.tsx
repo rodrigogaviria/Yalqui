@@ -91,7 +91,7 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
                   </div>
                 </div>
                 <span className={`pastilla ${c.estado === "enviado" ? "arrendado" : "borrador"}`}>
-                  {c.estado === "enviado" ? "Enviado" : "Borrador"}
+                  {c.estado === "enviado" ? "Enviado" : c.estado === "cancelado" ? "Descartado" : "Borrador"}
                 </span>
               </div>
 
@@ -99,14 +99,21 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
                 {c.cuerpo.length > 260 ? `${c.cuerpo.slice(0, 260)}…` : c.cuerpo}
               </p>
 
-              {c.estado !== "enviado" && (
-                <div>
+              {c.estado === "borrador" && (
+                <div style={{ display: "flex", gap: 8 }}>
                   <button className="boton" style={{ height: 36, fontSize: 13.5 }}
                     disabled={ocupado === c.id}
                     onClick={() => void accion(c.id,
                       () => api.comunicados.enviar.mutate({ comunicadoId: c.id }),
                       "Comunicado marcado como enviado.")}>
                     {ocupado === c.id ? "…" : "Enviar"}
+                  </button>
+                  <button className="boton fantasma" style={{ height: 36, fontSize: 13.5 }}
+                    disabled={ocupado === c.id}
+                    onClick={() => void accion(c.id,
+                      () => api.comunicados.descartar.mutate({ comunicadoId: c.id }),
+                      "Borrador descartado.")}>
+                    Descartar
                   </button>
                 </div>
               )}
