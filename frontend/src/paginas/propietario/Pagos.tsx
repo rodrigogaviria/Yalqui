@@ -20,20 +20,21 @@ export function Pagos() {
   const [vista, setVista] = useState<"lista" | "calendario">("calendario");
   const [mes, setMes] = useState(() => ({ anio: new Date().getFullYear(), mes: new Date().getMonth() }));
   const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
-    const [facturas, porVerificar, unidades] = await Promise.all([
+    const [facturas, porVerificar, unidades, pagosUnidad] = await Promise.all([
       api.facturacion.misFacturas.query(),
       api.facturacion.porVerificar.query(),
       api.inmuebles.mias.query(),
+      api.facturacion.misPagosUnidad.query(),
     ]);
-    return { facturas, porVerificar, unidades: unidades.unidades };
+    return { facturas, porVerificar, unidades: unidades.unidades, pagosUnidad };
   });
 
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
   if (datos === null) return <p style={{ color: "var(--tinta-2)" }}>Cargando…</p>;
 
   // `cuenta` y no `facturas` para que no quede `facturas.facturas` más abajo.
-  const { facturas: cuenta, porVerificar, unidades } = datos;
-  const delMes = resumenDelMes(unidades, cuenta.facturas, mes);
+  const { facturas: cuenta, porVerificar, unidades, pagosUnidad } = datos;
+  const delMes = resumenDelMes(unidades, cuenta.facturas, pagosUnidad, mes);
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -118,7 +119,7 @@ export function Pagos() {
       )}
 
       {vista === "calendario" ? (
-        <Calendario facturas={cuenta.facturas} unidades={unidades} mes={mes} setMes={setMes} />
+        <Calendario facturas={cuenta.facturas} unidades={unidades} pagosUnidad={pagosUnidad} mes={mes} setMes={setMes} />
       ) : cuenta.total === 0 ? (
         <Vacio titulo="Todavía no hay facturas">
           Las facturas nacen del contrato: cuando una unidad quede arrendada, acá vas a
@@ -144,30 +145,33 @@ const periodoDe = (m: Mes) => `${m.anio}-${String(m.mes + 1).padStart(2, "0")}`;
 
 /** Cada unidad arrendada en su día del mes, con su situación: la fuente de la
  *  cuadrícula y de los totales de arriba, para que nunca se contradigan. */
-function situacionDelMes(unidades: Unidad[], facturas: Factura[], m: Mes) {
+type PagoUnidad = Awaited<ReturnType<typeof api.facturacion.misPagosUnidad.query>>[number];
+
+function situacionDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUnidad[], m: Mes) {
   const hoy = new Date();
   const ultimo = new Date(m.anio, m.mes + 1, 0).getDate();
   const periodo = periodoDe(m);
   return unidades.filter((u) => u.estado === "arrendado").map((u) => {
     const dia = Math.min(u.diaPago, ultimo);
+    // Pago si hay factura pagada o un pago registrado sobre la unidad ese mes.
     const pagada = facturas.some(
       (f) => f.inmuebleId === u.id && f.periodo === periodo && f.situacion === "pagada",
-    );
+    ) || pagos.some((p) => p.inmuebleId === u.id && p.periodo === periodo);
     const limite = new Date(m.anio, m.mes, dia + u.diasGracia, 23, 59, 59);
     const tono: keyof typeof TONO = pagada ? "pagada" : hoy > limite ? "vencida" : "porVencer";
     return { u, dia, tono };
   });
 }
 
-function resumenDelMes(unidades: Unidad[], facturas: Factura[], m: Mes) {
-  const filas = situacionDelMes(unidades, facturas, m);
+function resumenDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUnidad[], m: Mes) {
+  const filas = situacionDelMes(unidades, facturas, pagos, m);
   const suma = (f: (t: keyof typeof TONO) => boolean) =>
     filas.filter((x) => f(x.tono)).reduce((t, x) => t + Number(x.u.canonBase), 0);
   return { porCobrar: suma((t) => t !== "pagada"), vencido: suma((t) => t === "vencida") };
 }
 
-function Calendario({ facturas, unidades, mes, setMes }: {
-  facturas: Factura[]; unidades: Unidad[]; mes: Mes; setMes: (m: Mes) => void;
+function Calendario({ facturas, unidades, pagosUnidad, mes, setMes }: {
+  facturas: Factura[]; unidades: Unidad[]; pagosUnidad: PagoUnidad[]; mes: Mes; setMes: (m: Mes) => void;
 }) {
   const arrendadas = unidades.filter((u) => u.estado === "arrendado");
   const ultimo = new Date(mes.anio, mes.mes + 1, 0).getDate();
@@ -175,7 +179,7 @@ function Calendario({ facturas, unidades, mes, setMes }: {
   const periodo = periodoDe(mes);
 
   const porDia = new Map<number, Array<{ u: Unidad; tono: keyof typeof TONO }>>();
-  for (const { u, dia, tono } of situacionDelMes(unidades, facturas, mes)) {
+  for (const { u, dia, tono } of situacionDelMes(unidades, facturas, pagosUnidad, mes)) {
     porDia.set(dia, [...(porDia.get(dia) ?? []), { u, tono }]);
   }
 

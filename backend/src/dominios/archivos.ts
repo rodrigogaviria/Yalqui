@@ -7,10 +7,12 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { router, privado } from "../trpc/base.js";
 import { accesoAlContrato } from "../auth/contratoAcceso.js";
 import { archivos } from "../db/schema/identidad.js";
+import { tieneRol } from "../auth/roles.js";
 
 const MIME_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
 const TIPO = "comprobante_pago";
+const TIPO_UNIDAD = "pago_unidad";
 
 let s3: S3Client | undefined;
 const cliente = () => (s3 ??= new S3Client({}));
@@ -19,6 +21,28 @@ const bucket = () => {
   if (!b) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El almacenamiento de archivos no está configurado" });
   return b;
 };
+
+async function prepararSubida(
+  ctx: { db: import("../db/index.js").Database; usuario: { id: number } },
+  tipo: string, entidadId: number,
+  input: { nombre: string; mime: string; bytes: number },
+) {
+  const uuid = randomUUID();
+  const s3Key = `comprobantes/${tipo}/${entidadId}/${uuid}`;
+  const [res] = await ctx.db.insert(archivos).values({
+    uuid, s3Key, bucket: bucket(),
+    nombreOriginal: input.nombre, mime: input.mime, tamanoBytes: input.bytes,
+    subidoPorId: ctx.usuario.id, entidadTipo: tipo, entidadId,
+  });
+  const archivoId = Number((res as { insertId: number }).insertId);
+
+  const url = await getSignedUrl(
+    cliente(),
+    new PutObjectCommand({ Bucket: bucket(), Key: s3Key, ContentType: input.mime, ContentLength: input.bytes }),
+    { expiresIn: 300 },
+  );
+  return { archivoId, url };
+}
 
 /**
  * Comprobantes de pago.
@@ -38,32 +62,36 @@ export const archivosRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await accesoAlContrato(ctx.db, ctx.usuario, input.contratoId);
+      return prepararSubida(ctx, TIPO, input.contratoId, input);
+    }),
 
-      const uuid = randomUUID();
-      const s3Key = `comprobantes/${input.contratoId}/${uuid}`;
-      const [res] = await ctx.db.insert(archivos).values({
-        uuid, s3Key, bucket: bucket(),
-        nombreOriginal: input.nombre, mime: input.mime, tamanoBytes: input.bytes,
-        subidoPorId: ctx.usuario.id, entidadTipo: TIPO, entidadId: input.contratoId,
-      });
-      const archivoId = Number((res as { insertId: number }).insertId);
-
-      const url = await getSignedUrl(
-        cliente(),
-        new PutObjectCommand({ Bucket: bucket(), Key: s3Key, ContentType: input.mime, ContentLength: input.bytes }),
-        { expiresIn: 300 },
-      );
-      return { archivoId, url };
+  /** Comprobante de un pago registrado sobre la unidad, sin contrato de por medio. */
+  solicitarSubidaPagoUnidad: privado
+    .input(z.object({
+      inmuebleId: z.number().int().positive(),
+      nombre: z.string().trim().min(1).max(255),
+      mime: z.enum(MIME_PERMITIDOS),
+      bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      return prepararSubida(ctx, TIPO_UNIDAD, input.inmuebleId, input);
     }),
 
   urlDescarga: privado
     .input(z.object({ archivoId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const [a] = await ctx.db.select().from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
-      if (!a || a.entidadTipo !== TIPO || a.entidadId === null) {
+      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Ese archivo no existe" });
       }
-      await accesoAlContrato(ctx.db, ctx.usuario, a.entidadId);
+      if (a.entidadTipo === TIPO) {
+        await accesoAlContrato(ctx.db, ctx.usuario, a.entidadId);
+      } else if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", a.entidadId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
 
       const url = await getSignedUrl(
         cliente(),

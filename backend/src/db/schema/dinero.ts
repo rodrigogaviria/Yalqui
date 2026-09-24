@@ -75,6 +75,18 @@ export const pagosArriendo = mysqlTable("pagos_arriendo", {
   index("ix_pago_contrato").on(t.contratoId, t.fechaPagoDeclarada),
 ]);
 
+/** El pago de una unidad sin pasar por factura ni contrato. */
+export const pagosUnidad = mysqlTable("pagos_unidad", {
+  id: int("id", { unsigned: true }).autoincrement().primaryKey(),
+  inmuebleId: int("inmueble_id", { unsigned: true }).notNull(),
+  periodo: char("periodo", { length: 7 }).notNull(),
+  fechaPago: date("fecha_pago").notNull(),
+  medio: mysqlEnum("medio", ["efectivo", "transferencia"]).notNull(),
+  comprobanteArchivoId: bigint("comprobante_archivo_id", { mode: "number", unsigned: true }),
+  registradoPorId: int("registrado_por_id", { unsigned: true }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("ix_pagosunidad_inmueble").on(t.inmuebleId, t.periodo)]);
+
 /* ── FLUJO B · lo que Yalqui cobra. Sin relación con el canon. ───────────── */
 
 export const planes = mysqlTable("planes", {

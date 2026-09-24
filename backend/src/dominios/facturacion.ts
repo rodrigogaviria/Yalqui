@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { router, privado } from "../trpc/base.js";
-import { facturasArriendo, facturaArriendoConceptos, pagosArriendo } from "../db/schema/dinero.js";
+import { router, privado, exigirRol } from "../trpc/base.js";
+import { facturasArriendo, facturaArriendoConceptos, pagosArriendo, pagosUnidad } from "../db/schema/dinero.js";
 import { contratos, contratoAjustes } from "../db/schema/contrato.js";
 import { catalogoAjustes, inmuebles } from "../db/schema/inventario.js";
 import { archivos } from "../db/schema/identidad.js";
@@ -22,7 +22,64 @@ async function exigirPropietarioDelContrato(ctx: any, contratoId: number) {
   return c;
 }
 
+const delPropietario = exigirRol<{ inmuebleId: number }>(
+  "propietario", "inmueble", (e) => e.inmuebleId,
+);
+
 export const facturacionRouter = router({
+  /**
+   * Registra el pago de una unidad: fecha, medio y comprobante.
+   *
+   * No pasa por factura ni contrato, así sirve para unidades arrendadas que
+   * todavía no tienen uno firmado en Yalqui. El mes de la fecha es el que
+   * queda pago en el calendario. La transferencia exige comprobante; el
+   * efectivo no, porque muchas veces no hay nada que fotografiar.
+   */
+  registrarPagoUnidad: delPropietario
+    .input(z.object({
+      inmuebleId: z.number().int().positive(),
+      fechaPago: z.coerce.date(),
+      medio: z.enum(["efectivo", "transferencia"]),
+      comprobanteArchivoId: z.number().int().positive().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.medio === "transferencia" && input.comprobanteArchivoId === undefined) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Una transferencia necesita comprobante" });
+      }
+      if (input.comprobanteArchivoId !== undefined) {
+        const [a] = await ctx.db.select({ tipo: archivos.entidadTipo, entidad: archivos.entidadId })
+          .from(archivos).where(eq(archivos.id, input.comprobanteArchivoId)).limit(1);
+        if (!a || a.tipo !== "pago_unidad" || a.entidad !== input.inmuebleId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Ese comprobante no es de esta unidad" });
+        }
+      }
+      const f = input.fechaPago;
+      const periodo = `${f.getUTCFullYear()}-${String(f.getUTCMonth() + 1).padStart(2, "0")}`;
+      await ctx.db.insert(pagosUnidad).values({
+        inmuebleId: input.inmuebleId, periodo, fechaPago: f, medio: input.medio,
+        comprobanteArchivoId: input.comprobanteArchivoId ?? null,
+        registradoPorId: ctx.usuario.id,
+      });
+      return { periodo };
+    }),
+
+  /** Los pagos registrados sobre las unidades del propietario. */
+  misPagosUnidad: privado.query(async ({ ctx }) => {
+    const ids = ctx.usuario.roles
+      .filter((r) => r.rol === "propietario" && r.ambitoTipo === "inmueble")
+      .map((r) => r.ambitoId);
+    if (ids.length === 0) return [];
+    return ctx.db
+      .select({
+        id: pagosUnidad.id, inmuebleId: pagosUnidad.inmuebleId, periodo: pagosUnidad.periodo,
+        fechaPago: pagosUnidad.fechaPago, medio: pagosUnidad.medio,
+        comprobanteArchivoId: pagosUnidad.comprobanteArchivoId,
+      })
+      .from(pagosUnidad)
+      .where(inArray(pagosUnidad.inmuebleId, ids))
+      .orderBy(desc(pagosUnidad.fechaPago));
+  }),
+
   /**
    * Emite la factura del periodo, desglosada línea por línea.
    *
