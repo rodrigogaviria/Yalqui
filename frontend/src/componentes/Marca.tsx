@@ -1,16 +1,12 @@
+/** El logo de yalqui. `tamano` conserva la escala que ya usaban las pantallas:
+ *  la imagen es unas dos veces más alta que el texto que reemplaza porque
+ *  lleva la casita encima. */
 export function Marca({ tamano = 26 }: { tamano?: number }) {
   return (
-    <span
-      style={{
-        fontFamily: '"Kufam", "Trebuchet MS", sans-serif',
-        fontSize: tamano,
-        fontWeight: 700,
-        color: "var(--azul-marca)",
-        letterSpacing: "-0.02em",
-        lineHeight: 1,
-      }}
-    >
-      yalqui
-    </span>
+    <img
+      src="/logo.png"
+      alt="yalqui"
+      style={{ height: Math.round(tamano * 2.1), width: "auto", display: "block" }}
+    />
   );
 }

@@ -45,7 +45,7 @@ export function Entrar({ alEntrar }: { alEntrar: () => void }) {
     <div style={{ minHeight: "100%", display: "grid", placeItems: "center", padding: "40px 20px" }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}>
-          <Marca tamano={34} />
+          <div style={{ display: "flex", justifyContent: "center" }}><Marca tamano={34} /></div>
           <p style={{ color: "var(--tinta-2)", margin: "10px 0 0", fontSize: 15 }}>
             Arrendá directo, sin comisión sobre tu canon.
           </p>
