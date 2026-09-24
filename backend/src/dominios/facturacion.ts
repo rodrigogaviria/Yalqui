@@ -5,6 +5,7 @@ import { router, privado, exigirRol } from "../trpc/base.js";
 import { facturasArriendo, facturaArriendoConceptos, pagosArriendo, pagosUnidad } from "../db/schema/dinero.js";
 import { contratos, contratoAjustes } from "../db/schema/contrato.js";
 import { catalogoAjustes, inmuebles } from "../db/schema/inventario.js";
+import { tieneRol } from "../auth/roles.js";
 import { archivos } from "../db/schema/identidad.js";
 import { accesoAlContrato } from "../auth/contratoAcceso.js";
 
@@ -63,6 +64,33 @@ export const facturacionRouter = router({
       return { periodo };
     }),
 
+  /** El propietario confirma o rechaza un pago que subió el inquilino. */
+  decidirPagoUnidad: privado
+    .input(z.object({
+      pagoId: z.number().int().positive(),
+      decision: z.enum(["confirmado", "rechazado"]),
+      motivo: z.string().trim().max(500).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [p] = await ctx.db.select({ inmuebleId: pagosUnidad.inmuebleId, estado: pagosUnidad.estado })
+        .from(pagosUnidad).where(eq(pagosUnidad.id, input.pagoId)).limit(1);
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Ese pago no existe" });
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", p.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      if (p.estado !== "pendiente") {
+        throw new TRPCError({ code: "CONFLICT", message: "Ese pago ya fue resuelto" });
+      }
+      if (input.decision === "rechazado" && !input.motivo?.trim()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Un rechazo necesita motivo" });
+      }
+      await ctx.db.update(pagosUnidad).set({
+        estado: input.decision,
+        motivoRechazo: input.decision === "rechazado" ? input.motivo! : null,
+      }).where(eq(pagosUnidad.id, input.pagoId));
+      return { estado: input.decision };
+    }),
+
   /** Los pagos registrados sobre las unidades del propietario. */
   misPagosUnidad: privado.query(async ({ ctx }) => {
     const ids = ctx.usuario.roles
@@ -72,7 +100,8 @@ export const facturacionRouter = router({
     return ctx.db
       .select({
         id: pagosUnidad.id, inmuebleId: pagosUnidad.inmuebleId, periodo: pagosUnidad.periodo,
-        fechaPago: pagosUnidad.fechaPago, medio: pagosUnidad.medio,
+        fechaPago: pagosUnidad.fechaPago, medio: pagosUnidad.medio, estado: pagosUnidad.estado,
+        motivoRechazo: pagosUnidad.motivoRechazo,
         comprobanteArchivoId: pagosUnidad.comprobanteArchivoId,
       })
       .from(pagosUnidad)

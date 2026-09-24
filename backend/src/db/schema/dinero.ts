@@ -82,6 +82,8 @@ export const pagosUnidad = mysqlTable("pagos_unidad", {
   periodo: char("periodo", { length: 7 }).notNull(),
   fechaPago: date("fecha_pago").notNull(),
   medio: mysqlEnum("medio", ["efectivo", "transferencia"]).notNull(),
+  estado: mysqlEnum("estado", ["pendiente", "confirmado", "rechazado"]).notNull().default("confirmado"),
+  motivoRechazo: varchar("motivo_rechazo", { length: 500 }),
   comprobanteArchivoId: bigint("comprobante_archivo_id", { mode: "number", unsigned: true }),
   registradoPorId: int("registrado_por_id", { unsigned: true }),
   createdAt: timestamp("created_at").notNull().defaultNow(),

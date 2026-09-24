@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { router, publico, privado } from "../trpc/base.js";
 import { usuarios, consentimientos } from "../db/schema/identidad.js";
 import { cifrarContrasena, verificarContrasena } from "../auth/password.js";
+import { unidadesDelInquilino } from "../auth/arrendatario.js";
 import { emitirToken } from "../auth/token.js";
 import { hashToken } from "../auth/tokens-enlace.js";
 import type { Database } from "../db/index.js";
@@ -207,6 +208,8 @@ export const authRouter = router({
       email: ctx.usuario.email,
       roles: ctx.usuario.roles,
       debeCambiarContrasena: fila?.debeCambiarContrasena ?? false,
+      /** Es arrendatario de alguna unidad, tenga ya o no el rol de inquilino. */
+      arrendatario: (await unidadesDelInquilino(ctx.db, ctx.usuario.id)).length > 0,
     };
   }),
 

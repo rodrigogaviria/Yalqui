@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { router, privado } from "../trpc/base.js";
 import type { Contexto } from "../context.js";
 import { ambitosCon } from "../auth/roles.js";
+import { unidadesDelInquilino } from "../auth/arrendatario.js";
 import { incidencias, incidenciaEventos, proveedores } from "../db/schema/operacion.js";
 import { contratos } from "../db/schema/contrato.js";
 import { inmuebles, edificaciones } from "../db/schema/inventario.js";
@@ -40,6 +41,7 @@ async function alcanceDe(ctx: Contexto & { usuario: NonNullable<Contexto["usuari
 
   const unidades = new Set<number>([
     ...propias,
+    ...(await unidadesDelInquilino(ctx.db, ctx.usuario.id)),
     ...deEdificacion.map((u) => u.id),
     ...arrendadas.map((c) => c.inmuebleId),
   ]);

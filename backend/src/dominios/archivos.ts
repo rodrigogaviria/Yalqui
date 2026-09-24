@@ -8,6 +8,7 @@ import { router, privado } from "../trpc/base.js";
 import { accesoAlContrato } from "../auth/contratoAcceso.js";
 import { archivos } from "../db/schema/identidad.js";
 import { tieneRol } from "../auth/roles.js";
+import { esArrendatarioDe } from "../auth/arrendatario.js";
 
 const MIME_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -21,6 +22,15 @@ const bucket = () => {
   if (!b) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El almacenamiento de archivos no está configurado" });
   return b;
 };
+
+/** El propietario de la unidad y quien la arrienda. */
+async function puedeSobreLaUnidad(
+  ctx: { db: import("../db/index.js").Database; usuario: { id: number; roles: import("../auth/roles.js").RolOtorgado[] } },
+  inmuebleId: number,
+) {
+  return tieneRol(ctx.usuario.roles, "propietario", "inmueble", inmuebleId)
+    || await esArrendatarioDe(ctx.db, ctx.usuario.id, inmuebleId);
+}
 
 async function prepararSubida(
   ctx: { db: import("../db/index.js").Database; usuario: { id: number } },
@@ -74,7 +84,7 @@ export const archivosRouter = router({
       bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
+      if (!(await puedeSobreLaUnidad(ctx, input.inmuebleId))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
       }
       return prepararSubida(ctx, TIPO_UNIDAD, input.inmuebleId, input);
@@ -89,7 +99,7 @@ export const archivosRouter = router({
       }
       if (a.entidadTipo === TIPO) {
         await accesoAlContrato(ctx.db, ctx.usuario, a.entidadId);
-      } else if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", a.entidadId)) {
+      } else if (!(await puedeSobreLaUnidad(ctx, a.entidadId))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
       }
 

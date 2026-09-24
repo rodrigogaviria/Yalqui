@@ -78,15 +78,15 @@ const PROPIETARIO: Perspectiva = {
 
 const INQUILINO: Perspectiva = {
   rol: "inquilino",
-  titulo: "Inquilino",
-  alcance: "Su contrato",
+  titulo: "Arrendatario",
+  alcance: "Su unidad",
   opciones: [
-    { clave: "inicio", titulo: "Inicio", icono: "casa", pendiente: true },
-    { clave: "mis-pagos", titulo: "Mis pagos", icono: "tarjeta", pendiente: true },
+    { clave: "inicio", titulo: "Inicio", icono: "casa" },
+    { clave: "mis-pagos", titulo: "Mis pagos", icono: "tarjeta" },
+    { clave: "mi-contrato", titulo: "Mi contrato", icono: "hoja" },
+    { clave: "reportar", titulo: "Reportar algo", icono: "triangulo" },
+    { clave: "avisos", titulo: "Avisos", icono: "globo" },
     { clave: "mi-score", titulo: "Mi score", icono: "grafico", pendiente: true },
-    { clave: "mi-contrato", titulo: "Mi contrato", icono: "hoja", pendiente: true },
-    { clave: "reportar", titulo: "Reportar algo", icono: "triangulo", pendiente: true },
-    { clave: "avisos", titulo: "Avisos", icono: "globo", pendiente: true },
     { clave: "vecinos", titulo: "Pedir ayuda a un vecino", icono: "globo", pendiente: true },
   ],
 };
@@ -144,8 +144,14 @@ const TODAS: Perspectiva[] = [PROPIETARIO, INQUILINO, ADMIN_INMUEBLE, SOCIO, ADM
  * contrato» juntos sin decir cuál es cuál. Por eso se ofrecen como perspectivas
  * entre las que se cambia, no como un menú sumado.
  */
-export function perspectivasDe(roles: Array<{ rol: string }>): Perspectiva[] {
+export function perspectivasDe(
+  roles: Array<{ rol: string }>,
+  /** Arrienda una unidad aunque todavía no tenga el rol: el rol de inquilino
+   *  nace al firmar el contrato, y quien fue registrado antes ya necesita entrar. */
+  arrendatario = false,
+): Perspectiva[] {
   const tiene = new Set(roles.map((r) => r.rol));
+  if (arrendatario) tiene.add("inquilino");
   const propias = TODAS.filter((p) => tiene.has(p.rol));
 
   // Sin ningún rol todavía —una cuenta recién creada— se le ofrece la de

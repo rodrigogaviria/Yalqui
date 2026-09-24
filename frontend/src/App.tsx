@@ -21,6 +21,11 @@ import { VerInquilinos } from "./paginas/propietario/VerInquilinos";
 import { Activar } from "./paginas/Activar";
 import { CambioContrasenaObligatorio } from "./paginas/CambioContrasenaObligatorio";
 import { EnConstruccion } from "./paginas/EnConstruccion";
+import { Inicio as InicioInquilino } from "./paginas/inquilino/Inicio";
+import { MisPagos } from "./paginas/inquilino/MisPagos";
+import { MiContrato } from "./paginas/inquilino/MiContrato";
+import { Reportar } from "./paginas/inquilino/Reportar";
+import { Avisos } from "./paginas/inquilino/Avisos";
 
 type Sesion = Awaited<ReturnType<typeof api.auth.sesion.query>>;
 
@@ -95,7 +100,7 @@ export default function App() {
   // Las perspectivas salen de los roles que devuelve el servidor. Es comodidad
   // de navegación, no seguridad: cada procedimiento vuelve a exigir su rol.
   const perspectivas = useMemo(
-    () => perspectivasDe(usuario?.roles ?? []),
+    () => perspectivasDe(usuario?.roles ?? [], usuario?.arrendatario ?? false),
     [usuario],
   );
 
@@ -230,6 +235,14 @@ export default function App() {
           {vista.tipo === "menu" && vista.clave === "incidencias" && <Incidencias unidades={unidades} />}
           {vista.tipo === "menu" && vista.clave === "rentabilidad" && <Rentabilidad unidades={unidades} />}
           {vista.tipo === "menu" && vista.clave === "plan" && <Plan />}
+
+          {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "inicio" && (
+            <InicioInquilino alIr={(clave) => setVista({ tipo: "menu", clave })} />
+          )}
+          {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "mis-pagos" && <MisPagos />}
+          {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "mi-contrato" && <MiContrato />}
+          {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "reportar" && <Reportar />}
+          {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "avisos" && <Avisos />}
 
           {vista.tipo === "menu" && vista.clave === "admin" && (
             // Remonta al cambiar de sección: si no, un «Barrio agregado» se

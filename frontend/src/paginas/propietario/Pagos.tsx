@@ -77,6 +77,62 @@ export function Pagos() {
           tono={(vista === "calendario" ? delMes.vencido : cuenta.vencido) > 0 ? "mal" : "bien"} />
       </Cifras>
 
+      {pagosUnidad.some((p) => p.estado === "pendiente") && (
+        <section className="tarjeta" style={{ padding: "18px 20px", display: "grid", gap: 12 }}>
+          <div>
+            <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Pagos subidos por inquilinos</h2>
+            <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "var(--tinta-2)" }}>
+              Hasta que los confirmes no cuentan como pagados en el calendario.
+            </p>
+          </div>
+          {pagosUnidad.filter((p) => p.estado === "pendiente").map((p) => {
+            const u = unidades.find((x) => x.id === p.inmuebleId);
+            return (
+              <div key={p.id} style={{
+                display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+                padding: "12px 14px", borderRadius: 10, border: "1px solid var(--linea)",
+              }}>
+                <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 600 }}>
+                    {u ? `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}` : `Unidad ${p.inmuebleId}`}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
+                    Pago del {new Date(p.fechaPago).toLocaleDateString("es-CO", { timeZone: "UTC" })} · {p.medio === "efectivo" ? "efectivo" : "transferencia"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {p.comprobanteArchivoId !== null && (
+                    <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
+                      onClick={() => void verComprobante(p.comprobanteArchivoId!)}>
+                      Ver comprobante
+                    </button>
+                  )}
+                  <button className="boton" style={{ height: 38, fontSize: 13.5 }}
+                    disabled={ocupado === `pu-${p.id}`}
+                    onClick={() => void accion(`pu-${p.id}`,
+                      () => api.facturacion.decidirPagoUnidad.mutate({ pagoId: p.id, decision: "confirmado" }),
+                      "Pago confirmado.")}>
+                    Confirmar
+                  </button>
+                  <button className="boton riesgo" style={{ height: 38, fontSize: 13.5 }}
+                    disabled={ocupado === `pu-${p.id}`}
+                    onClick={() => {
+                      const motivo = window.prompt("¿Por qué lo rechazás? Se lo mostramos al inquilino.");
+                      if (motivo?.trim()) {
+                        void accion(`pu-${p.id}`,
+                          () => api.facturacion.decidirPagoUnidad.mutate({ pagoId: p.id, decision: "rechazado", motivo: motivo.trim() }),
+                          "Pago rechazado.");
+                      }
+                    }}>
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
       {porVerificar.total > 0 && (
         <section className="tarjeta" style={{ padding: "18px 20px", display: "grid", gap: 12 }}>
           <div>
@@ -181,7 +237,7 @@ function situacionDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUni
     // Pago si hay factura pagada o un pago registrado sobre la unidad ese mes.
     const pagada = facturas.some(
       (f) => f.inmuebleId === u.id && f.periodo === periodo && f.situacion === "pagada",
-    ) || pagos.some((p) => p.inmuebleId === u.id && p.periodo === periodo);
+    ) || pagos.some((p) => p.inmuebleId === u.id && p.periodo === periodo && p.estado === "confirmado");
     const limite = new Date(m.anio, m.mes, dia + u.diasGracia, 23, 59, 59);
     const tono: keyof typeof TONO = pagada ? "pagada" : hoy > limite ? "vencida" : "porVencer";
     return { u, dia, tono };

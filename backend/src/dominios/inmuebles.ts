@@ -230,7 +230,7 @@ export const inmueblesRouter = router({
     const ultimoPagoUnidad = await ctx.db
       .select({ inmuebleId: pagosUnidad.inmuebleId, ultimo: sql<string>`MAX(${pagosUnidad.fechaPago})` })
       .from(pagosUnidad)
-      .where(inArray(pagosUnidad.inmuebleId, ids))
+      .where(and(inArray(pagosUnidad.inmuebleId, ids), eq(pagosUnidad.estado, "confirmado")))
       .groupBy(pagosUnidad.inmuebleId);
 
     const incidenciasAbiertas = await ctx.db

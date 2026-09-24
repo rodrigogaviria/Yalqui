@@ -3,8 +3,10 @@ import { api, mensajeDeError } from "../lib/api";
 import { Campo } from "./Campo";
 
 /** Fecha, medio e imagen del comprobante. La transferencia lo exige; el efectivo no. */
-export function SubirPago({ inmuebleId, alTerminar, fechaInicial }: {
+export function SubirPago({ inmuebleId, alTerminar, fechaInicial, comoInquilino = false }: {
   inmuebleId: number; alTerminar: (periodo: string) => void; fechaInicial?: string;
+  /** El inquilino sube el suyo y queda pendiente de confirmar. */
+  comoInquilino?: boolean;
 }) {
   const [fecha, setFecha] = useState(fechaInicial ?? new Date().toISOString().slice(0, 10));
   const [medio, setMedio] = useState<"efectivo" | "transferencia">("transferencia");
@@ -29,7 +31,8 @@ export function SubirPago({ inmuebleId, alTerminar, fechaInicial }: {
         if (!r.ok) throw new Error("No se pudo subir el archivo. Probá de nuevo.");
         comprobanteArchivoId = subida.archivoId;
       }
-      const { periodo } = await api.facturacion.registrarPagoUnidad.mutate({
+      const registrar = comoInquilino ? api.inquilino.subirPago : api.facturacion.registrarPagoUnidad;
+      const { periodo } = await registrar.mutate({
         inmuebleId, fechaPago: new Date(fecha), medio,
         ...(comprobanteArchivoId !== undefined ? { comprobanteArchivoId } : {}),
       });
