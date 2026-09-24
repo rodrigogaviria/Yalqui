@@ -23,6 +23,12 @@ export function cambiosDe(campos: Record<string, unknown>): Record<string, unkno
  *  con la que el código lo referencia, no lo que la persona lee. */
 export const codigoCatalogo = /^[a-z][a-z0-9_]{1,39}$/;
 
+/** Lo que la persona escribió, llevado a la forma de un código: sin tildes,
+ *  en minúsculas y con guion bajo donde había espacios. «Int» y «Aire acondicionado»
+ *  se aceptan en vez de rechazarse por no venir ya en formato de llave. */
+export const normalizarCodigo = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
 /**
  * Convierte una violación de clave única en un error legible.
  *

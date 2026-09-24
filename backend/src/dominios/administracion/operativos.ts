@@ -2,7 +2,7 @@ import { z } from "zod";
 import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, admin } from "../../trpc/base.js";
-import { cambiosDe, codigoCatalogo, comoConflicto } from "./comun.js";
+import { cambiosDe, codigoCatalogo, comoConflicto, normalizarCodigo } from "./comun.js";
 import {
   tiposMovimiento, tiposIncidencia, tiposDocumento, requisitos, requisitoDocumentos,
   TIPOS_MOVIMIENTO, AMBITOS_GASTO, RESPONSABLES, PRIORIDADES, AMBITOS_INCIDENCIA,
@@ -13,7 +13,8 @@ import { proveedores } from "../../db/schema/operacion.js";
 import { plantillasContrato, MARCOS_LEGALES } from "../../db/schema/contrato.js";
 
 const id = z.number().int().positive();
-const codigo = z.string().trim().regex(codigoCatalogo, "Minúsculas, sin espacios ni tildes");
+const codigo = z.string().transform(normalizarCodigo)
+  .pipe(z.string().regex(codigoCatalogo, "El código son letras, números o guion bajo, y empieza por una letra"));
 const nombre = z.string().trim().min(2).max(160);
 const texto = z.string().trim().max(500);
 const dinero = z.number().min(0).max(99_999_999);

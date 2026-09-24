@@ -53,6 +53,19 @@ export function mensajeDeError(e: unknown): string {
       const primero = Object.values(zod).flat()[0];
       if (primero) return primero;
     }
+    // Sin formateador de zod en el servidor, el detalle llega como el JSON del
+    // arreglo de errores dentro del mensaje: se lee el primero en vez de
+    // mostrar el volcado entero.
+    if (e.message.trimStart().startsWith("[")) {
+      try {
+        const lista = JSON.parse(e.message) as Array<{ message?: string; path?: unknown[] }>;
+        const primero = lista[0];
+        if (primero?.message) {
+          const campo = primero.path?.[0];
+          return typeof campo === "string" ? `${campo}: ${primero.message}` : primero.message;
+        }
+      } catch { /* no era JSON: se muestra tal cual */ }
+    }
     if (e.data?.code === "UNAUTHORIZED") return e.message || "Iniciá sesión para continuar";
     return e.message;
   }
