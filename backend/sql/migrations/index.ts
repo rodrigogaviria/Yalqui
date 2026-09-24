@@ -56,6 +56,8 @@ import m025 from "./025_dia_pago_y_gracia.sql";
 import m026 from "./026_pagos_unidad.sql";
 // @ts-ignore
 import m027 from "./027_pago_unidad_estado.sql";
+// @ts-ignore
+import m028 from "./028_comunicado_unidades.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -91,4 +93,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "025", nombre: "dia_pago_y_gracia", sql: m025 as string },
   { version: "026", nombre: "pagos_unidad", sql: m026 as string },
   { version: "027", nombre: "pago_unidad_estado", sql: m027 as string },
+  { version: "028", nombre: "comunicado_unidades", sql: m028 as string },
 ];

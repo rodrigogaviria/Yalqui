@@ -8,7 +8,7 @@ import { usuarios, archivos } from "../db/schema/identidad.js";
 import { contratos } from "../db/schema/contrato.js";
 import { aplicaciones } from "../db/schema/demanda.js";
 import { pagosUnidad } from "../db/schema/dinero.js";
-import { comunicados } from "../db/schema/comunicacion.js";
+import { comunicados, comunicadoUnidades } from "../db/schema/comunicacion.js";
 
 /**
  * Lo que ve y hace quien arrienda una unidad.
@@ -125,6 +125,15 @@ export const inquilinoRouter = router({
       .map((x) => x.e)
       .filter((x): x is number => x !== null);
 
+    const aMisUnidades = await ctx.db
+      .selectDistinct({ id: comunicadoUnidades.comunicadoId })
+      .from(comunicadoUnidades)
+      .where(inArray(comunicadoUnidades.inmuebleId, ids));
+
+    // Sin ninguno de los dos alcances no hay nada que mostrar: un `or` vacío
+    // no filtra, y devolvería los comunicados de todo el mundo.
+    if (aMisUnidades.length === 0 && edificios.length === 0) return [];
+
     return ctx.db
       .select({
         id: comunicados.id, titulo: comunicados.titulo, cuerpo: comunicados.cuerpo,
@@ -134,7 +143,7 @@ export const inquilinoRouter = router({
       .where(and(
         eq(comunicados.estado, "enviado"),
         or(
-          inArray(comunicados.inmuebleId, ids),
+          aMisUnidades.length > 0 ? inArray(comunicados.id, aMisUnidades.map((x) => x.id)) : undefined,
           edificios.length > 0 ? inArray(comunicados.edificacionId, edificios) : undefined,
         ),
       ))

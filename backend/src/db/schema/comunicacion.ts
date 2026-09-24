@@ -78,6 +78,16 @@ export const comunicados = mysqlTable("comunicados", {
 	primaryKey({ columns: [table.id], name: "comunicados_id"}),
 ]);
 
+/** A qué unidades va un comunicado. Un comunicado, varias unidades. */
+export const comunicadoUnidades = mysqlTable("comunicado_unidades", {
+	comunicadoId: int("comunicado_id", { unsigned: true }).notNull().references(() => comunicados.id, { onDelete: "cascade" } ),
+	inmuebleId: int("inmueble_id", { unsigned: true }).notNull().references(() => inmuebles.id, { onDelete: "cascade" } ),
+},
+(table) => [
+	primaryKey({ columns: [table.comunicadoId, table.inmuebleId], name: "comunicado_unidades_pk"}),
+	index("ix_comunidades_inmueble").on(table.inmuebleId),
+]);
+
 export const comunicadoDestinatarios = mysqlTable("comunicado_destinatarios", {
 	id: int({ unsigned: true }).autoincrement().notNull(),
 	comunicadoId: int("comunicado_id", { unsigned: true }).notNull().references(() => comunicados.id, { onDelete: "cascade" } ),

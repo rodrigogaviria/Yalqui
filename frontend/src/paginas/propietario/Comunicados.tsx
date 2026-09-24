@@ -84,7 +84,9 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
                   <div style={{ fontSize: 13, color: "var(--tinta-2)", marginTop: 2 }}>
                     {c.ambito === "edificacion"
                       ? `Todo ${c.edificacion ?? "el edificio"}`
-                      : `${c.direccion}${c.complemento ? `, ${c.complemento}` : ""}`}
+                      : c.unidades.length === 1
+                        ? `${c.unidades[0]!.direccion}${c.unidades[0]!.complemento ? `, ${c.unidades[0]!.complemento}` : ""}`
+                        : `${c.unidades.length} unidades: ${c.unidades.slice(0, 8).map((u) => u.complemento || u.direccion).join(", ")}${c.unidades.length > 8 ? "…" : ""}`}
                     {" · "}{TIPOS.find(([v]) => v === c.tipo)?.[1] ?? c.tipo}
                   </div>
                 </div>

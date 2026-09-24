@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, privado } from "../trpc/base.js";
 import { ambitosCon } from "../auth/roles.js";
-import { comunicados } from "../db/schema/comunicacion.js";
+import { comunicados, comunicadoUnidades } from "../db/schema/comunicacion.js";
 import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 
 const TIPOS = ["aviso", "mantenimiento", "incremento_canon", "recordatorio",
@@ -26,6 +26,12 @@ export const comunicadosRouter = router({
     ];
     if (ids.length === 0 && idsEdificacion.length === 0) return { total: 0, comunicados: [] };
 
+    // Los que llegan a alguna de mis unidades, por la tabla de alcance.
+    const deMisUnidades = ids.length === 0 ? [] : await ctx.db
+      .selectDistinct({ id: comunicadoUnidades.comunicadoId })
+      .from(comunicadoUnidades)
+      .where(inArray(comunicadoUnidades.inmuebleId, ids));
+
     const filas = await ctx.db
       .select({
         id: comunicados.id,
@@ -38,24 +44,39 @@ export const comunicadosRouter = router({
         enviadoAt: comunicados.enviadoAt,
         createdAt: comunicados.createdAt,
         ambito: comunicados.ambito,
-        inmuebleId: inmuebles.id,
-        direccion: inmuebles.direccion,
-        complemento: inmuebles.complemento,
         edificacionId: edificaciones.id,
         edificacion: edificaciones.nombre,
       })
       .from(comunicados)
       // LEFT: uno dirigido a la edificación no tiene unidad, y con INNER
       // desaparecería justamente el que llega a más gente.
-      .leftJoin(inmuebles, eq(inmuebles.id, comunicados.inmuebleId))
       .leftJoin(edificaciones, eq(edificaciones.id, comunicados.edificacionId))
       .where(or(
-        ...(ids.length > 0 ? [inArray(comunicados.inmuebleId, ids)] : []),
+        ...(deMisUnidades.length > 0 ? [inArray(comunicados.id, deMisUnidades.map((x) => x.id))] : []),
         ...(idsEdificacion.length > 0 ? [inArray(comunicados.edificacionId, idsEdificacion)] : []),
       ))
       .orderBy(desc(comunicados.createdAt));
 
-    return { total: filas.length, comunicados: filas };
+    const idsCom = filas.map((f) => f.id);
+    const destinos = idsCom.length === 0 ? [] : await ctx.db
+      .select({
+        comunicadoId: comunicadoUnidades.comunicadoId,
+        id: inmuebles.id, direccion: inmuebles.direccion, complemento: inmuebles.complemento,
+      })
+      .from(comunicadoUnidades)
+      .innerJoin(inmuebles, eq(inmuebles.id, comunicadoUnidades.inmuebleId))
+      .where(inArray(comunicadoUnidades.comunicadoId, idsCom))
+      .orderBy(inmuebles.direccion, inmuebles.complemento);
+
+    return {
+      total: filas.length,
+      comunicados: filas.map((f) => ({
+        ...f,
+        unidades: destinos
+          .filter((d) => d.comunicadoId === f.id)
+          .map((d) => ({ id: d.id, direccion: d.direccion, complemento: d.complemento })),
+      })),
+    };
   }),
 
   /**
@@ -100,25 +121,29 @@ export const comunicadosRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
       }
 
-      const base = {
+      const [res] = await ctx.db.insert(comunicados).values({
         autorId: ctx.usuario.id,
         // El ámbito de la tabla llama «unidad» a lo que el resto llama inmueble.
-        ambito: input.ambito === "unidad" ? "unidad" as const : "edificacion" as const,
+        ambito: input.ambito === "unidad" ? "unidad" : "edificacion",
+        // Un solo destino lo deja también en la columna; varios, solo en la
+        // tabla de alcance: un comunicado, una fila.
+        inmuebleId: input.ambito === "unidad" && destinos.length === 1 ? destinos[0]! : null,
+        edificacionId: input.ambito === "edificacion" ? input.edificacionId ?? null : null,
         tipo: input.tipo,
         titulo: input.titulo,
         cuerpo: input.cuerpo,
         prioridad: input.prioridad,
         requiereConfirmacion: input.requiereConfirmacion,
         canales: input.canales,
-        estado: "borrador" as const,
-      };
-      const filas = input.ambito === "unidad"
-        ? destinos.map((id) => ({ ...base, inmuebleId: id, edificacionId: null }))
-        : [{ ...base, inmuebleId: null, edificacionId: input.edificacionId ?? null }];
+        estado: "borrador",
+      });
+      const comunicadoId = Number((res as { insertId: number }).insertId);
 
-      const [res] = await ctx.db.insert(comunicados).values(filas);
-      const primero = Number((res as { insertId: number }).insertId);
-      return { comunicadoId: primero, creados: filas.length };
+      if (input.ambito === "unidad") {
+        await ctx.db.insert(comunicadoUnidades)
+          .values(destinos.map((inmuebleId) => ({ comunicadoId, inmuebleId })));
+      }
+      return { comunicadoId, unidades: destinos.length };
     }),
 
   /**
@@ -143,12 +168,20 @@ export const comunicadosRouter = router({
 
       if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Ese comunicado no existe" });
 
-      const puede = c.inmuebleId !== null
-        ? ambitosCon(ctx.usuario.roles, "propietario", "inmueble").includes(c.inmuebleId)
-        : c.edificacionId !== null && (
-            ambitosCon(ctx.usuario.roles, "propietario", "edificacion").includes(c.edificacionId)
-            || ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion").includes(c.edificacionId)
-          );
+      const destinos = (await ctx.db
+        .select({ id: comunicadoUnidades.inmuebleId })
+        .from(comunicadoUnidades)
+        .where(eq(comunicadoUnidades.comunicadoId, input.comunicadoId))).map((d) => d.id);
+      const mias = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+
+      const puede = destinos.length > 0
+        ? destinos.every((id) => mias.includes(id))
+        : c.inmuebleId !== null
+          ? mias.includes(c.inmuebleId)
+          : c.edificacionId !== null && (
+              ambitosCon(ctx.usuario.roles, "propietario", "edificacion").includes(c.edificacionId)
+              || ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion").includes(c.edificacionId)
+            );
 
       if (!puede) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
