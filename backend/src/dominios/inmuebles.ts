@@ -188,6 +188,8 @@ export const inmueblesRouter = router({
         ciudad: inmuebles.ciudad,
         canonBase: inmuebles.canonBase,
         valorAdministracion: inmuebles.valorAdministracion,
+        diaPago: inmuebles.diaPago,
+        diasGracia: inmuebles.diasGracia,
       })
       .from(inmuebles)
       .where(inArray(inmuebles.id, ids))
