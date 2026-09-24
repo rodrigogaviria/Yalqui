@@ -257,8 +257,8 @@ export function FormularioUnidad({
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Campo etiqueta="Día previsto de pago" ayuda="Del 1 al 28. Es el que toma el contrato">
-            <input type="number" min={1} max={28} value={diaPago}
+          <Campo etiqueta="Día previsto de pago" ayuda="Del 1 al 31. Es el que toma el contrato">
+            <input type="number" min={1} max={31} value={diaPago}
               onChange={(e) => setDiaPago(e.target.value)} required />
           </Campo>
           <Campo etiqueta="Días de gracia" ayuda="Después de ese día antes de contar mora">

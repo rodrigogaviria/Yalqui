@@ -101,8 +101,8 @@ export function GenerarContrato({ inmuebleId, aplicacionId, direccion, esViviend
             <input type="number" min={1} max={120} value={meses}
               onChange={(e) => setMeses(e.target.value)} required />
           </Campo>
-          <Campo etiqueta="Paga el día" ayuda="Del 1 al 28. Vacío: el de la unidad">
-            <input type="number" min={1} max={28} value={diaPago} placeholder="El de la unidad"
+          <Campo etiqueta="Paga el día" ayuda="Del 1 al 31. Vacío: el de la unidad">
+            <input type="number" min={1} max={31} value={diaPago} placeholder="El de la unidad"
               onChange={(e) => setDiaPago(e.target.value)} />
           </Campo>
         </div>

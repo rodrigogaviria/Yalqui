@@ -42,7 +42,7 @@ export const contratosRouter = router({
       fechaInicio: z.coerce.date(),
       mesesPlazo: z.number().int().min(1).max(120).default(12),
       /** Sin valor, toma el día previsto de pago de la unidad. */
-      diaPago: z.number().int().min(1).max(28).optional(),
+      diaPago: z.number().int().min(1).max(31).optional(),
       incrementoTipo: z.enum(["ipc", "ipc_mas_puntos", "fijo", "ninguno"]).default("ipc"),
       garantiaTipo: z.enum(["codeudor", "poliza", "fiador", "deposito", "ninguna"]).default("ninguna"),
       /** Cómo y a dónde se paga. Va literal en la cláusula de canon. */

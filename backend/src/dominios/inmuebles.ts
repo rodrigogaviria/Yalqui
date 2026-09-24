@@ -27,7 +27,7 @@ const nuevo = z.object({
   departamento: z.string().trim().min(2).max(120),
   canonBase: dinero,
   valorAdministracion: dinero.default(0),
-  diaPago: z.number().int().min(1).max(28).default(5),
+  diaPago: z.number().int().min(1).max(31).default(5),
   diasGracia: z.number().int().min(0).max(30).default(5),
   administracionIncluida: z.boolean().default(false),
   habitaciones: z.number().int().min(0).max(50).optional(),

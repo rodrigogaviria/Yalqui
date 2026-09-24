@@ -47,7 +47,9 @@ export const facturacionRouter = router({
       }
 
       const [anio, mes] = input.periodo.split("-").map(Number);
-      const vencimiento = new Date(Date.UTC(anio!, mes! - 1, c.diaPago));
+      // Un día 31 en un mes de 30 días vence el último del mes, no el 1.º del siguiente.
+      const ultimoDia = new Date(Date.UTC(anio!, mes!, 0)).getUTCDate();
+      const vencimiento = new Date(Date.UTC(anio!, mes! - 1, Math.min(c.diaPago, ultimoDia)));
 
       // Solo los ajustes vigentes en el periodo: una mascota que llegó en marzo
       // no se cobra en febrero.
