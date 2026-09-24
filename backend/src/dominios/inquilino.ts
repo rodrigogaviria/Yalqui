@@ -8,7 +8,7 @@ import { usuarios, archivos } from "../db/schema/identidad.js";
 import { contratos } from "../db/schema/contrato.js";
 import { aplicaciones } from "../db/schema/demanda.js";
 import { pagosUnidad } from "../db/schema/dinero.js";
-import { comunicados, comunicadoUnidades } from "../db/schema/comunicacion.js";
+import { comunicados, comunicadoUnidades, comunicadoDestinatarios } from "../db/schema/comunicacion.js";
 
 /**
  * Lo que ve y hace quien arrienda una unidad.
@@ -113,40 +113,70 @@ export const inquilinoRouter = router({
       return { periodo };
     }),
 
-  /** Los avisos ya enviados que le llegan: a su unidad o a todo su edificio. */
-  avisos: privado.query(async ({ ctx }) => {
-    const ids = await unidadesDelInquilino(ctx.db, ctx.usuario.id);
-    if (ids.length === 0) return [];
+  /** Los avisos ya enviados que le llegan, cada uno con su marca de leído. */
+  avisos: privado.query(({ ctx }) => avisosDe(ctx)),
 
-    const edificios = (await ctx.db
-      .select({ e: inmuebles.edificacionId })
-      .from(inmuebles)
-      .where(inArray(inmuebles.id, ids)))
-      .map((x) => x.e)
-      .filter((x): x is number => x !== null);
-
-    const aMisUnidades = await ctx.db
-      .selectDistinct({ id: comunicadoUnidades.comunicadoId })
-      .from(comunicadoUnidades)
-      .where(inArray(comunicadoUnidades.inmuebleId, ids));
-
-    // Sin ninguno de los dos alcances no hay nada que mostrar: un `or` vacío
-    // no filtra, y devolvería los comunicados de todo el mundo.
-    if (aMisUnidades.length === 0 && edificios.length === 0) return [];
-
-    return ctx.db
-      .select({
-        id: comunicados.id, titulo: comunicados.titulo, cuerpo: comunicados.cuerpo,
-        tipo: comunicados.tipo, prioridad: comunicados.prioridad, enviadoAt: comunicados.enviadoAt,
-      })
-      .from(comunicados)
-      .where(and(
-        eq(comunicados.estado, "enviado"),
-        or(
-          aMisUnidades.length > 0 ? inArray(comunicados.id, aMisUnidades.map((x) => x.id)) : undefined,
-          edificios.length > 0 ? inArray(comunicados.edificacionId, edificios) : undefined,
-        ),
-      ))
-      .orderBy(desc(comunicados.enviadoAt));
-  }),
+  /** Marca un aviso como leído o como no leído. Es de cada persona: no afecta a los demás. */
+  marcarAviso: privado
+    .input(z.object({ comunicadoId: z.number().int().positive(), leido: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const visibles = await avisosDe(ctx);
+      if (!visibles.some((a) => a.id === input.comunicadoId)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ese aviso no es tuyo" });
+      }
+      const ahora = new Date();
+      await ctx.db.insert(comunicadoDestinatarios).values({
+        comunicadoId: input.comunicadoId, usuarioId: ctx.usuario.id, rolDestinatario: "inquilino",
+        estado: input.leido ? "leido" : "entregado", leidoAt: input.leido ? ahora.toISOString().slice(0, 19).replace("T", " ") : null,
+      }).onDuplicateKeyUpdate({
+        set: {
+          estado: input.leido ? "leido" : "entregado",
+          leidoAt: input.leido ? ahora.toISOString().slice(0, 19).replace("T", " ") : null,
+        },
+      });
+      return { leido: input.leido };
+    }),
 });
+
+async function avisosDe(ctx: { db: import("../db/index.js").Database; usuario: { id: number } }) {
+  const ids = await unidadesDelInquilino(ctx.db, ctx.usuario.id);
+  if (ids.length === 0) return [];
+
+  const edificios = (await ctx.db
+    .select({ e: inmuebles.edificacionId })
+    .from(inmuebles)
+    .where(inArray(inmuebles.id, ids)))
+    .map((x) => x.e)
+    .filter((x): x is number => x !== null);
+
+  const aMisUnidades = await ctx.db
+    .selectDistinct({ id: comunicadoUnidades.comunicadoId })
+    .from(comunicadoUnidades)
+    .where(inArray(comunicadoUnidades.inmuebleId, ids));
+
+  // Sin ninguno de los dos alcances no hay nada que mostrar: un `or` vacío
+  // no filtra, y devolvería los comunicados de todo el mundo.
+  if (aMisUnidades.length === 0 && edificios.length === 0) return [];
+
+  const filas = await ctx.db
+    .select({
+      id: comunicados.id, titulo: comunicados.titulo, cuerpo: comunicados.cuerpo,
+      tipo: comunicados.tipo, prioridad: comunicados.prioridad, enviadoAt: comunicados.enviadoAt,
+      estadoLectura: comunicadoDestinatarios.estado,
+    })
+    .from(comunicados)
+    .leftJoin(comunicadoDestinatarios, and(
+      eq(comunicadoDestinatarios.comunicadoId, comunicados.id),
+      eq(comunicadoDestinatarios.usuarioId, ctx.usuario.id),
+    ))
+    .where(and(
+      eq(comunicados.estado, "enviado"),
+      or(
+        aMisUnidades.length > 0 ? inArray(comunicados.id, aMisUnidades.map((x) => x.id)) : undefined,
+        edificios.length > 0 ? inArray(comunicados.edificacionId, edificios) : undefined,
+      ),
+    ))
+    .orderBy(desc(comunicados.enviadoAt));
+
+  return filas.map(({ estadoLectura, ...resto }) => ({ ...resto, leido: estadoLectura === "leido" || estadoLectura === "confirmado" }));
+}
