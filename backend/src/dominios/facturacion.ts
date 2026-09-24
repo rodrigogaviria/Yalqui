@@ -232,6 +232,7 @@ export const facturacionRouter = router({
         inmuebleId: inmuebles.id,
         direccion: inmuebles.direccion,
         complemento: inmuebles.complemento,
+        diasGracia: inmuebles.diasGracia,
         contratoId: contratos.id,
       })
       .from(facturasArriendo)
@@ -244,7 +245,9 @@ export const facturacionRouter = router({
     hoy.setHours(0, 0, 0, 0);
 
     const facturas = filas.map((f) => {
+      // La mora empieza al terminar la gracia de la unidad, no al día previsto.
       const vence = new Date(f.fechaVencimiento);
+      vence.setUTCDate(vence.getUTCDate() + f.diasGracia);
       const pagada = Number(f.saldo) <= 0;
       const situacion = pagada ? "pagada" : vence < hoy ? "vencida" : "porVencer";
       const diasMora = situacion === "vencida"

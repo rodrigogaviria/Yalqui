@@ -29,7 +29,7 @@ export const dashboardRouter = router({
 
     const misUnidades = await ctx.db
       .select({ id: inmuebles.id, estado: inmuebles.estado, canonBase: inmuebles.canonBase,
-                direccion: inmuebles.direccion })
+                direccion: inmuebles.direccion, diasGracia: inmuebles.diasGracia })
       .from(inmuebles)
       .where(inArray(inmuebles.id, ids));
 
@@ -37,6 +37,10 @@ export const dashboardRouter = router({
       .select({ id: contratos.id, inmuebleId: contratos.inmuebleId })
       .from(contratos)
       .where(and(inArray(contratos.inmuebleId, ids), eq(contratos.estado, "vigente")));
+    const graciaDe = (contratoId: number) => {
+      const c = misContratos.find((x) => x.id === contratoId);
+      return misUnidades.find((u) => u.id === c?.inmuebleId)?.diasGracia ?? 0;
+    };
 
     const idsContrato = misContratos.map((c) => c.id);
 
@@ -56,7 +60,11 @@ export const dashboardRouter = router({
     const pendientes = facturas.filter((f) => Number(f.saldo) > 0);
     const porCobrar = pendientes.reduce((t, f) => t + Number(f.saldo), 0);
     const vencido = pendientes
-      .filter((f) => new Date(f.fechaVencimiento) < hoy)
+      .filter((f) => {
+        const limite = new Date(f.fechaVencimiento);
+        limite.setUTCDate(limite.getUTCDate() + graciaDe(f.contratoId));
+        return limite < hoy;
+      })
       .reduce((t, f) => t + Number(f.saldo), 0);
 
     const [pagos] = idsContrato.length === 0 ? [{ n: 0 }] : await ctx.db

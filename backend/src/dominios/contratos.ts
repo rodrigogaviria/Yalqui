@@ -41,7 +41,8 @@ export const contratosRouter = router({
       aplicacionId: z.number().int().positive(),
       fechaInicio: z.coerce.date(),
       mesesPlazo: z.number().int().min(1).max(120).default(12),
-      diaPago: z.number().int().min(1).max(28).default(5),
+      /** Sin valor, toma el día previsto de pago de la unidad. */
+      diaPago: z.number().int().min(1).max(28).optional(),
       incrementoTipo: z.enum(["ipc", "ipc_mas_puntos", "fijo", "ninguno"]).default("ipc"),
       garantiaTipo: z.enum(["codeudor", "poliza", "fiador", "deposito", "ninguna"]).default("ninguna"),
       /** Cómo y a dónde se paga. Va literal en la cláusula de canon. */
@@ -65,6 +66,7 @@ export const contratosRouter = router({
       if (!u) throw new TRPCError({ code: "NOT_FOUND", message: "Esa unidad no existe" });
 
       const marco = marcoLegalDe(u.tipo);
+      const diaPago = input.diaPago ?? u.diaPago;
 
       // En vivienda urbana la Ley 820 prohíbe exigir depósito en dinero, y el
       // incremento está topado al IPC. El sistema no debería ofrecer por
@@ -189,7 +191,7 @@ export const contratosRouter = router({
 
         canon: enPesos(canon),
         canon_letras: enLetras(canon),
-        dia_pago: String(input.diaPago),
+        dia_pago: String(diaPago),
         medio_pago: input.medioPago ?? "la cuenta bancaria que el Arrendador indique",
         incremento: input.incrementoTipo === "ninguno"
           ? "cero por ciento"
@@ -240,7 +242,7 @@ export const contratosRouter = router({
           canonMensual: u.canonBase,
           valorAdministracion: u.valorAdministracion,
           administracionIncluida: u.administracionIncluida,
-          diaPago: input.diaPago,
+          diaPago,
           garantiaTipo: input.garantiaTipo,
           regimenIva: marco === "comercial" ? "gravado" : "excluido",
           tarifaIva: marco === "comercial" ? "19.00" : "0.00",

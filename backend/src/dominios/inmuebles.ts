@@ -27,6 +27,8 @@ const nuevo = z.object({
   departamento: z.string().trim().min(2).max(120),
   canonBase: dinero,
   valorAdministracion: dinero.default(0),
+  diaPago: z.number().int().min(1).max(28).default(5),
+  diasGracia: z.number().int().min(0).max(30).default(5),
   administracionIncluida: z.boolean().default(false),
   habitaciones: z.number().int().min(0).max(50).optional(),
   banos: z.number().int().min(0).max(50).optional(),
@@ -59,6 +61,8 @@ export const cambiosUnidad = nuevo
   .omit({ edificacionId: true })
   .extend({
     valorAdministracion: nuevo.shape.valorAdministracion.removeDefault(),
+    diaPago: nuevo.shape.diaPago.removeDefault(),
+    diasGracia: nuevo.shape.diasGracia.removeDefault(),
     administracionIncluida: nuevo.shape.administracionIncluida.removeDefault(),
     ocupantesBase: nuevo.shape.ocupantesBase.removeDefault(),
     mascotasMaximo: nuevo.shape.mascotasMaximo.removeDefault(),
@@ -115,6 +119,8 @@ export const inmueblesRouter = router({
         mascotasMaximo: input.mascotasMaximo,
         administracionIncluida: input.administracionIncluida,
         valorAdministracion: input.valorAdministracion.toFixed(2),
+        diaPago: input.diaPago,
+        diasGracia: input.diasGracia,
         canonBase: input.canonBase.toFixed(2),
         descripcion: input.descripcion ?? null,
         matriculaInmobiliaria: input.matriculaInmobiliaria ?? null,
@@ -298,6 +304,8 @@ export const inmueblesRouter = router({
       if (c.mascotasMaximo !== undefined) set["mascotasMaximo"] = c.mascotasMaximo;
       if (c.administracionIncluida !== undefined) set["administracionIncluida"] = c.administracionIncluida;
       if (c.valorAdministracion !== undefined) set["valorAdministracion"] = c.valorAdministracion.toFixed(2);
+      if (c.diaPago !== undefined) set["diaPago"] = c.diaPago;
+      if (c.diasGracia !== undefined) set["diasGracia"] = c.diasGracia;
       if (c.canonBase !== undefined) set["canonBase"] = c.canonBase.toFixed(2);
       if (c.descripcion !== undefined) set["descripcion"] = c.descripcion || null;
       if (c.matriculaInmobiliaria !== undefined) set["matriculaInmobiliaria"] = c.matriculaInmobiliaria || null;

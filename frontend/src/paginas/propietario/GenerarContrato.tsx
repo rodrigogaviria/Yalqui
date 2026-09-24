@@ -23,7 +23,7 @@ export function GenerarContrato({ inmuebleId, aplicacionId, direccion, esViviend
 
   const [fechaInicio, setFechaInicio] = useState(new Date().toISOString().slice(0, 10));
   const [meses, setMeses] = useState("12");
-  const [diaPago, setDiaPago] = useState("5");
+  const [diaPago, setDiaPago] = useState("");
   const [incrementoTipo, setIncrementoTipo] = useState<"ipc" | "ipc_mas_puntos" | "fijo" | "ninguno">("ipc");
   const [garantiaTipo, setGarantiaTipo] = useState<"codeudor" | "poliza" | "fiador" | "deposito" | "ninguna">("codeudor");
 
@@ -37,7 +37,7 @@ export function GenerarContrato({ inmuebleId, aplicacionId, direccion, esViviend
         aplicacionId,
         fechaInicio: new Date(fechaInicio),
         mesesPlazo: Number(meses),
-        diaPago: Number(diaPago),
+        ...(diaPago ? { diaPago: Number(diaPago) } : {}),
         incrementoTipo,
         garantiaTipo,
       });
@@ -101,9 +101,9 @@ export function GenerarContrato({ inmuebleId, aplicacionId, direccion, esViviend
             <input type="number" min={1} max={120} value={meses}
               onChange={(e) => setMeses(e.target.value)} required />
           </Campo>
-          <Campo etiqueta="Paga el día" ayuda="Del 1 al 28">
-            <input type="number" min={1} max={28} value={diaPago}
-              onChange={(e) => setDiaPago(e.target.value)} required />
+          <Campo etiqueta="Paga el día" ayuda="Del 1 al 28. Vacío: el de la unidad">
+            <input type="number" min={1} max={28} value={diaPago} placeholder="El de la unidad"
+              onChange={(e) => setDiaPago(e.target.value)} />
           </Campo>
         </div>
 

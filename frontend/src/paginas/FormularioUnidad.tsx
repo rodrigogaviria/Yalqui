@@ -44,6 +44,8 @@ export function FormularioUnidad({
   const [ciudad, setCiudad] = useState("");
   const [canonBase, setCanonBase] = useState("");
   const [valorAdministracion, setValorAdministracion] = useState("");
+  const [diaPago, setDiaPago] = useState("5");
+  const [diasGracia, setDiasGracia] = useState("5");
   const [administracionIncluida, setAdministracionIncluida] = useState(false);
   const [habitaciones, setHabitaciones] = useState("");
   const [banos, setBanos] = useState("");
@@ -72,6 +74,8 @@ export function FormularioUnidad({
         setDepartamento(unidad.departamento);
         setCanonBase(texto(unidad.canonBase));
         setValorAdministracion(texto(unidad.valorAdministracion));
+        setDiaPago(texto(unidad.diaPago) || "5");
+        setDiasGracia(texto(unidad.diasGracia) || "0");
         setAdministracionIncluida(unidad.administracionIncluida);
         setHabitaciones(texto(unidad.habitaciones));
         setBanos(texto(unidad.banos));
@@ -156,6 +160,8 @@ export function FormularioUnidad({
       complemento: complemento.trim() || undefined,
       canonBase: canon,
       valorAdministracion: admin,
+      diaPago: Number(diaPago) || 5,
+      diasGracia: Number(diasGracia) || 0,
       administracionIncluida,
       habitaciones: numero(habitaciones),
       banos: numero(banos),
@@ -247,6 +253,17 @@ export function FormularioUnidad({
           <Campo etiqueta="Administración">
             <input type="number" min={0} step={1000} value={valorAdministracion}
               onChange={(e) => setValorAdministracion(e.target.value)} placeholder="320000" />
+          </Campo>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Campo etiqueta="Día previsto de pago" ayuda="Del 1 al 28. Es el que toma el contrato">
+            <input type="number" min={1} max={28} value={diaPago}
+              onChange={(e) => setDiaPago(e.target.value)} required />
+          </Campo>
+          <Campo etiqueta="Días de gracia" ayuda="Después de ese día antes de contar mora">
+            <input type="number" min={0} max={30} value={diasGracia}
+              onChange={(e) => setDiasGracia(e.target.value)} required />
           </Campo>
         </div>
 
