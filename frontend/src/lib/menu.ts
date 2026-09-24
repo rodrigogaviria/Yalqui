@@ -84,10 +84,10 @@ const INQUILINO: Perspectiva = {
     { clave: "inicio", titulo: "Inicio", icono: "casa" },
     { clave: "mis-pagos", titulo: "Mis pagos", icono: "tarjeta" },
     { clave: "mi-contrato", titulo: "Mi contrato", icono: "hoja" },
-    { clave: "reportar", titulo: "Reportar algo", icono: "triangulo" },
-    { clave: "avisos", titulo: "Pilas ⚡️", icono: "globo" },
+    { clave: "reportar", titulo: "¿Todo bien?", icono: "triangulo" },
+    { clave: "avisos", titulo: "Novedades ⚡️", icono: "globo" },
     { clave: "mi-score", titulo: "Mi score", icono: "grafico", pendiente: true },
-    { clave: "vecinos", titulo: "Pedir ayuda a un vecino", icono: "globo", pendiente: true },
+    { clave: "vecinos", titulo: "Vecinos que Ayudan", icono: "globo", pendiente: true },
   ],
 };
 
@@ -114,7 +114,7 @@ const SOCIO: Perspectiva = {
     { clave: "mi-rentabilidad", titulo: "Mi rentabilidad", icono: "grafico", pendiente: true },
     { clave: "contratos-socio", titulo: "Contratos", icono: "hoja", pendiente: true },
     { clave: "documentos", titulo: "Documentos", icono: "documento", pendiente: true },
-    { clave: "avisos-socio", titulo: "Pilas ⚡️", icono: "globo", pendiente: true },
+    { clave: "avisos-socio", titulo: "Novedades ⚡️", icono: "globo", pendiente: true },
   ],
 };
 

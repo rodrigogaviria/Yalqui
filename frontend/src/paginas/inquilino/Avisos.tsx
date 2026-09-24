@@ -13,7 +13,7 @@ export function Avisos() {
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Pilas ⚡️"
+        titulo="Novedades ⚡️"
         nota={sinLeer > 0
           ? `Tenés ${sinLeer} sin leer.`
           : "Lo que tu arrendador ya te comunicó: mantenimientos, cortes y cambios."}

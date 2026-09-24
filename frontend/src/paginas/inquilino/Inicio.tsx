@@ -62,7 +62,7 @@ export function Inicio({ alIr }: { alIr: (clave: string) => void }) {
                 {mes.clave !== "pagado" && (
                   <button className="boton" onClick={() => setSubiendo(u.id)}>Subir mi pago</button>
                 )}
-                <button className="boton fantasma" onClick={() => alIr("reportar")}>Reportar algo</button>
+                <button className="boton fantasma" onClick={() => alIr("reportar")}>¿Todo bien?</button>
                 <button className="boton fantasma" onClick={() => alIr("mi-contrato")}>Mi contrato</button>
               </div>
             </div>

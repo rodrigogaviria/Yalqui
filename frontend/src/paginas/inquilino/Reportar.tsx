@@ -40,7 +40,7 @@ export function Reportar() {
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Reportar algo"
+        titulo="¿Todo bien?"
         nota="Una fuga, una falla eléctrica, algo que se dañó. Tu arrendador lo recibe y le hace seguimiento."
         accion={unidades.length > 0
           ? <button className="boton" onClick={() => setAbierto((v) => !v)}>{abierto ? "Cancelar" : "Nuevo reporte"}</button>
