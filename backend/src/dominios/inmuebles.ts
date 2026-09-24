@@ -13,7 +13,7 @@ import { usuarios } from "../db/schema/identidad.js";
 import { aplicaciones } from "../db/schema/demanda.js";
 import { garantes } from "../db/schema/score.js";
 import { contratos } from "../db/schema/contrato.js";
-import { pagosArriendo } from "../db/schema/dinero.js";
+import { pagosArriendo, pagosUnidad } from "../db/schema/dinero.js";
 import { incidencias } from "../db/schema/operacion.js";
 
 const dinero = z.number().nonnegative().max(9_999_999_999).multipleOf(0.01);
@@ -79,6 +79,19 @@ const cambios = cambiosUnidad.refine(
 const delPropietario = exigirRol<{ inmuebleId: number }>(
   "propietario", "inmueble", (e) => e.inmuebleId,
 );
+
+/**
+ * La más reciente de dos fechas. Un pago de unidad trae solo el día
+ * (medianoche UTC), que en Colombia se mostraría como el día anterior; se
+ * lleva al mediodía UTC para que se lea el mismo día en cualquier zona.
+ */
+function masReciente(verificado: string | Date | null, dia: string | Date | null): string | null {
+  const v = verificado === null ? null : new Date(verificado);
+  const d = dia === null ? null : new Date(new Date(dia).toISOString().slice(0, 10) + "T12:00:00Z");
+  if (v === null) return d?.toISOString() ?? null;
+  if (d === null) return v.toISOString();
+  return (v > d ? v : d).toISOString();
+}
 
 export const inmueblesRouter = router({
   /**
@@ -213,6 +226,13 @@ export const inmueblesRouter = router({
       .where(and(inArray(pagosArriendo.contratoId, idsContrato), eq(pagosArriendo.estado, "verificado")))
       .groupBy(pagosArriendo.contratoId);
 
+    // Los pagos registrados sobre la unidad, sin contrato de por medio.
+    const ultimoPagoUnidad = await ctx.db
+      .select({ inmuebleId: pagosUnidad.inmuebleId, ultimo: sql<string>`MAX(${pagosUnidad.fechaPago})` })
+      .from(pagosUnidad)
+      .where(inArray(pagosUnidad.inmuebleId, ids))
+      .groupBy(pagosUnidad.inmuebleId);
+
     const incidenciasAbiertas = await ctx.db
       .select({ inmuebleId: incidencias.inmuebleId, n: sql<number>`COUNT(*)` })
       .from(incidencias)
@@ -228,7 +248,10 @@ export const inmueblesRouter = router({
       const incid = incidenciasAbiertas.find((i) => i.inmuebleId === u.id);
       return {
         ...u,
-        fechaUltimoPago: pago?.ultimo ?? null,
+        fechaUltimoPago: masReciente(
+          pago?.ultimo ?? null,
+          ultimoPagoUnidad.find((p) => p.inmuebleId === u.id)?.ultimo ?? null,
+        ),
         incidenciasAbiertas: Number(incid?.n ?? 0),
       };
     });

@@ -269,13 +269,15 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
                     {(porDia.get(dia) ?? []).map(({ u, tono }) => {
                       const t = TONO[tono]!;
                       return (
-                        <button key={u.id} type="button" onClick={() => alElegir(u, dia)}
-                          title={`${u.direccion}${u.complemento ? `, ${u.complemento}` : ""} · ${t.nombre} · gracia ${u.diasGracia} d`}
+                        <button key={u.id} type="button"
+                          disabled={tono === "pagada"}
+                          onClick={() => alElegir(u, dia)}
+                          title={`${u.direccion}${u.complemento ? `, ${u.complemento}` : ""} · ${t.nombre}${tono === "pagada" ? "" : ` · gracia ${u.diasGracia} d · tocá para subir el pago`}`}
                           style={{
                             fontSize: 11.5, fontWeight: 600, padding: "2px 7px", borderRadius: 6,
                             background: tono === "vencida" ? "var(--mal)" : t.fondo,
                             color: tono === "vencida" ? "#fff" : t.texto,
-                            border: `1px solid ${t.borde}`, cursor: "pointer", fontFamily: "inherit",
+                            border: `1px solid ${t.borde}`, cursor: tono === "pagada" ? "default" : "pointer", fontFamily: "inherit",
                           }}>
                           {u.complemento || u.direccion}
                         </button>
@@ -318,7 +320,7 @@ function Lista({ facturas, accion, ocupado }: {
                   {f.direccion}{f.complemento ? `, ${f.complemento}` : ""}
                 </div>
                 <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
-                  {nombreMes(f.periodo)} · vence el {new Date(f.fechaVencimiento).toLocaleDateString("es-CO")}
+                  {nombreMes(f.periodo)} · vence el {new Date(f.fechaVencimiento).toLocaleDateString("es-CO", { timeZone: "UTC" })}
                 </div>
               </div>
               <span style={{

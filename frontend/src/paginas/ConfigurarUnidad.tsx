@@ -457,7 +457,7 @@ export function ConfigurarUnidad({
                   {r.area} <span style={{ fontWeight: 400, color: "var(--tinta-2)" }}>· {r.solicitante}</span>
                 </div>
                 <div className="num" style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 1 }}>
-                  {new Date(r.fecha).toLocaleDateString("es-CO")} · {r.horaInicio.slice(0, 5)} a {r.horaFin.slice(0, 5)}
+                  {new Date(r.fecha).toLocaleDateString("es-CO", { timeZone: "UTC" })} · {r.horaInicio.slice(0, 5)} a {r.horaFin.slice(0, 5)}
                 </div>
               </div>
 
