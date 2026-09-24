@@ -5,6 +5,8 @@ import { router, privado } from "../trpc/base.js";
 import { facturasArriendo, facturaArriendoConceptos, pagosArriendo } from "../db/schema/dinero.js";
 import { contratos, contratoAjustes } from "../db/schema/contrato.js";
 import { catalogoAjustes, inmuebles } from "../db/schema/inventario.js";
+import { archivos } from "../db/schema/identidad.js";
+import { accesoAlContrato } from "../auth/contratoAcceso.js";
 
 const dinero = z.number().positive().max(999_999_999);
 
@@ -178,10 +180,16 @@ export const facturacionRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: "Esa factura ya está pagada" });
       }
 
-      const [c] = await ctx.db.select({ inquilinoId: contratos.inquilinoId })
-        .from(contratos).where(eq(contratos.id, f.contratoId)).limit(1);
-      if (!c || c.inquilinoId !== ctx.usuario.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Esa factura no es tuya" });
+      // Reporta el inquilino, o por él el propietario o el administrador de la
+      // edificación — a veces el comprobante le llega a ellos por WhatsApp.
+      await accesoAlContrato(ctx.db, ctx.usuario, f.contratoId);
+
+      if (input.comprobanteArchivoId !== undefined) {
+        const [a] = await ctx.db.select({ tipo: archivos.entidadTipo, entidad: archivos.entidadId })
+          .from(archivos).where(eq(archivos.id, input.comprobanteArchivoId)).limit(1);
+        if (!a || a.tipo !== "comprobante_pago" || a.entidad !== f.contratoId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Ese comprobante no es de este contrato" });
+        }
       }
       // Transferencia y consignación no se pueden confirmar solas: sin
       // comprobante el propietario no tiene contra qué verificar.

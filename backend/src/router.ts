@@ -15,6 +15,7 @@ import { comunicadosRouter } from "./dominios/comunicados.js";
 import { planRouter } from "./dominios/plan.js";
 import { dashboardRouter } from "./dominios/dashboard.js";
 import { reservasRouter } from "./dominios/reservas.js";
+import { archivosRouter } from "./dominios/archivos.js";
 
 /**
  * Un router por dominio, con procedimientos explícitos.
@@ -40,6 +41,7 @@ export const appRouter = router({
   plan: planRouter,
   dashboard: dashboardRouter,
   reservas: reservasRouter,
+  archivos: archivosRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { pesos } from "../../componentes/Dinero";
+import { Campo } from "../../componentes/Campo";
 import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
 
 type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
@@ -17,6 +18,7 @@ const TONO: Record<string, { fondo: string; borde: string; texto: string; nombre
 
 export function Pagos() {
   const [vista, setVista] = useState<"lista" | "calendario">("calendario");
+  const [mes, setMes] = useState(() => ({ anio: new Date().getFullYear(), mes: new Date().getMonth() }));
   const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
     const [facturas, porVerificar, unidades] = await Promise.all([
       api.facturacion.misFacturas.query(),
@@ -31,6 +33,7 @@ export function Pagos() {
 
   // `cuenta` y no `facturas` para que no quede `facturas.facturas` más abajo.
   const { facturas: cuenta, porVerificar, unidades } = datos;
+  const delMes = resumenDelMes(unidades, cuenta.facturas, mes);
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -56,12 +59,12 @@ export function Pagos() {
       {aviso && <div className="aviso bueno" role="status">{aviso}</div>}
 
       <Cifras>
-        <Cifra titulo="Por cobrar" valor={pesos(cuenta.porCobrar)}
-          tono={cuenta.porCobrar > 0 ? "ojo" : "normal"} />
-        <Cifra titulo="Vencido" valor={pesos(cuenta.vencido)}
-          tono={cuenta.vencido > 0 ? "mal" : "bien"} />
-        <Cifra titulo="Esperando que verifiques" valor={String(porVerificar.total)}
-          tono={porVerificar.total > 0 ? "ojo" : "normal"} />
+        <Cifra titulo={vista === "calendario" ? `Por cobrar · ${nombreMes(periodoDe(mes))}` : "Por cobrar"}
+          valor={pesos(vista === "calendario" ? delMes.porCobrar : cuenta.porCobrar)}
+          tono={(vista === "calendario" ? delMes.porCobrar : cuenta.porCobrar) > 0 ? "ojo" : "normal"} />
+        <Cifra titulo={vista === "calendario" ? `Vencido · ${nombreMes(periodoDe(mes))}` : "Vencido"}
+          valor={pesos(vista === "calendario" ? delMes.vencido : cuenta.vencido)}
+          tono={(vista === "calendario" ? delMes.vencido : cuenta.vencido) > 0 ? "mal" : "bien"} />
       </Cifras>
 
       {porVerificar.total > 0 && (
@@ -87,7 +90,13 @@ export function Pagos() {
                 </div>
               </div>
               <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>{pesos(Number(p.monto))}</div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {p.comprobanteArchivoId !== null && (
+                  <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
+                    onClick={() => void verComprobante(p.comprobanteArchivoId!)}>
+                    Ver comprobante
+                  </button>
+                )}
                 <button className="boton" style={{ height: 38, fontSize: 13.5 }}
                   disabled={ocupado === p.id}
                   onClick={() => void accion(p.id,
@@ -109,14 +118,14 @@ export function Pagos() {
       )}
 
       {vista === "calendario" ? (
-        <Calendario facturas={cuenta.facturas} unidades={unidades} />
+        <Calendario facturas={cuenta.facturas} unidades={unidades} mes={mes} setMes={setMes} />
       ) : cuenta.total === 0 ? (
         <Vacio titulo="Todavía no hay facturas">
           Las facturas nacen del contrato: cuando una unidad quede arrendada, acá vas a
           ver el canon de cada mes con su estado.
         </Vacio>
       ) : (
-        <Lista facturas={cuenta.facturas} />
+        <Lista facturas={cuenta.facturas} accion={accion} ocupado={ocupado} />
       )}
     </div>
   );
@@ -129,23 +138,44 @@ type Unidad = Awaited<ReturnType<typeof api.inmuebles.mias.query>>["unidades"][n
  * pago. Verde si el mes ya está pago, rojo si pasó el día más la gracia de la
  * unidad sin que haya un pago registrado, ámbar si todavía está a tiempo.
  */
-function Calendario({ facturas, unidades }: { facturas: Factura[]; unidades: Unidad[] }) {
+type Mes = { anio: number; mes: number };
+
+const periodoDe = (m: Mes) => `${m.anio}-${String(m.mes + 1).padStart(2, "0")}`;
+
+/** Cada unidad arrendada en su día del mes, con su situación: la fuente de la
+ *  cuadrícula y de los totales de arriba, para que nunca se contradigan. */
+function situacionDelMes(unidades: Unidad[], facturas: Factura[], m: Mes) {
   const hoy = new Date();
-  const [mes, setMes] = useState({ anio: hoy.getFullYear(), mes: hoy.getMonth() });
-
-  const arrendadas = unidades.filter((u) => u.estado === "arrendado");
-  const ultimo = new Date(mes.anio, mes.mes + 1, 0).getDate();
-  const primerDiaSemana = (new Date(mes.anio, mes.mes, 1).getDay() + 6) % 7; // lunes = 0
-  const periodo = `${mes.anio}-${String(mes.mes + 1).padStart(2, "0")}`;
-
-  const porDia = new Map<number, Array<{ u: Unidad; tono: keyof typeof TONO }>>();
-  for (const u of arrendadas) {
+  const ultimo = new Date(m.anio, m.mes + 1, 0).getDate();
+  const periodo = periodoDe(m);
+  return unidades.filter((u) => u.estado === "arrendado").map((u) => {
     const dia = Math.min(u.diaPago, ultimo);
     const pagada = facturas.some(
       (f) => f.inmuebleId === u.id && f.periodo === periodo && f.situacion === "pagada",
     );
-    const limite = new Date(mes.anio, mes.mes, dia + u.diasGracia, 23, 59, 59);
-    const tono = pagada ? "pagada" : hoy > limite ? "vencida" : "porVencer";
+    const limite = new Date(m.anio, m.mes, dia + u.diasGracia, 23, 59, 59);
+    const tono: keyof typeof TONO = pagada ? "pagada" : hoy > limite ? "vencida" : "porVencer";
+    return { u, dia, tono };
+  });
+}
+
+function resumenDelMes(unidades: Unidad[], facturas: Factura[], m: Mes) {
+  const filas = situacionDelMes(unidades, facturas, m);
+  const suma = (f: (t: keyof typeof TONO) => boolean) =>
+    filas.filter((x) => f(x.tono)).reduce((t, x) => t + Number(x.u.canonBase), 0);
+  return { porCobrar: suma((t) => t !== "pagada"), vencido: suma((t) => t === "vencida") };
+}
+
+function Calendario({ facturas, unidades, mes, setMes }: {
+  facturas: Factura[]; unidades: Unidad[]; mes: Mes; setMes: (m: Mes) => void;
+}) {
+  const arrendadas = unidades.filter((u) => u.estado === "arrendado");
+  const ultimo = new Date(mes.anio, mes.mes + 1, 0).getDate();
+  const primerDiaSemana = (new Date(mes.anio, mes.mes, 1).getDay() + 6) % 7; // lunes = 0
+  const periodo = periodoDe(mes);
+
+  const porDia = new Map<number, Array<{ u: Unidad; tono: keyof typeof TONO }>>();
+  for (const { u, dia, tono } of situacionDelMes(unidades, facturas, mes)) {
     porDia.set(dia, [...(porDia.get(dia) ?? []), { u, tono }]);
   }
 
@@ -153,10 +183,10 @@ function Calendario({ facturas, unidades }: { facturas: Factura[]; unidades: Uni
     ...Array<null>(primerDiaSemana).fill(null),
     ...Array.from({ length: ultimo }, (_, i) => i + 1),
   ];
-  const mover = (d: number) => setMes((m) => {
-    const f = new Date(m.anio, m.mes + d, 1);
-    return { anio: f.getFullYear(), mes: f.getMonth() };
-  });
+  const mover = (d: number) => {
+    const f = new Date(mes.anio, mes.mes + d, 1);
+    setMes({ anio: f.getFullYear(), mes: f.getMonth() });
+  };
 
   return (
     <section className="tarjeta" style={{ padding: "16px 18px", display: "grid", gap: 12 }}>
@@ -227,40 +257,137 @@ function Calendario({ facturas, unidades }: { facturas: Factura[]; unidades: Uni
   );
 }
 
-function Lista({ facturas }: { facturas: Factura[] }) {
+async function verComprobante(archivoId: number) {
+  const { url } = await api.archivos.urlDescarga.query({ archivoId });
+  window.open(url, "_blank", "noopener");
+}
+
+type Accion = (clave: number | string, fn: () => Promise<unknown>, mensaje: string) => Promise<void>;
+
+function Lista({ facturas, accion, ocupado }: {
+  facturas: Factura[]; accion: Accion; ocupado: number | string | null;
+}) {
+  const [abierta, setAbierta] = useState<number | null>(null);
   return (
     <div style={{ display: "grid", gap: 8 }}>
       {facturas.map((f) => {
         const t = TONO[f.situacion] ?? TONO["porVencer"]!;
         return (
           <article key={f.id} className="tarjeta" style={{
-            padding: "14px 17px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+            padding: "14px 17px", display: "grid", gap: 12,
             borderLeft: `4px solid ${t.borde}`,
           }}>
-            <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 600 }}>
-                {f.direccion}{f.complemento ? `, ${f.complemento}` : ""}
+            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 600 }}>
+                  {f.direccion}{f.complemento ? `, ${f.complemento}` : ""}
+                </div>
+                <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
+                  {nombreMes(f.periodo)} · vence el {new Date(f.fechaVencimiento).toLocaleDateString("es-CO")}
+                </div>
               </div>
-              <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
-                {nombreMes(f.periodo)} · vence el {new Date(f.fechaVencimiento).toLocaleDateString("es-CO")}
+              <span style={{
+                fontSize: 12, fontWeight: 600, padding: "4px 9px", borderRadius: 999,
+                background: t.fondo, color: t.texto, border: `1px solid ${t.borde}`,
+              }}>
+                {t.nombre}
+              </span>
+              <div style={{ width: 140, textAlign: "right" }}>
+                <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>{pesos(Number(f.total))}</div>
+                {Number(f.saldo) > 0 && (
+                  <div style={{ fontSize: 12, color: "var(--tinta-3)" }}>saldo {pesos(Number(f.saldo))}</div>
+                )}
               </div>
-            </div>
-            <span style={{
-              fontSize: 12, fontWeight: 600, padding: "4px 9px", borderRadius: 999,
-              background: t.fondo, color: t.texto, border: `1px solid ${t.borde}`,
-            }}>
-              {t.nombre}
-            </span>
-            <div style={{ width: 140, textAlign: "right" }}>
-              <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>{pesos(Number(f.total))}</div>
               {Number(f.saldo) > 0 && (
-                <div style={{ fontSize: 12, color: "var(--tinta-3)" }}>saldo {pesos(Number(f.saldo))}</div>
+                <button className="boton fantasma" style={{ height: 36, fontSize: 13.5 }}
+                  onClick={() => setAbierta(abierta === f.id ? null : f.id)}>
+                  {abierta === f.id ? "Cerrar" : "Registrar pago"}
+                </button>
               )}
             </div>
+            {abierta === f.id && (
+              <RegistrarPago factura={f} accion={accion} ocupado={ocupado}
+                alTerminar={() => setAbierta(null)} />
+            )}
           </article>
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Registrar un pago con su comprobante. Lo puede hacer quien tenga acceso al
+ * contrato —el inquilino, el propietario o el administrador—, y queda
+ * «reportado» hasta que el propietario lo verifique.
+ */
+function RegistrarPago({ factura, accion, ocupado, alTerminar }: {
+  factura: Factura; accion: Accion; ocupado: number | string | null; alTerminar: () => void;
+}) {
+  const [monto, setMonto] = useState(String(Number(factura.saldo)));
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [canal, setCanal] = useState<"transferencia" | "consignacion" | "efectivo" | "otro">("transferencia");
+  const [banco, setBanco] = useState("");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const clave = `pago-${factura.id}`;
+
+  function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    void accion(clave, async () => {
+      let comprobanteArchivoId: number | undefined;
+      if (archivo) {
+        const subida = await api.archivos.solicitarSubidaComprobante.mutate({
+          contratoId: factura.contratoId,
+          nombre: archivo.name,
+          mime: archivo.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp" | "image/heic",
+          bytes: archivo.size,
+        });
+        const r = await fetch(subida.url, { method: "PUT", headers: { "content-type": archivo.type }, body: archivo });
+        if (!r.ok) throw new Error("No se pudo subir el archivo. Probá de nuevo.");
+        comprobanteArchivoId = subida.archivoId;
+      }
+      await api.facturacion.reportarPago.mutate({
+        facturaId: factura.id,
+        monto: Number(monto),
+        fechaPagoDeclarada: new Date(fecha),
+        canal,
+        ...(banco.trim() ? { bancoOrigen: banco.trim() } : {}),
+        ...(comprobanteArchivoId !== undefined ? { comprobanteArchivoId } : {}),
+      });
+    }, "Pago registrado: queda por verificar.").then(alTerminar);
+  }
+
+  return (
+    <form onSubmit={enviar} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+      <Campo etiqueta="Monto">
+        <input type="number" min={1} step={1000} required value={monto} style={{ width: 130 }}
+          onChange={(e) => setMonto(e.target.value)} />
+      </Campo>
+      <Campo etiqueta="Fecha del pago">
+        <input type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} />
+      </Campo>
+      <Campo etiqueta="Medio">
+        <select value={canal} onChange={(e) => setCanal(e.target.value as typeof canal)}>
+          <option value="transferencia">Transferencia</option>
+          <option value="consignacion">Consignación</option>
+          <option value="efectivo">Efectivo</option>
+          <option value="otro">Otro</option>
+        </select>
+      </Campo>
+      <Campo etiqueta="Banco (opcional)">
+        <input value={banco} onChange={(e) => setBanco(e.target.value)} />
+      </Campo>
+      <Campo etiqueta={canal === "efectivo" || canal === "otro" ? "Comprobante (opcional)" : "Comprobante"}
+        ayuda="PDF o imagen, hasta 10 MB">
+        <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic"
+          required={canal === "transferencia" || canal === "consignacion"}
+          onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
+      </Campo>
+      <button type="submit" className="boton" style={{ height: 38, fontSize: 13.5, padding: "0 16px" }}
+        disabled={ocupado === clave}>
+        {ocupado === clave ? "Subiendo…" : "Registrar"}
+      </button>
+    </form>
   );
 }
 

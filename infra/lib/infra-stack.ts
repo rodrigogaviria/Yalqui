@@ -188,7 +188,16 @@ export class InfraStack extends Stack {
       enforceSSL: true,
       removalPolicy: RemovalPolicy.DESTROY,
     });
+    // El navegador sube el comprobante directo con una URL firmada, y la Lambda
+    // firma también la lectura: los comprobantes no cuelgan de una ruta pública.
+    uploadsBucket.addCorsRule({
+      allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
+      allowedOrigins: ["*"],
+      allowedHeaders: ["*"],
+      maxAge: 3000,
+    });
     uploadsBucket.grantPut(apiFn);
+    uploadsBucket.grantRead(apiFn);
     apiFn.addEnvironment("UPLOADS_BUCKET", uploadsBucket.bucketName);
 
     if (conDominio) {
