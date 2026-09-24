@@ -65,7 +65,7 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
           ocupado={ocupado === "nuevo"}
           alRedactar={(entrada) => void accion("nuevo",
             () => api.comunicados.redactar.mutate(entrada),
-            "Comunicado guardado en borrador.").then(() => setRedactando(false))}
+            "Guardado en borrador.").then(() => setRedactando(false))}
         />
       )}
 
@@ -128,13 +128,13 @@ function Formulario({ unidades, edificaciones, ocupado, alRedactar }: {
   ocupado: boolean;
   alRedactar: (e: {
     ambito: "unidad" | "edificacion";
-    inmuebleId?: number; edificacionId?: number;
+    inmuebleIds?: number[]; edificacionId?: number;
     titulo: string; cuerpo: string;
     tipo: "aviso"; canales: Array<"app" | "whatsapp" | "email">;
   }) => void;
 }) {
   const [ambito, setAmbito] = useState<"unidad" | "edificacion">("unidad");
-  const [inmuebleId, setInmuebleId] = useState(String(unidades[0]?.id ?? ""));
+  const [elegidas, setElegidas] = useState<number[]>(unidades.length === 1 ? [unidades[0]!.id] : []);
   const [edificacionId, setEdificacionId] = useState(String(edificaciones[0]?.id ?? ""));
   const [tipo, setTipo] = useState("aviso");
   const [titulo, setTitulo] = useState("");
@@ -155,7 +155,7 @@ function Formulario({ unidades, edificaciones, ocupado, alRedactar }: {
           ayuda={ambito === "edificacion" ? "Le llega a todas las unidades del edificio" : undefined}
         >
           <select value={ambito} onChange={(e) => setAmbito(e.target.value as "unidad")}>
-            <option value="unidad">A una unidad</option>
+            <option value="unidad">A una o varias unidades</option>
             <option value="edificacion" disabled={edificaciones.length === 0}>
               {edificaciones.length === 0 ? "A una edificación (no tenés)" : "A toda una edificación"}
             </option>
@@ -163,10 +163,27 @@ function Formulario({ unidades, edificaciones, ocupado, alRedactar }: {
         </Campo>
 
         {ambito === "unidad" ? (
-          <Campo etiqueta="Unidad">
-            <select value={inmuebleId} onChange={(e) => setInmuebleId(e.target.value)}>
-              {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
-            </select>
+          <Campo etiqueta="Unidades">
+            <div style={{
+              display: "grid", gap: 6, maxHeight: 220, overflowY: "auto",
+              border: "1px solid var(--linea)", borderRadius: 10, padding: "10px 12px",
+            }}>
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14, fontWeight: 600 }}>
+                <input type="checkbox" style={{ width: 17, height: 17 }}
+                  checked={elegidas.length === unidades.length && unidades.length > 0}
+                  ref={(el) => { if (el) el.indeterminate = elegidas.length > 0 && elegidas.length < unidades.length; }}
+                  onChange={(e) => setElegidas(e.target.checked ? unidades.map((u) => u.id) : [])} />
+                Marcar todas ({unidades.length})
+              </label>
+              {unidades.map((u) => (
+                <label key={u.id} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
+                  <input type="checkbox" style={{ width: 17, height: 17 }}
+                    checked={elegidas.includes(u.id)}
+                    onChange={(e) => setElegidas((c) => e.target.checked ? [...c, u.id] : c.filter((x) => x !== u.id))} />
+                  {u.titulo}
+                </label>
+              ))}
+            </div>
           </Campo>
         ) : (
           <Campo etiqueta="Edificación">
@@ -215,11 +232,11 @@ function Formulario({ unidades, edificaciones, ocupado, alRedactar }: {
 
       <div>
         <button className="boton"
-          disabled={ocupado || titulo.trim().length < 4 || cuerpo.trim().length < 10 || canales.length === 0}
+          disabled={ocupado || (ambito === "unidad" && elegidas.length === 0) || titulo.trim().length < 4 || cuerpo.trim().length < 10 || canales.length === 0}
           onClick={() => alRedactar({
             ambito,
             ...(ambito === "unidad"
-              ? { inmuebleId: Number(inmuebleId) }
+              ? { inmuebleIds: elegidas }
               : { edificacionId: Number(edificacionId) }),
             titulo: titulo.trim(),
             cuerpo: cuerpo.trim(),

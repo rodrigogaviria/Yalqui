@@ -70,6 +70,8 @@ export const comunicadosRouter = router({
     .input(z.object({
       ambito: z.enum(["unidad", "edificacion"]).default("unidad"),
       inmuebleId: z.number().int().positive().optional(),
+      /** Varias unidades a la vez: se guarda un comunicado por cada una. */
+      inmuebleIds: z.array(z.number().int().positive()).min(1).max(200).optional(),
       edificacionId: z.number().int().positive().optional(),
       titulo: z.string().trim().min(4).max(191),
       cuerpo: z.string().trim().min(10).max(8000),
@@ -80,15 +82,17 @@ export const comunicadosRouter = router({
       requiereConfirmacion: z.boolean().default(false),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (input.ambito === "unidad" && input.inmuebleId === undefined) {
+      const destinos = [...new Set(input.inmuebleIds ?? (input.inmuebleId === undefined ? [] : [input.inmuebleId]))];
+      if (input.ambito === "unidad" && destinos.length === 0) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Decí a qué unidad va" });
       }
       if (input.ambito === "edificacion" && input.edificacionId === undefined) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Decí a qué edificación va" });
       }
 
+      const mias = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
       const puede = input.ambito === "unidad"
-        ? ambitosCon(ctx.usuario.roles, "propietario", "inmueble").includes(input.inmuebleId!)
+        ? destinos.every((id) => mias.includes(id))
         : ambitosCon(ctx.usuario.roles, "propietario", "edificacion").includes(input.edificacionId!)
           || ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion").includes(input.edificacionId!);
 
@@ -96,21 +100,25 @@ export const comunicadosRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
       }
 
-      const [res] = await ctx.db.insert(comunicados).values({
+      const base = {
         autorId: ctx.usuario.id,
         // El ámbito de la tabla llama «unidad» a lo que el resto llama inmueble.
-        ambito: input.ambito === "unidad" ? "unidad" : "edificacion",
-        inmuebleId: input.inmuebleId ?? null,
-        edificacionId: input.edificacionId ?? null,
+        ambito: input.ambito === "unidad" ? "unidad" as const : "edificacion" as const,
         tipo: input.tipo,
         titulo: input.titulo,
         cuerpo: input.cuerpo,
         prioridad: input.prioridad,
         requiereConfirmacion: input.requiereConfirmacion,
         canales: input.canales,
-        estado: "borrador",
-      });
-      return { comunicadoId: Number((res as { insertId: number }).insertId) };
+        estado: "borrador" as const,
+      };
+      const filas = input.ambito === "unidad"
+        ? destinos.map((id) => ({ ...base, inmuebleId: id, edificacionId: null }))
+        : [{ ...base, inmuebleId: null, edificacionId: input.edificacionId ?? null }];
+
+      const [res] = await ctx.db.insert(comunicados).values(filas);
+      const primero = Number((res as { insertId: number }).insertId);
+      return { comunicadoId: primero, creados: filas.length };
     }),
 
   /**
