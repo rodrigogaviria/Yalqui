@@ -10,9 +10,9 @@ export function Avisos() {
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
-      <Encabezado titulo="Avisos" nota="Los comunicados que tu arrendador ya te envió." />
+      <Encabezado titulo="Radar" nota="Lo que tu arrendador ya te comunicó: mantenimientos, cortes y cambios." />
       {datos.length === 0 && (
-        <Vacio titulo="No hay avisos">Cuando tu arrendador te envíe uno, aparece acá.</Vacio>
+        <Vacio titulo="Todo tranquilo por ahora">Cuando tu arrendador te comunique algo, aparece acá.</Vacio>
       )}
       <div style={{ display: "grid", gap: 10 }}>
         {datos.map((a) => (
