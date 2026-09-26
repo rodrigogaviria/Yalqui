@@ -18,7 +18,7 @@ export function Dashboard({ alIr }: { alIr: (clave: string) => void }) {
   if (datos.sinUnidades) {
     return (
       <div style={{ display: "grid", gap: 20 }}>
-        <Encabezado titulo="Dashboard" />
+        <Encabezado titulo="Mi Dashboard" />
         <Vacio titulo="Todavía no tenés unidades">
           Registrá la primera desde el portafolio. En el plan Básico no pagás nada:
           podés publicar, precalificar y firmar el contrato.
@@ -30,7 +30,7 @@ export function Dashboard({ alIr }: { alIr: (clave: string) => void }) {
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Dashboard"
+        titulo="Mi Dashboard"
         nota={`${datos.unidades.total} ${datos.unidades.total === 1 ? "unidad" : "unidades"} · ${datos.unidades.arrendadas} arrendada${datos.unidades.arrendadas === 1 ? "" : "s"}`}
       />
 

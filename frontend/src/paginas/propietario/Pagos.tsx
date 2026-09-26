@@ -4,7 +4,7 @@ import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
 import { SubirPago } from "../../componentes/SubirPago";
 import { Ventana } from "../../componentes/Ventana";
-import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
+import { usePantalla, Encabezado, Cifra, Cifras } from "./comun";
 
 type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
 
@@ -38,6 +38,11 @@ export function Pagos() {
   // `cuenta` y no `facturas` para que no quede `facturas.facturas` más abajo.
   const { facturas: cuenta, porVerificar, unidades, pagosUnidad } = datos;
   const delMes = resumenDelMes(unidades, cuenta.facturas, pagosUnidad, mes);
+  const elegir = (u: Unidad, dia: number) => setSubiendo({
+    unidad: `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`,
+    inmuebleId: u.id,
+    fecha: `${periodoDe(mes)}-${String(dia).padStart(2, "0")}`,
+  });
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -63,18 +68,10 @@ export function Pagos() {
       {aviso && <div className="aviso bueno" role="status">{aviso}</div>}
 
       <Cifras>
-        {vista === "calendario" && (
-          <>
-            <Cifra titulo="Total previsto" valor={pesos(delMes.previsto)} />
-            <Cifra titulo="Pagado" valor={pesos(delMes.pagado)} tono={delMes.pagado > 0 ? "bien" : "normal"} />
-          </>
-        )}
-        <Cifra titulo={"Por cobrar"}
-          valor={pesos(vista === "calendario" ? delMes.porCobrar : cuenta.porCobrar)}
-          tono={(vista === "calendario" ? delMes.porCobrar : cuenta.porCobrar) > 0 ? "ojo" : "normal"} />
-        <Cifra titulo="Vencido"
-          valor={pesos(vista === "calendario" ? delMes.vencido : cuenta.vencido)}
-          tono={(vista === "calendario" ? delMes.vencido : cuenta.vencido) > 0 ? "mal" : "bien"} />
+        <Cifra titulo="Total previsto" valor={pesos(delMes.previsto)} />
+        <Cifra titulo="Pagado" valor={pesos(delMes.pagado)} tono={delMes.pagado > 0 ? "bien" : "normal"} />
+        <Cifra titulo="Por cobrar" valor={pesos(delMes.porCobrar)} tono={delMes.porCobrar > 0 ? "ojo" : "normal"} />
+        <Cifra titulo="Vencido" valor={pesos(delMes.vencido)} tono={delMes.vencido > 0 ? "mal" : "bien"} />
       </Cifras>
 
       {pagosUnidad.some((p) => p.estado === "pendiente") && (
@@ -185,18 +182,18 @@ export function Pagos() {
 
       {vista === "calendario" ? (
         <Calendario facturas={cuenta.facturas} unidades={unidades} pagosUnidad={pagosUnidad} mes={mes} setMes={setMes}
-          alElegir={(u, dia) => setSubiendo({
-            unidad: `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`,
-            inmuebleId: u.id,
-            fecha: `${periodoDe(mes)}-${String(dia).padStart(2, "0")}`,
-          })} />
-      ) : cuenta.total === 0 ? (
-        <Vacio titulo="Todavía no hay facturas">
-          Las facturas nacen del contrato: cuando una unidad quede arrendada, acá vas a
-          ver el canon de cada mes con su estado.
-        </Vacio>
+          alElegir={elegir} />
       ) : (
-        <Lista facturas={cuenta.facturas} accion={accion} ocupado={ocupado} />
+        <>
+          <ListaMes facturas={cuenta.facturas} unidades={unidades} pagosUnidad={pagosUnidad} mes={mes} setMes={setMes}
+            alElegir={elegir} />
+          {cuenta.total > 0 && (
+            <div style={{ display: "grid", gap: 10 }}>
+              <h2 style={{ fontSize: 16.5, fontWeight: 600, margin: 0 }}>Facturas de contratos</h2>
+              <Lista facturas={cuenta.facturas} accion={accion} ocupado={ocupado} />
+            </div>
+          )}
+        </>
       )}
 
       {subiendo && (
@@ -356,6 +353,81 @@ async function verComprobante(archivoId: number) {
 }
 
 type Accion = (clave: number | string, fn: () => Promise<unknown>, mensaje: string) => Promise<void>;
+
+/**
+ * Las mismas entradas del calendario, en lista: cada unidad arrendada del mes
+ * con su valor de arriendo y su estado. Las que faltan por pagar se pueden
+ * pagar desde acá igual que desde el calendario.
+ */
+function ListaMes({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: {
+  facturas: Factura[]; unidades: Unidad[]; pagosUnidad: PagoUnidad[]; mes: Mes; setMes: (m: Mes) => void;
+  alElegir: (u: Unidad, dia: number) => void;
+}) {
+  const filas = situacionDelMes(unidades, facturas, pagosUnidad, mes)
+    .sort((a, b) => a.dia - b.dia || (a.u.complemento ?? "").localeCompare(b.u.complemento ?? "", "es", { numeric: true }));
+  const mover = (d: number) => {
+    const f = new Date(mes.anio, mes.mes + d, 1);
+    setMes({ anio: f.getFullYear(), mes: f.getMonth() });
+  };
+
+  return (
+    <section className="tarjeta" style={{ padding: "16px 18px", display: "grid", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button className="boton fantasma" style={{ height: 34, padding: "0 12px" }}
+          aria-label="Mes anterior" onClick={() => mover(-1)}>←</button>
+        <h2 style={{ fontSize: 16.5, fontWeight: 600, margin: 0, minWidth: 150, textAlign: "center" }}>
+          {nombreMes(periodoDe(mes))}
+        </h2>
+        <button className="boton fantasma" style={{ height: 34, padding: "0 12px" }}
+          aria-label="Mes siguiente" onClick={() => mover(1)}>→</button>
+      </div>
+
+      {filas.length === 0 && (
+        <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-3)" }}>
+          Cuando haya unidades arrendadas, cada una aparece acá con su día de pago.
+        </p>
+      )}
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {filas.map(({ u, dia, tono }) => {
+          const t = TONO[tono]!;
+          return (
+            <div key={u.id} style={{
+              display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+              padding: "11px 14px", borderRadius: 10, border: "1px solid var(--linea)",
+              borderLeft: `4px solid ${tono === "vencida" ? "var(--mal)" : t.borde}`,
+            }}>
+              <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 600 }}>
+                  {u.direccion}{u.complemento ? `, ${u.complemento}` : ""}
+                </div>
+                <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
+                  Paga el día {dia} · {u.diasGracia} días de gracia
+                </div>
+              </div>
+              <div className="num" style={{ width: 130, textAlign: "right", fontSize: 15.5, fontWeight: 600 }}>
+                {pesos(Number(u.canonBase))}
+              </div>
+              <span style={{
+                fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999, minWidth: 82, textAlign: "center",
+                background: tono === "vencida" ? "var(--mal)" : t.fondo,
+                color: tono === "vencida" ? "#fff" : t.texto, border: `1px solid ${t.borde}`,
+              }}>
+                {t.nombre}
+              </span>
+              {tono !== "pagada" ? (
+                <button className="boton" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
+                  onClick={() => alElegir(u, dia)}>
+                  Subir pago
+                </button>
+              ) : <span style={{ width: 96 }} />}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 function Lista({ facturas, accion, ocupado }: {
   facturas: Factura[]; accion: Accion; ocupado: number | string | null;

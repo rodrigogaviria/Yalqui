@@ -64,7 +64,7 @@ const PROPIETARIO: Perspectiva = {
   titulo: "Propietario",
   alcance: "Sus inmuebles",
   opciones: [
-    { clave: "dashboard", titulo: "Dashboard", icono: "grafico" },
+    { clave: "dashboard", titulo: "Mi Dashboard", icono: "grafico" },
     { clave: "portafolio", titulo: "Mis Propiedades", icono: "cuadros" },
     { clave: "aplicaciones", titulo: "Mis Interesados", icono: "documento" },
     { clave: "pagos", titulo: "Mis Pagos", icono: "tarjeta" },
