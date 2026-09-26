@@ -261,6 +261,11 @@ export class InfraStack extends Stack {
         distribution,
         distributionPaths: ["/*"],
         waitForDistributionInvalidation: false,
+        // Sin este encabezado el navegador decide solo cuánto guardar el
+        // index.html (una fracción de su antigüedad) y una versión nueva
+        // tarda horas en verse. Con no-cache pregunta cada vez y, si no
+        // cambió, el servidor responde 304 sin reenviarlo.
+        cacheControl: [s3deploy.CacheControl.noCache()],
       });
 
       const cfTarget = route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution));
