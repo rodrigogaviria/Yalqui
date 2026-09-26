@@ -2,7 +2,7 @@ import { useState } from "react";
 import { SECCIONES_ADMIN } from "../lib/menu";
 import { Geografia } from "./admin/Geografia";
 import { TiposDeInmuebles, Comercial, Parametros } from "./admin/Catalogos";
-import { ServiciosAdicionales, IngresosEgresos, TiposIncidencia, Proveedores } from "./admin/Operativos";
+import { ServiciosAdicionales, IngresosEgresos, TiposIncidencia, TiposFactura, Proveedores } from "./admin/Operativos";
 import { Requisitos } from "./admin/Requisitos";
 import { Plantillas } from "./admin/Plantillas";
 import { Usuarios } from "./admin/Usuarios";
@@ -37,6 +37,7 @@ export function Administracion({ seccion }: { seccion: string }) {
       {seccion === "servicios" && <ServiciosAdicionales avisar={setAviso} />}
       {seccion === "movimientos" && <IngresosEgresos avisar={setAviso} />}
       {seccion === "incidencias" && <TiposIncidencia avisar={setAviso} />}
+      {seccion === "facturas" && <TiposFactura avisar={setAviso} />}
       {seccion === "requisitos" && <Requisitos avisar={setAviso} />}
       {seccion === "plantillas" && <Plantillas avisar={setAviso} />}
       {seccion === "proveedores" && <Proveedores avisar={setAviso} />}

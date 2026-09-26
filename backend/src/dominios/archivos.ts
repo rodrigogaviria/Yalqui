@@ -14,6 +14,7 @@ const MIME_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/we
 const MAX_BYTES = 10 * 1024 * 1024;
 const TIPO = "comprobante_pago";
 const TIPO_UNIDAD = "pago_unidad";
+const TIPO_FACTURA = "factura_propiedad";
 
 let s3: S3Client | undefined;
 const cliente = () => (s3 ??= new S3Client({}));
@@ -90,15 +91,34 @@ export const archivosRouter = router({
       return prepararSubida(ctx, TIPO_UNIDAD, input.inmuebleId, input);
     }),
 
+  /** La factura de la propiedad o el comprobante de su pago: solo el propietario de la unidad. */
+  solicitarSubidaFacturaPropiedad: privado
+    .input(z.object({
+      inmuebleId: z.number().int().positive(),
+      nombre: z.string().trim().min(1).max(255),
+      mime: z.enum(MIME_PERMITIDOS),
+      bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      return prepararSubida(ctx, TIPO_FACTURA, input.inmuebleId, input);
+    }),
+
   urlDescarga: privado
     .input(z.object({ archivoId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const [a] = await ctx.db.select().from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
-      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD)) {
+      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Ese archivo no existe" });
       }
       if (a.entidadTipo === TIPO) {
         await accesoAlContrato(ctx.db, ctx.usuario, a.entidadId);
+      } else if (a.entidadTipo === TIPO_FACTURA) {
+        if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", a.entidadId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+        }
       } else if (!(await puedeSobreLaUnidad(ctx, a.entidadId))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
       }

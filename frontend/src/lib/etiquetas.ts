@@ -130,6 +130,22 @@ const ESTADO_RESERVA: Record<string, string> = {
   cancelada: "Cancelada",
 };
 
+const CATEGORIA_FACTURA: Record<string, string> = {
+  servicios_publicos: "Servicios públicos",
+  telecomunicaciones: "Telecomunicaciones",
+  administracion: "Administración",
+  impuestos: "Impuestos",
+  seguros: "Seguros",
+  mantenimiento: "Mantenimiento",
+  otro: "Otro",
+};
+
+const PERIODO_FACTURA: Record<string, string> = {
+  mensual: "Mensual",
+  bimensual: "Bimensual",
+  anual: "Anual",
+};
+
 const DICCIONARIOS = {
   categoriaAjuste: CATEGORIA_AJUSTE,
   tipoCalculo: TIPO_CALCULO,
@@ -149,6 +165,8 @@ const DICCIONARIOS = {
   estadoCuenta: ESTADO_CUENTA,
   tipoMovimiento: TIPO_MOVIMIENTO,
   estadoReserva: ESTADO_RESERVA,
+  categoriaFactura: CATEGORIA_FACTURA,
+  periodoFactura: PERIODO_FACTURA,
 } as const;
 
 export type Diccionario = keyof typeof DICCIONARIOS;

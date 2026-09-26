@@ -232,7 +232,7 @@ export default function App() {
           )}
           {vista.tipo === "menu" && vista.clave === "aplicaciones" && <Aplicaciones />}
           {vista.tipo === "menu" && vista.clave === "pagos" && <Pagos />}
-          {vista.tipo === "menu" && vista.clave === "facturas" && <Facturas />}
+          {vista.tipo === "menu" && vista.clave === "facturas" && <Facturas unidades={unidades} />}
           {vista.tipo === "menu" && vista.clave === "gastos" && <Gastos unidades={unidades} />}
           {vista.tipo === "menu" && vista.clave === "contratos" && <Contratos />}
           {vista.tipo === "menu" && vista.clave === "comunicados" && <Comunicados unidades={unidades} />}

@@ -58,6 +58,8 @@ import m026 from "./026_pagos_unidad.sql";
 import m027 from "./027_pago_unidad_estado.sql";
 // @ts-ignore
 import m028 from "./028_comunicado_unidades.sql";
+// @ts-ignore
+import m029 from "./029_facturas_propiedad.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -94,4 +96,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "026", nombre: "pagos_unidad", sql: m026 as string },
   { version: "027", nombre: "pago_unidad_estado", sql: m027 as string },
   { version: "028", nombre: "comunicado_unidades", sql: m028 as string },
+  { version: "029", nombre: "facturas_propiedad", sql: m029 as string },
 ];

@@ -11,6 +11,7 @@ import {
 import { catalogoAjustes } from "../../db/schema/inventario.js";
 import { proveedores } from "../../db/schema/operacion.js";
 import { plantillasContrato, MARCOS_LEGALES } from "../../db/schema/contrato.js";
+import { tiposFactura, PERIODICIDADES_FACTURA } from "../../db/schema/facturasPropiedad.js";
 
 const id = z.number().int().positive();
 const codigo = z.string().transform(normalizarCodigo)
@@ -184,6 +185,48 @@ export const operativosRouter = router({
       const { incidenciaId, ...campos } = input;
       await ctx.db.update(tiposIncidencia).set(cambiosDe(campos))
         .where(eq(tiposIncidencia.id, incidenciaId));
+      return { ok: true };
+    }),
+
+  // -------------------------------------------------------------------------
+  // Tipos de factura — agua, energía, predial: qué llega y cada cuánto
+  // -------------------------------------------------------------------------
+  tiposFactura: admin.query(({ ctx }) =>
+    ctx.db.select().from(tiposFactura).orderBy(asc(tiposFactura.orden), asc(tiposFactura.nombre)),
+  ),
+
+  crearTipoFactura: admin
+    .input(z.object({
+      codigo, nombre,
+      categoria: z.string().transform(normalizarCodigo)
+        .pipe(z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, "La categoría son letras, números o guion bajo")),
+      periodicidad: z.enum(PERIODICIDADES_FACTURA).default("mensual"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const [res] = await ctx.db.insert(tiposFactura).values({
+          codigo: input.codigo, nombre: input.nombre,
+          categoria: input.categoria, periodicidad: input.periodicidad,
+        });
+        return { id: nuevoId(res) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un tipo de factura con ese código");
+      }
+    }),
+
+  /** La periodicidad no se cambia una vez usada: las facturas ya registradas
+   *  guardan su período con el formato de la anterior. */
+  editarTipoFactura: admin
+    .input(z.object({
+      tipoFacturaId: id,
+      nombre: nombre.optional(),
+      categoria: z.string().transform(normalizarCodigo)
+        .pipe(z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, "La categoría son letras, números o guion bajo")).optional(),
+      orden: z.number().int().min(0).max(999).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { tipoFacturaId, ...campos } = input;
+      await ctx.db.update(tiposFactura).set(cambiosDe(campos)).where(eq(tiposFactura.id, tipoFacturaId));
       return { ok: true };
     }),
 
@@ -516,14 +559,14 @@ export const operativosRouter = router({
    */
   anular: admin
     .input(z.object({
-      catalogo: z.enum(["servicio", "movimiento", "incidencia", "documento", "requisito", "proveedor"]),
+      catalogo: z.enum(["servicio", "movimiento", "incidencia", "documento", "requisito", "proveedor", "tipoFactura"]),
       id,
       activo: z.boolean(),
     }))
     .mutation(async ({ ctx, input }) => {
       const tabla = {
         servicio: catalogoAjustes, movimiento: tiposMovimiento, incidencia: tiposIncidencia,
-        documento: tiposDocumento, requisito: requisitos, proveedor: proveedores,
+        documento: tiposDocumento, requisito: requisitos, proveedor: proveedores, tipoFactura: tiposFactura,
       }[input.catalogo];
 
       await ctx.db.update(tabla).set({ activo: input.activo }).where(eq(tabla.id, input.id));

@@ -202,6 +202,55 @@ export function TiposIncidencia({ avisar }: { avisar: (m: string) => void }) {
 
 // ---------------------------------------------------------------------------
 
+export function TiposFactura({ avisar }: { avisar: (m: string) => void }) {
+  const { filas, error, ocupado, accion } =
+    useCatalogo(() => api.admin.operativos.tiposFactura.query(), avisar);
+
+  const campos: CampoCatalogo[] = [
+    { clave: "codigo", titulo: "Código", tipo: "texto", editable: false, ancho: 160 },
+    { clave: "nombre", titulo: "Factura", tipo: "texto" },
+    { clave: "categoria", titulo: "Categoría", tipo: "seleccion", diccionario: "categoriaFactura", ancho: 190 },
+    { clave: "periodicidad", titulo: "Período de pago", tipo: "seleccion", diccionario: "periodoFactura", editable: false, ancho: 160 },
+  ];
+
+  return (
+    <Seccion
+      titulo="Tipos de factura"
+      nota="Las facturas que genera una propiedad: agua, energía, predial, seguro. El período de pago decide cómo se registra cada una —un mes, un bimestre o un año— y no se cambia una vez creado el tipo, porque las facturas ya registradas lo usan."
+    >
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+
+      <FormularioRegistro
+        titulo="Registrar tipo de factura"
+        ocupado={ocupado}
+        campos={campos}
+        alRegistrar={(v) => accion(
+          () => api.admin.operativos.crearTipoFactura.mutate(v as never),
+          "Tipo registrado",
+        )}
+      />
+
+      {filas && (
+        <CatalogoEditable
+          filas={filas}
+          campos={campos}
+          ocupado={ocupado}
+          alGuardar={(id, cambios) => accion(
+            () => api.admin.operativos.editarTipoFactura.mutate({ tipoFacturaId: id, ...cambios }),
+            "Tipo actualizado",
+          )}
+          alAnular={(id, activo) => accion(
+            () => api.admin.operativos.anular.mutate({ catalogo: "tipoFactura", id, activo }),
+            activo ? "Tipo reactivado" : "Tipo anulado",
+          )}
+        />
+      )}
+    </Seccion>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 export function Proveedores({ avisar }: { avisar: (m: string) => void }) {
   const { filas, error, ocupado, accion } =
     useCatalogo(() => api.admin.operativos.proveedores.query(), avisar);
