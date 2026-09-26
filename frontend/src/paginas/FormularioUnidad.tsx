@@ -36,6 +36,10 @@ export function FormularioUnidad({
   const [tipo, setTipo] = useState<CodigoTipo>("apartamento");
   const [direccion, setDireccion] = useState("");
   const [complemento, setComplemento] = useState("");
+  // La edificación a la que pertenece la unidad, si tiene una.
+  const [edificaciones, setEdificaciones] = useState<Array<{ id: number; nombre: string }>>([]);
+  const [edificacionId, setEdificacionId] = useState("");
+  const [edificacionInicial, setEdificacionInicial] = useState("");
   // Geografía del catálogo, no texto libre: escrita a mano, «Bogotá», «bogota»
   // y «Bogotá D.C.» son tres ciudades distintas y ninguna búsqueda funciona.
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
@@ -70,6 +74,8 @@ export function FormularioUnidad({
         setTipo(unidad.tipo as CodigoTipo);
         setDireccion(unidad.direccion);
         setComplemento(unidad.complemento ?? "");
+        setEdificacionId(unidad.edificacionId === null ? "" : String(unidad.edificacionId));
+        setEdificacionInicial(unidad.edificacionId === null ? "" : String(unidad.edificacionId));
         setCiudad(unidad.ciudad);
         setDepartamento(unidad.departamento);
         setCanonBase(texto(unidad.canonBase));
@@ -94,6 +100,10 @@ export function FormularioUnidad({
     // formulario que ya no está en pantalla.
     return () => { vigente = false; };
   }, [inmuebleId]);
+
+  useEffect(() => {
+    void api.inmuebles.misEdificaciones.query().then(setEdificaciones).catch(() => setEdificaciones([]));
+  }, []);
 
   useEffect(() => {
     let vigente = true;
@@ -176,8 +186,16 @@ export function FormularioUnidad({
       // Se mandan todos los campos, no solo los que cambiaron: el formulario
       // muestra el estado completo, así que eso es exactamente lo que la
       // persona está confirmando al guardar.
-      if (inmuebleId === undefined) await api.inmuebles.crear.mutate(datos);
-      else await api.inmuebles.editar.mutate({ inmuebleId, cambios: datos });
+      if (inmuebleId === undefined) {
+        await api.inmuebles.crear.mutate({ ...datos, ...(edificacionId ? { edificacionId: Number(edificacionId) } : {}) });
+      } else {
+        await api.inmuebles.editar.mutate({ inmuebleId, cambios: datos });
+        if (edificacionId !== edificacionInicial) {
+          await api.inmuebles.asignarEdificacion.mutate({
+            inmuebleIds: [inmuebleId], edificacionId: edificacionId ? Number(edificacionId) : null,
+          });
+        }
+      }
       alGuardar(editando);
     } catch (err) {
       setError(mensajeDeError(err));
@@ -213,6 +231,15 @@ export function FormularioUnidad({
             {tipos.map((t) => <option key={t.codigo} value={t.codigo}>{t.nombre}</option>)}
           </select>
         </Campo>
+
+        {edificaciones.length > 0 && (
+          <Campo etiqueta="Edificación" ayuda="Opcional: el edificio o casa al que pertenece">
+            <select value={edificacionId} onChange={(e) => setEdificacionId(e.target.value)}>
+              <option value="">Ninguna (unidad suelta)</option>
+              {edificaciones.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select>
+          </Campo>
+        )}
 
         <Campo etiqueta="Dirección">
           <input value={direccion} onChange={(e) => setDireccion(e.target.value)}

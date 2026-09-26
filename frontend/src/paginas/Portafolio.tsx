@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api, mensajeDeError } from "../lib/api";
 import { pesos } from "../componentes/Dinero";
 import { SubirPago } from "../componentes/SubirPago";
+import { Edificaciones } from "../componentes/Edificaciones";
 
 type Unidad = Awaited<ReturnType<typeof api.inmuebles.mias.query>>["unidades"][number];
 type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
@@ -169,6 +170,8 @@ export function Portafolio({
 
       {avisoPago && <div className="aviso bueno" role="status">{avisoPago}</div>}
 
+      {unidades && unidades.length > 0 && <Edificaciones unidades={unidades} alCambiar={() => void cargar()} />}
+
       {error && (
         <div className="aviso malo" role="alert" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span>{error}</span>
@@ -256,7 +259,7 @@ export function Portafolio({
                     {u.direccion}{u.complemento ? `, ${u.complemento}` : ""}
                   </div>
                   <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.82)", marginTop: 1 }}>
-                    {NOMBRE_TIPO[u.tipo] ?? u.tipo} · {u.ciudad} · <span className="num">{u.codigoPublico}</span>
+                    {u.edificacion ? `${u.edificacion} · ` : ""}{NOMBRE_TIPO[u.tipo] ?? u.tipo} · {u.ciudad} · <span className="num">{u.codigoPublico}</span>
                   </div>
                 </div>
 

@@ -7,7 +7,7 @@ import {
   inmuebles, inmueblePropietarios, inmuebleEtiquetas, etiquetas, edificaciones,
   TIPOS_UNIDAD,
 } from "../db/schema/inventario.js";
-import { otorgarRol, ambitosCon } from "../auth/roles.js";
+import { otorgarRol, ambitosCon, tieneRol, type RolOtorgado } from "../auth/roles.js";
 import { cifrarContrasena } from "../auth/password.js";
 import { usuarios } from "../db/schema/identidad.js";
 import { aplicaciones } from "../db/schema/demanda.js";
@@ -93,6 +93,12 @@ function masReciente(verificado: string | Date | null, dia: string | Date | null
   return (v > d ? v : d).toISOString();
 }
 
+/** Quien es dueño o administrador de la edificación. El admin de Yalqui pasa siempre. */
+function puedeSobreEdificacion(roles: RolOtorgado[], edificacionId: number): boolean {
+  return tieneRol(roles, "propietario", "edificacion", edificacionId)
+    || tieneRol(roles, "administrador_inmueble", "edificacion", edificacionId);
+}
+
 export const inmueblesRouter = router({
   /**
    * Registra una unidad y, en la misma transacción, convierte a quien la
@@ -108,6 +114,10 @@ export const inmueblesRouter = router({
         code: "BAD_REQUEST",
         message: "El máximo de ocupantes no puede ser menor que los que incluye el canon",
       });
+    }
+
+    if (input.edificacionId !== undefined && !puedeSobreEdificacion(ctx.usuario.roles, input.edificacionId)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa edificación" });
     }
 
     const uuid = randomUUID();
@@ -185,6 +195,81 @@ export const inmueblesRouter = router({
       .orderBy(asc(edificaciones.nombre));
   }),
 
+  /**
+   * Crea una edificación y le da al propietario el permiso sobre ella.
+   *
+   * Una edificación es el edificio o la casa que agrupa varias unidades: lo
+   * que se dirige a todos sus habitantes (un corte de agua) y las zonas
+   * comunes cuelgan de ella y no de una unidad. Se crea con el rol de
+   * propietario sobre la edificación, porque «propietario de sus unidades» no
+   * alcanza para hablarle a todo el edificio.
+   */
+  crearEdificacion: privado
+    .input(z.object({
+      nombre: z.string().trim().min(2).max(191),
+      tipo: z.enum(["edificio", "conjunto", "casa_dividida", "zona"]).default("edificio"),
+      regimen: z.enum(["copropiedad", "propiedad_unica", "informal"]).default("propiedad_unica"),
+      direccion: z.string().trim().min(5).max(255),
+      barrio: z.string().trim().max(120).optional(),
+      ciudad: z.string().trim().min(2).max(120),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [res] = await ctx.db.insert(edificaciones).values({
+        nombre: input.nombre, tipo: input.tipo, regimen: input.regimen,
+        propietarioId: ctx.usuario.id, direccion: input.direccion,
+        barrio: input.barrio ?? null, ciudad: input.ciudad, numUnidades: 0,
+      });
+      const edificacionId = Number((res as { insertId: number }).insertId);
+      await otorgarRol(ctx.db, ctx.usuario.id, "propietario", "edificacion", edificacionId, ctx.usuario.id);
+      return { edificacionId };
+    }),
+
+  /**
+   * Pone varias unidades en una edificación, o las saca de ella (`null`).
+   *
+   * Se piden todas juntas para poder pasar un edificio entero de una vez, y se
+   * comprueban todas antes de tocar ninguna: o quedan todas, o ninguna.
+   */
+  asignarEdificacion: privado
+    .input(z.object({
+      inmuebleIds: z.array(z.number().int().positive()).min(1).max(500),
+      edificacionId: z.number().int().positive().nullable(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const ids = [...new Set(input.inmuebleIds)];
+      const mias = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+      if (!ids.every((id) => mias.includes(id)) && !tieneRol(ctx.usuario.roles, "admin_yalqui", "global", 0)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Alguna de esas unidades no es tuya" });
+      }
+      if (input.edificacionId !== null) {
+        if (!puedeSobreEdificacion(ctx.usuario.roles, input.edificacionId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa edificación" });
+        }
+        const [e] = await ctx.db.select({ id: edificaciones.id }).from(edificaciones)
+          .where(eq(edificaciones.id, input.edificacionId)).limit(1);
+        if (!e) throw new TRPCError({ code: "NOT_FOUND", message: "Esa edificación no existe" });
+      }
+
+      // Las edificaciones de las que salen, para recontar sus unidades.
+      const previas = await ctx.db.select({ e: inmuebles.edificacionId }).from(inmuebles)
+        .where(inArray(inmuebles.id, ids));
+      const afectadas = new Set<number>(
+        [...previas.map((p) => p.e), input.edificacionId].filter((x): x is number => x !== null),
+      );
+
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(inmuebles).set({ edificacionId: input.edificacionId })
+          .where(inArray(inmuebles.id, ids));
+        for (const id of afectadas) {
+          const [n] = await tx.select({ n: sql<number>`COUNT(*)` }).from(inmuebles)
+            .where(eq(inmuebles.edificacionId, id));
+          await tx.update(edificaciones).set({ numUnidades: Number(n?.n ?? 0) })
+            .where(eq(edificaciones.id, id));
+        }
+      });
+      return { asignadas: ids.length };
+    }),
+
   /** Las unidades del usuario, agrupables por etiqueta. */
   mias: privado.query(async ({ ctx }) => {
     const ids = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
@@ -200,11 +285,14 @@ export const inmueblesRouter = router({
         complemento: inmuebles.complemento,
         ciudad: inmuebles.ciudad,
         canonBase: inmuebles.canonBase,
+        edificacionId: inmuebles.edificacionId,
+        edificacion: edificaciones.nombre,
         valorAdministracion: inmuebles.valorAdministracion,
         diaPago: inmuebles.diaPago,
         diasGracia: inmuebles.diasGracia,
       })
       .from(inmuebles)
+      .leftJoin(edificaciones, eq(edificaciones.id, inmuebles.edificacionId))
       .where(inArray(inmuebles.id, ids))
       .orderBy(asc(inmuebles.direccion), asc(inmuebles.complemento));
 
