@@ -157,7 +157,7 @@ export function Portafolio({
     <div style={{ display: "grid", gap: 20 }}>
       <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: 27, fontWeight: 600 }}>Portafolio</h1>
+          <h1 style={{ fontSize: 27, fontWeight: 600 }}>Mis Propiedades</h1>
           <p style={{ color: "var(--tinta-2)", margin: "5px 0 0", fontSize: 14.5 }}>
             {unidades.length === 0
               ? "Todavía no tenés unidades"

@@ -44,7 +44,7 @@ export function Incidencias({ unidades }: { unidades: Array<{ id: number; titulo
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Incidencias"
+        titulo="Mis Incidencias"
         nota="Lo que se rompe y quién lo paga. El vencimiento sale de las horas de atención del tipo, que se configuran en la administración."
         accion={
           <button className="boton" onClick={() => setAbriendo((v) => !v)}>

@@ -115,7 +115,7 @@ export function ConfigurarUnidad({
       <div>
         <button className="boton fantasma" style={{ height: 34, fontSize: 13.5, padding: "0 12px", marginBottom: 12 }}
           onClick={alVolver}>
-          ← Volver al portafolio
+          ← Volver a mis propiedades
         </button>
         <h1 style={{ fontSize: 27, fontWeight: 600 }}>Configurar la unidad</h1>
         <p style={{ color: "var(--tinta-2)", margin: "5px 0 0", fontSize: 14.5 }}>{direccion}</p>

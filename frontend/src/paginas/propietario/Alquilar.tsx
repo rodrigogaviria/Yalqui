@@ -148,7 +148,7 @@ export function Alquilar({ inmuebleId, direccion, canonBase, alVolver, alContrat
         <button type="button" className="boton fantasma"
           style={{ height: 34, fontSize: 13.5, padding: "0 12px", marginBottom: 12 }}
           onClick={alVolver}>
-          ← Volver al portafolio
+          ← Volver a mis propiedades
         </button>
         <h1 style={{ fontSize: 27, fontWeight: 600 }}>Marcar como alquilada</h1>
         <p style={{ color: "var(--tinta-2)", margin: "6px 0 0", fontSize: 15 }}>

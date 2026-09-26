@@ -22,7 +22,7 @@ export function Contratos() {
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Contratos"
+        titulo="Mis Contratos"
         nota="El contrato congela el canon y sus ajustes al momento de firmar: cambiar un precio después no altera ningún arriendo vigente."
       />
 

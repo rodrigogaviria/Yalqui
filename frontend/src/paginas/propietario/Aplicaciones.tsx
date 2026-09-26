@@ -36,7 +36,7 @@ export function Aplicaciones() {
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Interesados"
+        titulo="Mis Interesados"
         nota="Quién quiere arrendar tus unidades. El canon ofrecido lo calcula el servidor con los ajustes que configuraste, no lo escribe el candidato."
       />
 

@@ -41,7 +41,7 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Comunicados"
+        titulo="Mis Novedades"
         nota="Se guardan como borrador y se envían cuando vos decidas. Nada sale al escribirlo."
         accion={
           <button className="boton" onClick={() => setRedactando((v) => !v)}>

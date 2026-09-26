@@ -34,7 +34,7 @@ export function VerInquilinos({ inmuebleId, direccion, alVolver, alGenerarContra
         <button className="boton fantasma"
           style={{ height: 34, fontSize: 13.5, padding: "0 12px", marginBottom: 12 }}
           onClick={alVolver}>
-          ← Volver al portafolio
+          ← Volver a mis propiedades
         </button>
         <Encabezado titulo="Inquilinos" nota={direccion} />
       </div>

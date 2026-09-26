@@ -42,7 +42,7 @@ export function Pagos() {
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Pagos"
+        titulo="Mis Pagos"
         nota="Yalqui no recauda: el arriendo va directo del inquilino a vos. Acá se lleva la trazabilidad del comprobante, y solo un pago verificado baja el saldo."
         accion={
           <div style={{ display: "flex", gap: 6 }}>
