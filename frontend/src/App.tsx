@@ -10,6 +10,8 @@ import { Administracion } from "./paginas/Administracion";
 import { Dashboard } from "./paginas/propietario/Dashboard";
 import { Aplicaciones } from "./paginas/propietario/Aplicaciones";
 import { Pagos } from "./paginas/propietario/Pagos";
+import { Facturas } from "./paginas/propietario/Facturas";
+import { Gastos } from "./paginas/propietario/Gastos";
 import { Contratos } from "./paginas/propietario/Contratos";
 import { Comunicados } from "./paginas/propietario/Comunicados";
 import { Incidencias } from "./paginas/propietario/Incidencias";
@@ -230,6 +232,8 @@ export default function App() {
           )}
           {vista.tipo === "menu" && vista.clave === "aplicaciones" && <Aplicaciones />}
           {vista.tipo === "menu" && vista.clave === "pagos" && <Pagos />}
+          {vista.tipo === "menu" && vista.clave === "facturas" && <Facturas />}
+          {vista.tipo === "menu" && vista.clave === "gastos" && <Gastos unidades={unidades} />}
           {vista.tipo === "menu" && vista.clave === "contratos" && <Contratos />}
           {vista.tipo === "menu" && vista.clave === "comunicados" && <Comunicados unidades={unidades} />}
           {vista.tipo === "menu" && vista.clave === "incidencias" && <Incidencias unidades={unidades} />}

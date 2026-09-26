@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { router, privado, exigirRol } from "../trpc/base.js";
 import { ambitosCon } from "../auth/roles.js";
 import { planes, suscripciones } from "../db/schema/dinero.js";
-import { servicios, serviciosContratados } from "../db/schema/negocio.js";
+import { servicios, serviciosContratados, facturasYalqui, facturaYalquiConceptos } from "../db/schema/negocio.js";
 import { inmuebles } from "../db/schema/inventario.js";
 
 const delPropietario = exigirRol<{ inmuebleId: number }>(
@@ -124,6 +124,45 @@ export const planRouter = router({
     });
 
     return { unidades: filas, totalMes: filas.reduce((t, u) => t + u.totalMes, 0) };
+  }),
+
+  /**
+   * Las facturas que Yalqui le emite al propietario, con sus conceptos.
+   *
+   * Es el otro flujo de plata: lo que el propietario le paga a Yalqui por su
+   * plan y sus servicios. No se mezcla con el arriendo, que va del inquilino
+   * al propietario sin pasar por Yalqui.
+   */
+  misFacturas: privado.query(async ({ ctx }) => {
+    const facturas = await ctx.db
+      .select({
+        id: facturasYalqui.id, numero: facturasYalqui.numero, periodo: facturasYalqui.periodo,
+        fechaEmision: facturasYalqui.fechaEmision, fechaVencimiento: facturasYalqui.fechaVencimiento,
+        subtotal: facturasYalqui.subtotal, impuestos: facturasYalqui.impuestos,
+        total: facturasYalqui.total, saldo: facturasYalqui.saldo, estado: facturasYalqui.estado,
+      })
+      .from(facturasYalqui)
+      // Un borrador es interno de Yalqui: hasta que se emite, no es del propietario.
+      .where(and(eq(facturasYalqui.propietarioId, ctx.usuario.id), inArray(facturasYalqui.estado,
+        ["emitida", "parcial", "pagada", "vencida", "anulada"])))
+      .orderBy(desc(facturasYalqui.periodo));
+
+    const ids = facturas.map((f) => f.id);
+    const conceptos = ids.length === 0 ? [] : await ctx.db
+      .select({
+        facturaId: facturaYalquiConceptos.facturaYalquiId, tipo: facturaYalquiConceptos.tipo,
+        descripcion: facturaYalquiConceptos.descripcion, cantidad: facturaYalquiConceptos.cantidad,
+        total: facturaYalquiConceptos.total,
+      })
+      .from(facturaYalquiConceptos)
+      .where(inArray(facturaYalquiConceptos.facturaYalquiId, ids));
+
+    return {
+      total: facturas.length,
+      pendiente: facturas.filter((f) => f.estado !== "pagada" && f.estado !== "anulada")
+        .reduce((t, f) => t + Number(f.saldo), 0),
+      facturas: facturas.map((f) => ({ ...f, conceptos: conceptos.filter((c) => c.facturaId === f.id) })),
+    };
   }),
 
   /**
