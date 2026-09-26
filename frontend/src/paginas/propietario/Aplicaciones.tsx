@@ -16,6 +16,32 @@ const ESTADO: Record<string, string> = {
   retirada: "Retirada", convertida: "Convertida en contrato",
 };
 
+const NIVEL_SCORE: Record<string, { texto: string; clase: string }> = {
+  excelente: { texto: "Excelente", clase: "arrendado" },
+  bueno: { texto: "Bueno", clase: "publicado" },
+  regular: { texto: "Regular", clase: "pausado" },
+  riesgo: { texto: "Riesgo", clase: "mora" },
+  critico: { texto: "Crítico", clase: "mora" },
+};
+
+/** El score de la persona, con cada dimensión a la vista al pasar el cursor.
+ *  Sin historial en Yalqui es el punto de partida, y se dice. */
+function Score({ score }: { score: NonNullable<Awaited<ReturnType<typeof api.aplicaciones.paraMi.query>>["aplicaciones"][number]["score"]> }) {
+  const n = NIVEL_SCORE[score.nivel]!;
+  const detalle = score.dimensiones.map((d) => `${d.nombre}: ${d.puntaje}`).join("\n");
+  return (
+    <div style={{ textAlign: "center", minWidth: 84 }}
+      title={`${detalle}\n${score.sinHistorial ? "Sin historial en Yalqui: es el puntaje de partida." : `${score.eventos} hecho${score.eventos === 1 ? "" : "s"} registrados.`}`}>
+      <div style={{ fontSize: 11.5, color: "var(--tinta-3)" }}>Score</div>
+      <div className="num" style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.1 }}>{score.puntaje}</div>
+      <span className={`pastilla ${n.clase}`} style={{ fontSize: 11 }}>{n.texto}</span>
+      {score.sinHistorial && (
+        <div style={{ fontSize: 10.5, color: "var(--tinta-3)", marginTop: 2 }}>sin historial</div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Quién quiere arrendar, y qué tan bien le da la plata.
  *
@@ -73,6 +99,7 @@ export function Aplicaciones() {
                     </div>
                   </div>
 
+                  {a.score && <Score score={a.score} />}
                   {n && <span className={`pastilla ${n.clase}`}>{n.texto}</span>}
                   <span className="pastilla borrador">{ESTADO[a.estado] ?? a.estado}</span>
 

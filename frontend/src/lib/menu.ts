@@ -71,7 +71,7 @@ const PROPIETARIO: Perspectiva = {
     { clave: "contratos", titulo: "Mis Contratos", icono: "hoja" },
     { clave: "comunicados", titulo: "Mis Novedades", icono: "globo" },
     { clave: "incidencias", titulo: "Mis Incidencias", icono: "triangulo" },
-    { clave: "rentabilidad", titulo: "Mi Rendimiento", icono: "grafico" },
+    { clave: "rentabilidad", titulo: "Mis Rendimientos", icono: "grafico" },
     { clave: "plan", titulo: "Mi plan Yalqui", icono: "engranaje" },
   ],
 };

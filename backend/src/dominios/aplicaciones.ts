@@ -1,3 +1,4 @@
+import { calcularScores } from "./score.js";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -180,6 +181,7 @@ export const aplicacionesRouter = router({
         relacionPct: precalificaciones.relacionPct,
         candidato: usuarios.nombre,
         candidatoApellido: usuarios.apellido,
+        inquilinoId: aplicaciones.inquilinoId,
       })
       .from(aplicaciones)
       .innerJoin(inmuebles, eq(inmuebles.id, aplicaciones.inmuebleId))
@@ -192,7 +194,13 @@ export const aplicacionesRouter = router({
       (a) => a.estado === "enviada" || a.estado === "en_verificacion" || a.estado === "en_negociacion",
     ).length;
 
-    return { total: filas.length, aplicaciones: filas, abiertas };
+    const scores = await calcularScores(ctx.db, [...new Set(filas.map((f) => f.inquilinoId))]);
+
+    return {
+      total: filas.length,
+      aplicaciones: filas.map((f) => ({ ...f, score: scores.get(f.inquilinoId) ?? null })),
+      abiertas,
+    };
   }),
 
   deUnidad: delPropietario

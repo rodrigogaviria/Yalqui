@@ -29,7 +29,7 @@ export function Rentabilidad({ unidades }: { unidades: Array<{ id: number; titul
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
-        titulo="Mi Rendimiento"
+        titulo="Mis Rendimientos"
         nota="Ingresos menos egresos. Es caja, no contabilidad: no descuenta impuestos ni amortizaciones."
         accion={
           <button className="boton" onClick={() => setRegistrando((v) => !v)}>
