@@ -4,6 +4,7 @@ import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
 import { SubirPago } from "../../componentes/SubirPago";
 import { Ventana } from "../../componentes/Ventana";
+import { abrirArchivo } from "../../lib/archivos";
 import { usePantalla, Encabezado, Cifra, Cifras } from "./comun";
 
 type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
@@ -100,7 +101,7 @@ export function Pagos() {
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {p.comprobanteArchivoId !== null && (
                     <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
-                      onClick={() => void verComprobante(p.comprobanteArchivoId!)}>
+                      onClick={() => abrirArchivo(p.comprobanteArchivoId!)}>
                       Ver comprobante
                     </button>
                   )}
@@ -156,7 +157,7 @@ export function Pagos() {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {p.comprobanteArchivoId !== null && (
                   <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
-                    onClick={() => void verComprobante(p.comprobanteArchivoId!)}>
+                    onClick={() => abrirArchivo(p.comprobanteArchivoId!)}>
                     Ver comprobante
                   </button>
                 )}
@@ -347,10 +348,6 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
   );
 }
 
-async function verComprobante(archivoId: number) {
-  const { url } = await api.archivos.urlDescarga.query({ archivoId });
-  window.open(url, "_blank", "noopener");
-}
 
 type Accion = (clave: number | string, fn: () => Promise<unknown>, mensaje: string) => Promise<void>;
 

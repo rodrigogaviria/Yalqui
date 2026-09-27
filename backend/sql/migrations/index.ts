@@ -64,6 +64,8 @@ import m029 from "./029_facturas_propiedad.sql";
 import m030 from "./030_areas_comunes_edificacion.sql";
 // @ts-ignore
 import m031 from "./031_factura_edificacion.sql";
+// @ts-ignore
+import m032 from "./032_medidor_factura.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -103,4 +105,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "029", nombre: "facturas_propiedad", sql: m029 as string },
   { version: "030", nombre: "areas_comunes_edificacion", sql: m030 as string },
   { version: "031", nombre: "factura_edificacion", sql: m031 as string },
+  { version: "032", nombre: "medidor_factura", sql: m032 as string },
 ];

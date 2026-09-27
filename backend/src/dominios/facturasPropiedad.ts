@@ -49,6 +49,7 @@ export const facturasPropiedadRouter = router({
       .select({
         id: tiposFactura.id, nombre: tiposFactura.nombre,
         categoria: tiposFactura.categoria, periodicidad: tiposFactura.periodicidad,
+        requiereMedidor: tiposFactura.requiereMedidor,
       })
       .from(tiposFactura)
       .where(eq(tiposFactura.activo, true))
@@ -79,6 +80,7 @@ export const facturasPropiedadRouter = router({
         valor: facturasPropiedad.valor,
         estado: facturasPropiedad.estado,
         responsable: facturasPropiedad.responsable,
+        numeroMedidor: facturasPropiedad.numeroMedidor,
         archivoId: facturasPropiedad.archivoId,
         fechaPago: facturasPropiedad.fechaPago,
         valorPagado: facturasPropiedad.valorPagado,
@@ -124,6 +126,7 @@ export const facturasPropiedadRouter = router({
       valor,
       estado: z.enum(["sin_pagar", "pagado"]).default("sin_pagar"),
       responsable: z.enum(["propietario", "inquilino"]).default("propietario"),
+      numeroMedidor: z.string().trim().max(40).optional(),
       archivoId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -133,7 +136,10 @@ export const facturasPropiedadRouter = router({
       const donde: Sitio = { inmuebleId: input.inmuebleId ?? null, edificacionId: input.edificacionId ?? null };
       exigirSitio(ctx.usuario.roles, donde);
       const [tipo] = await ctx.db
-        .select({ periodicidad: tiposFactura.periodicidad, activo: tiposFactura.activo, nombre: tiposFactura.nombre })
+        .select({
+          periodicidad: tiposFactura.periodicidad, activo: tiposFactura.activo, nombre: tiposFactura.nombre,
+          requiereMedidor: tiposFactura.requiereMedidor,
+        })
         .from(tiposFactura).where(eq(tiposFactura.id, input.tipoFacturaId)).limit(1);
       if (!tipo) throw new TRPCError({ code: "NOT_FOUND", message: "Ese tipo de factura no existe" });
       if (!tipo.activo) throw new TRPCError({ code: "CONFLICT", message: "Ese tipo de factura está anulado" });
@@ -145,12 +151,16 @@ export const facturasPropiedadRouter = router({
             tipo.periodicidad === "mensual" ? "un mes" : tipo.periodicidad === "bimensual" ? "un bimestre" : "un año"}`,
         });
       }
+      if (tipo.requiereMedidor && !input.numeroMedidor) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `La factura de ${tipo.nombre.toLowerCase()} necesita el número de medidor` });
+      }
       await validarArchivo(ctx, input.archivoId, donde);
 
       await ctx.db.insert(facturasPropiedad).values({
         inmuebleId: donde.inmuebleId, edificacionId: donde.edificacionId, tipoFacturaId: input.tipoFacturaId, periodo: input.periodo,
         fechaVencimiento: aFecha(input.fechaVencimiento), valor: input.valor.toFixed(2),
         estado: input.estado, responsable: input.responsable,
+        numeroMedidor: tipo.requiereMedidor ? input.numeroMedidor! : null,
         archivoId: input.archivoId ?? null, registradaPorId: ctx.usuario.id,
       });
       return { ok: true };

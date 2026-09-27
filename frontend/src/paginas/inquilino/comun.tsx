@@ -35,10 +35,7 @@ export function estadoDelMes(u: MiUnidad, hoy = new Date()) {
     : { clave: "porPagar", texto: "Por pagar", tono: "ojo" as const };
 }
 
-export async function verComprobante(archivoId: number) {
-  const { url } = await api.archivos.urlDescarga.query({ archivoId });
-  window.open(url, "_blank", "noopener");
-}
+export { abrirArchivo as verComprobante } from "../../lib/archivos";
 
 export const fechaCorta = (f: string | Date) =>
   new Date(f).toLocaleDateString("es-CO", { timeZone: "UTC" });

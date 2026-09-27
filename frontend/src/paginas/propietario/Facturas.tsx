@@ -4,6 +4,7 @@ import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
 import { Ventana } from "../../componentes/Ventana";
 import { etiqueta } from "../../lib/etiquetas";
+import { abrirArchivo } from "../../lib/archivos";
 import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
 
 type Factura = Awaited<ReturnType<typeof api.facturasPropiedad.mias.query>>["facturas"][number];
@@ -49,11 +50,6 @@ async function subir(donde: Donde, archivo: File): Promise<number> {
   const r = await fetch(s.url, { method: "PUT", headers: { "content-type": archivo.type }, body: archivo });
   if (!r.ok) throw new Error("No se pudo subir el archivo. Probá de nuevo.");
   return s.archivoId;
-}
-
-async function abrir(archivoId: number) {
-  const { url } = await api.archivos.urlDescarga.query({ archivoId });
-  window.open(url, "_blank", "noopener");
 }
 
 const ACEPTA = "application/pdf,image/jpeg,image/png,image/webp,image/heic";
@@ -111,7 +107,7 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
       {aviso && <div className="aviso bueno" role="status">{aviso}</div>}
 
       {registrando && (
-        <FormularioFactura unidades={unidades} edificaciones={edificaciones} tipos={tipos}
+        <FormularioFactura unidades={unidades} edificaciones={edificaciones} tipos={tipos} anteriores={mias.facturas}
           alTerminar={() => { setRegistrando(false); setAviso("Factura registrada."); void cargar(); }} />
       )}
 
@@ -181,6 +177,7 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
                   </div>
                   <div style={{ fontSize: 12.5, color: "var(--tinta-3)", marginTop: 2 }}>
                     Vence el {dia(f.fechaVencimiento)} · la paga {f.responsable === "inquilino" ? "el inquilino" : "el propietario"}
+                    {f.numeroMedidor ? ` · medidor ${f.numeroMedidor}` : ""}
                     {f.fechaPago ? ` · pagada el ${dia(f.fechaPago)}` : ""}
                   </div>
                 </div>
@@ -197,11 +194,11 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
                   )}
                   {f.archivoId !== null && (
                     <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 10px" }}
-                      onClick={() => void abrir(f.archivoId!)}>Ver factura</button>
+                      onClick={() => abrirArchivo(f.archivoId!)}>Ver factura</button>
                   )}
                   {f.comprobanteArchivoId !== null && (
                     <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 10px" }}
-                      onClick={() => void abrir(f.comprobanteArchivoId!)}>Ver comprobante</button>
+                      onClick={() => abrirArchivo(f.comprobanteArchivoId!)}>Ver comprobante</button>
                   )}
                   <button className="boton riesgo" style={{ height: 34, fontSize: 13, padding: "0 10px" }}
                     disabled={ocupado === `e-${f.id}`}
@@ -297,9 +294,9 @@ function FormularioPago({ factura, alTerminar }: { factura: Factura; alTerminar:
 }
 
 /** El período de consumo se pide según cada cuánto llega esa factura. */
-function FormularioFactura({ unidades, edificaciones, tipos, alTerminar }: {
+function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTerminar }: {
   unidades: Array<{ id: number; titulo: string }>; edificaciones: Array<{ id: number; nombre: string }>;
-  tipos: Tipo[]; alTerminar: () => void;
+  tipos: Tipo[]; anteriores: Factura[]; alTerminar: () => void;
 }) {
   const ahora = new Date();
   // «e12» es la edificación 12; un número solo es una unidad.
@@ -312,11 +309,21 @@ function FormularioFactura({ unidades, edificaciones, tipos, alTerminar }: {
   const [valor, setValor] = useState("");
   const [estado, setEstado] = useState<"sin_pagar" | "pagado">("sin_pagar");
   const [responsable, setResponsable] = useState<"propietario" | "inquilino">("propietario");
+  const [medidor, setMedidor] = useState("");
+  const [medidorTocado, setMedidorTocado] = useState(false);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const tipo = tipos.find((t) => String(t.id) === tipoId);
+
+  // El medidor de una propiedad casi nunca cambia: se ofrece el de la última
+  // factura del mismo tipo en el mismo sitio, para no volver a escribirlo.
+  const sugerido = tipo?.requiereMedidor
+    ? anteriores.find((f) => f.tipo === tipo.nombre && f.numeroMedidor
+        && (unidad.startsWith("e") ? `e${f.edificacionId}` === unidad : String(f.inmuebleId) === unidad))?.numeroMedidor ?? ""
+    : "";
+  const medidorFinal = medidorTocado ? medidor : sugerido;
   const categorias = [...new Set(tipos.map((t) => t.categoria))];
 
   const periodo = !tipo ? "" : tipo.periodicidad === "mensual" ? mes
@@ -332,6 +339,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, alTerminar }: {
       await api.facturasPropiedad.registrar.mutate({
         ...donde, tipoFacturaId: tipo.id, periodo,
         fechaVencimiento: vence, valor: Number(valor), estado, responsable,
+        ...(tipo.requiereMedidor ? { numeroMedidor: medidorFinal.trim() } : {}),
         ...(archivoId !== undefined ? { archivoId } : {}),
       });
       alTerminar();
@@ -397,6 +405,12 @@ function FormularioFactura({ unidades, edificaciones, tipos, alTerminar }: {
           </Campo>
         )}
 
+        {tipo?.requiereMedidor && (
+          <Campo etiqueta="# Medidor" ayuda={sugerido && !medidorTocado ? "El de la última factura" : "Está impreso en la factura"}>
+            <input required value={medidorFinal} maxLength={40} placeholder="123456789"
+              onChange={(e) => { setMedidor(e.target.value); setMedidorTocado(true); }} />
+          </Campo>
+        )}
         <Campo etiqueta="Fecha de vencimiento">
           <input type="date" required value={vence} onChange={(e) => setVence(e.target.value)} />
         </Campo>
@@ -423,7 +437,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, alTerminar }: {
 
       {error && <div className="aviso malo" role="alert">{error}</div>}
       <div>
-        <button type="submit" className="boton" disabled={enviando || !tipo || !vence || Number(valor) <= 0}>
+        <button type="submit" className="boton" disabled={enviando || !tipo || !vence || Number(valor) <= 0 || (tipo.requiereMedidor && medidorFinal.trim() === "")}>
           {enviando ? "Guardando…" : "Guardar factura"}
         </button>
       </div>

@@ -50,7 +50,7 @@ export function MisPagos() {
                 <span className={`pastilla ${pastilla.clase}`}>{pastilla.texto}</span>
                 {p.comprobanteArchivoId !== null && (
                   <button className="boton fantasma" style={{ height: 34, fontSize: 13 }}
-                    onClick={() => void verComprobante(p.comprobanteArchivoId!)}>
+                    onClick={() => verComprobante(p.comprobanteArchivoId!)}>
                     Ver comprobante
                   </button>
                 )}

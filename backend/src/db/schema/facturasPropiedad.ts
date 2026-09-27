@@ -15,6 +15,8 @@ export const tiposFactura = mysqlTable("tipos_factura", {
   nombre: varchar("nombre", { length: 120 }).notNull(),
   categoria: varchar("categoria", { length: 40 }).notNull(),
   periodicidad: mysqlEnum("periodicidad", PERIODICIDADES_FACTURA).notNull().default("mensual"),
+  /** Agua, energía y gas son de un medidor: sin su número no se sabe de cuál. */
+  requiereMedidor: boolean("requiere_medidor").notNull().default(false),
   activo: boolean("activo").notNull().default(true),
   orden: smallint("orden", { unsigned: true }).notNull().default(0),
 }, (t) => [uniqueIndex("uk_tipofactura_codigo").on(t.codigo)]);
@@ -34,6 +36,7 @@ export const facturasPropiedad = mysqlTable("facturas_propiedad", {
   valor: decimal("valor", { precision: 14, scale: 2 }).notNull(),
   estado: mysqlEnum("estado", ["sin_pagar", "pagado"]).notNull().default("sin_pagar"),
   responsable: mysqlEnum("responsable", ["propietario", "inquilino"]).notNull().default("propietario"),
+  numeroMedidor: varchar("numero_medidor", { length: 40 }),
   archivoId: bigint("archivo_id", { mode: "number", unsigned: true }),
   fechaPago: date("fecha_pago"),
   valorPagado: decimal("valor_pagado", { precision: 14, scale: 2 }),
