@@ -4,7 +4,7 @@ import {
   mysqlTable, int, bigint, varchar, date, timestamp, smallint, boolean, decimal, mysqlEnum, index, uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
-import { inmuebles } from "./inventario.js";
+import { inmuebles, edificaciones } from "./inventario.js";
 import { usuarios } from "./identidad.js";
 
 export const PERIODICIDADES_FACTURA = ["mensual", "bimensual", "anual"] as const;
@@ -21,8 +21,11 @@ export const tiposFactura = mysqlTable("tipos_factura", {
 
 export const facturasPropiedad = mysqlTable("facturas_propiedad", {
   id: int("id", { unsigned: true }).autoincrement().primaryKey(),
-  inmuebleId: int("inmueble_id", { unsigned: true }).notNull()
+  /** De la unidad o de la edificación: exactamente una de las dos. */
+  inmuebleId: int("inmueble_id", { unsigned: true })
     .references(() => inmuebles.id, { onDelete: "cascade" }),
+  edificacionId: int("edificacion_id", { unsigned: true })
+    .references(() => edificaciones.id, { onDelete: "cascade" }),
   tipoFacturaId: int("tipo_factura_id", { unsigned: true }).notNull()
     .references(() => tiposFactura.id, { onDelete: "restrict" }),
   /** «2026-09», «2026-B3» o «2026», según la periodicidad del tipo. */
@@ -40,5 +43,6 @@ export const facturasPropiedad = mysqlTable("facturas_propiedad", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [
   index("ix_factprop_inmueble").on(t.inmuebleId, t.fechaVencimiento),
+  index("ix_factprop_edificacion").on(t.edificacionId, t.fechaVencimiento),
   index("ix_factprop_estado").on(t.estado, t.fechaVencimiento),
 ]);

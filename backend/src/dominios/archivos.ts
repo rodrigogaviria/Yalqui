@@ -9,12 +9,14 @@ import { accesoAlContrato } from "../auth/contratoAcceso.js";
 import { archivos } from "../db/schema/identidad.js";
 import { tieneRol } from "../auth/roles.js";
 import { esArrendatarioDe } from "../auth/arrendatario.js";
+import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 
 const MIME_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
 const TIPO = "comprobante_pago";
 const TIPO_UNIDAD = "pago_unidad";
 const TIPO_FACTURA = "factura_propiedad";
+const TIPO_FACTURA_EDIF = "factura_edificacion";
 
 let s3: S3Client | undefined;
 const cliente = () => (s3 ??= new S3Client({}));
@@ -91,30 +93,42 @@ export const archivosRouter = router({
       return prepararSubida(ctx, TIPO_UNIDAD, input.inmuebleId, input);
     }),
 
-  /** La factura de la propiedad o el comprobante de su pago: solo el propietario de la unidad. */
+  /** La factura de la propiedad o de la edificación, o el comprobante de su pago. */
   solicitarSubidaFacturaPropiedad: privado
     .input(z.object({
-      inmuebleId: z.number().int().positive(),
+      inmuebleId: z.number().int().positive().optional(),
+      edificacionId: z.number().int().positive().optional(),
       nombre: z.string().trim().min(1).max(255),
       mime: z.enum(MIME_PERMITIDOS),
       bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
-    }))
+    }).refine((v) => (v.inmuebleId === undefined) !== (v.edificacionId === undefined),
+      { message: "Decí si es de una unidad o de la edificación" }))
     .mutation(async ({ ctx, input }) => {
-      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      if (input.inmuebleId !== undefined) {
+        if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+        }
+        return prepararSubida(ctx, TIPO_FACTURA, input.inmuebleId, input);
       }
-      return prepararSubida(ctx, TIPO_FACTURA, input.inmuebleId, input);
+      if (!puedeSobreEdificacion(ctx.usuario.roles, input.edificacionId!)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa edificación" });
+      }
+      return prepararSubida(ctx, TIPO_FACTURA_EDIF, input.edificacionId!, input);
     }),
 
   urlDescarga: privado
     .input(z.object({ archivoId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const [a] = await ctx.db.select().from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
-      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA)) {
+      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Ese archivo no existe" });
       }
       if (a.entidadTipo === TIPO) {
         await accesoAlContrato(ctx.db, ctx.usuario, a.entidadId);
+      } else if (a.entidadTipo === TIPO_FACTURA_EDIF) {
+        if (!puedeSobreEdificacion(ctx.usuario.roles, a.entidadId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa edificación" });
+        }
       } else if (a.entidadTipo === TIPO_FACTURA) {
         if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", a.entidadId)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });

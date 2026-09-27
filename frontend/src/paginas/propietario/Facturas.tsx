@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
@@ -37,9 +37,12 @@ function periodoTexto(p: Periodicidad, periodo: string): string {
 const dia = (f: string | Date) => new Date(f).toLocaleDateString("es-CO", { timeZone: "UTC" });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 
-async function subir(inmuebleId: number, archivo: File): Promise<number> {
+/** La unidad o la edificación a la que pertenece una factura. */
+type Donde = { inmuebleId: number } | { edificacionId: number };
+
+async function subir(donde: Donde, archivo: File): Promise<number> {
   const s = await api.archivos.solicitarSubidaFacturaPropiedad.mutate({
-    inmuebleId, nombre: archivo.name,
+    ...donde, nombre: archivo.name,
     mime: archivo.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp" | "image/heic",
     bytes: archivo.size,
   });
@@ -61,6 +64,8 @@ const ACEPTA = "application/pdf,image/jpeg,image/png,image/webp,image/heic";
  * al final: es otro flujo de plata.
  */
 export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: string }> }) {
+  const [edificaciones, setEdificaciones] = useState<Array<{ id: number; nombre: string }>>([]);
+  useEffect(() => { void api.inmuebles.misEdificaciones.query().then(setEdificaciones).catch(() => setEdificaciones([])); }, []);
   const [registrando, setRegistrando] = useState(false);
   const [pagando, setPagando] = useState<Factura | null>(null);
   const [filtroUnidad, setFiltroUnidad] = useState("");
@@ -79,7 +84,7 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
 
   const { mias, tipos, yalqui } = datos;
   const visibles = mias.facturas.filter((f) =>
-    (filtroUnidad === "" || String(f.inmuebleId) === filtroUnidad)
+    (filtroUnidad === "" || (filtroUnidad.startsWith("e") ? `e${f.edificacionId}` === filtroUnidad : String(f.inmuebleId) === filtroUnidad))
     && (filtroEstado === "" || f.situacion === filtroEstado));
 
   return (
@@ -95,7 +100,7 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
       {aviso && <div className="aviso bueno" role="status">{aviso}</div>}
 
       {registrando && (
-        <FormularioFactura unidades={unidades} tipos={tipos}
+        <FormularioFactura unidades={unidades} edificaciones={edificaciones} tipos={tipos}
           alTerminar={() => { setRegistrando(false); setAviso("Factura registrada."); void cargar(); }} />
       )}
 
@@ -109,7 +114,14 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <select aria-label="Propiedad" value={filtroUnidad} onChange={(e) => setFiltroUnidad(e.target.value)} style={{ maxWidth: 260 }}>
             <option value="">Todas las propiedades</option>
-            {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
+            {edificaciones.length > 0 && (
+              <optgroup label="Edificaciones">
+                {edificaciones.map((e) => <option key={`e${e.id}`} value={`e${e.id}`}>{e.nombre} (toda la edificación)</option>)}
+              </optgroup>
+            )}
+            <optgroup label="Unidades">
+              {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
+            </optgroup>
           </select>
           <select aria-label="Estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ maxWidth: 200 }}>
             <option value="">Todos los estados</option>
@@ -144,7 +156,9 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
                     </span>
                   </div>
                   <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
-                    {f.direccion}{f.complemento ? `, ${f.complemento}` : ""} · {periodoTexto(f.periodicidad, f.periodo)}
+                    {f.edificacion
+                      ? `${f.edificacion} · toda la edificación`
+                      : `${f.direccion}${f.complemento ? `, ${f.complemento}` : ""}`} · {periodoTexto(f.periodicidad, f.periodo)}
                   </div>
                   <div style={{ fontSize: 12.5, color: "var(--tinta-3)", marginTop: 2 }}>
                     Vence el {dia(f.fechaVencimiento)} · la paga {f.responsable === "inquilino" ? "el inquilino" : "el propietario"}
@@ -207,7 +221,7 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
       )}
 
       {pagando && (
-        <Ventana titulo={`Registrar pago · ${pagando.tipo} · ${pagando.direccion}${pagando.complemento ? `, ${pagando.complemento}` : ""}`}
+        <Ventana titulo={`Registrar pago · ${pagando.tipo} · ${pagando.edificacion ?? `${pagando.direccion}${pagando.complemento ? `, ${pagando.complemento}` : ""}`}`}
           alCerrar={() => setPagando(null)}>
           <FormularioPago factura={pagando}
             alTerminar={() => { setPagando(null); setAviso("Pago registrado: la factura quedó pagada."); void cargar(); }} />
@@ -229,7 +243,9 @@ function FormularioPago({ factura, alTerminar }: { factura: Factura; alTerminar:
     e.preventDefault();
     setEnviando(true); setError(null);
     try {
-      const comprobanteArchivoId = archivo ? await subir(factura.inmuebleId, archivo) : undefined;
+      const comprobanteArchivoId = archivo
+        ? await subir(factura.inmuebleId !== null ? { inmuebleId: factura.inmuebleId } : { edificacionId: factura.edificacionId! }, archivo)
+        : undefined;
       await api.facturasPropiedad.registrarPago.mutate({
         facturaId: factura.id, fechaPago: fecha, valor: Number(valor),
         ...(comprobanteArchivoId !== undefined ? { comprobanteArchivoId } : {}),
@@ -262,11 +278,13 @@ function FormularioPago({ factura, alTerminar }: { factura: Factura; alTerminar:
 }
 
 /** El período de consumo se pide según cada cuánto llega esa factura. */
-function FormularioFactura({ unidades, tipos, alTerminar }: {
-  unidades: Array<{ id: number; titulo: string }>; tipos: Tipo[]; alTerminar: () => void;
+function FormularioFactura({ unidades, edificaciones, tipos, alTerminar }: {
+  unidades: Array<{ id: number; titulo: string }>; edificaciones: Array<{ id: number; nombre: string }>;
+  tipos: Tipo[]; alTerminar: () => void;
 }) {
   const ahora = new Date();
-  const [unidad, setUnidad] = useState(String(unidades[0]?.id ?? ""));
+  // «e12» es la edificación 12; un número solo es una unidad.
+  const [unidad, setUnidad] = useState(edificaciones[0] ? `e${edificaciones[0].id}` : String(unidades[0]?.id ?? ""));
   const [tipoId, setTipoId] = useState("");
   const [mes, setMes] = useState(ahora.toISOString().slice(0, 7));
   const [bimestre, setBimestre] = useState(String(Math.floor(ahora.getMonth() / 2) + 1));
@@ -290,9 +308,10 @@ function FormularioFactura({ unidades, tipos, alTerminar }: {
     if (!tipo) return;
     setEnviando(true); setError(null);
     try {
-      const archivoId = archivo ? await subir(Number(unidad), archivo) : undefined;
+      const donde: Donde = unidad.startsWith("e") ? { edificacionId: Number(unidad.slice(1)) } : { inmuebleId: Number(unidad) };
+      const archivoId = archivo ? await subir(donde, archivo) : undefined;
       await api.facturasPropiedad.registrar.mutate({
-        inmuebleId: Number(unidad), tipoFacturaId: tipo.id, periodo,
+        ...donde, tipoFacturaId: tipo.id, periodo,
         fechaVencimiento: vence, valor: Number(valor), estado, responsable,
         ...(archivoId !== undefined ? { archivoId } : {}),
       });
@@ -308,9 +327,16 @@ function FormularioFactura({ unidades, tipos, alTerminar }: {
       <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Registrar una factura</h2>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
-        <Campo etiqueta="Propiedad">
+        <Campo etiqueta="A nombre de" ayuda="Una unidad o toda la edificación">
           <select value={unidad} onChange={(e) => setUnidad(e.target.value)}>
-            {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
+            {edificaciones.length > 0 && (
+              <optgroup label="Edificación (toda)">
+                {edificaciones.map((e) => <option key={`e${e.id}`} value={`e${e.id}`}>{e.nombre}</option>)}
+              </optgroup>
+            )}
+            <optgroup label="Unidad">
+              {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
+            </optgroup>
           </select>
         </Campo>
         <Campo etiqueta="Factura" ayuda={tipo ? `Se paga ${etiqueta("periodoFactura", tipo.periodicidad).toLowerCase()}` : undefined}>

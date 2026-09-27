@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api, mensajeDeError } from "../lib/api";
 import { Campo } from "./Campo";
 import { Ventana } from "./Ventana";
+import { AreasYReservas } from "./AreasYReservas";
 
 type Edificacion = Awaited<ReturnType<typeof api.inmuebles.misEdificaciones.query>>[number];
 type UnidadBasica = { id: number; direccion: string; complemento: string | null; edificacionId: number | null };
@@ -23,6 +24,7 @@ export function Edificaciones({ unidades, alCambiar }: {
   const [lista, setLista] = useState<Edificacion[] | null>(null);
   const [creando, setCreando] = useState(false);
   const [asignando, setAsignando] = useState<Edificacion | null>(null);
+  const [areas, setAreas] = useState<Edificacion | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -68,6 +70,12 @@ export function Edificaciones({ unidades, alCambiar }: {
                     {e.direccion} · {e.ciudad} · {n} {n === 1 ? "unidad" : "unidades"}
                   </div>
                 </div>
+                {n > 0 && (
+                  <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
+                    onClick={() => setAreas(e)}>
+                    Áreas y reservas
+                  </button>
+                )}
                 <button className="boton" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
                   onClick={() => setAsignando(e)}>
                   Asignar unidades
@@ -87,6 +95,14 @@ export function Edificaciones({ unidades, alCambiar }: {
               setAviso(`«${nombreNuevo}» creada. Ahora asignale sus unidades.`);
               void cargar();
             }} />
+        </Ventana>
+      )}
+
+      {areas && (
+        <Ventana titulo={`Áreas comunes y reservas · ${areas.nombre}`} alCerrar={() => setAreas(null)}>
+          {/* Cualquier unidad de la edificación sirve de llave: el servidor
+              resuelve a las áreas de la edificación. */}
+          <AreasYReservas inmuebleId={unidades.find((u) => u.edificacionId === areas.id)!.id} />
         </Ventana>
       )}
 

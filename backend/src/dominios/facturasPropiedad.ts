@@ -1,15 +1,25 @@
 import { z } from "zod";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { router, privado, exigirRol } from "../trpc/base.js";
-import { ambitosCon, tieneRol } from "../auth/roles.js";
-import { inmuebles } from "../db/schema/inventario.js";
+import { router, privado } from "../trpc/base.js";
+import { ambitosCon, tieneRol, type RolOtorgado } from "../auth/roles.js";
+import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { archivos } from "../db/schema/identidad.js";
 import { facturasPropiedad, tiposFactura } from "../db/schema/facturasPropiedad.js";
 
-const delPropietario = exigirRol<{ inmuebleId: number }>(
-  "propietario", "inmueble", (e) => e.inmuebleId,
-);
+/** Quien manda sobre la edificación: su dueño o su administrador. */
+export const puedeSobreEdificacion = (roles: RolOtorgado[], edificacionId: number) =>
+  tieneRol(roles, "propietario", "edificacion", edificacionId)
+  || tieneRol(roles, "administrador_inmueble", "edificacion", edificacionId);
+
+type Sitio = { inmuebleId: number | null; edificacionId: number | null };
+
+function exigirSitio(roles: RolOtorgado[], s: Sitio) {
+  const puede = s.inmuebleId !== null
+    ? tieneRol(roles, "propietario", "inmueble", s.inmuebleId)
+    : s.edificacionId !== null && puedeSobreEdificacion(roles, s.edificacionId);
+  if (!puede) throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
+}
 
 const dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usá el formato AAAA-MM-DD");
 const valor = z.number().positive().max(9_999_999_999);
@@ -47,14 +57,20 @@ export const facturasPropiedadRouter = router({
 
   mias: privado.query(async ({ ctx }) => {
     const ids = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
-    if (ids.length === 0) return { total: 0, facturas: [], sinPagar: 0, vencido: 0, pagado: 0 };
+    const eds = [
+      ...ambitosCon(ctx.usuario.roles, "propietario", "edificacion"),
+      ...ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion"),
+    ];
+    if (ids.length === 0 && eds.length === 0) return { total: 0, facturas: [], sinPagar: 0, vencido: 0, pagado: 0 };
 
     const filas = await ctx.db
       .select({
         id: facturasPropiedad.id,
-        inmuebleId: inmuebles.id,
+        inmuebleId: facturasPropiedad.inmuebleId,
         direccion: inmuebles.direccion,
         complemento: inmuebles.complemento,
+        edificacionId: facturasPropiedad.edificacionId,
+        edificacion: edificaciones.nombre,
         tipo: tiposFactura.nombre,
         categoria: tiposFactura.categoria,
         periodicidad: tiposFactura.periodicidad,
@@ -69,9 +85,13 @@ export const facturasPropiedadRouter = router({
         comprobanteArchivoId: facturasPropiedad.comprobanteArchivoId,
       })
       .from(facturasPropiedad)
-      .innerJoin(inmuebles, eq(inmuebles.id, facturasPropiedad.inmuebleId))
+      .leftJoin(inmuebles, eq(inmuebles.id, facturasPropiedad.inmuebleId))
+      .leftJoin(edificaciones, eq(edificaciones.id, facturasPropiedad.edificacionId))
       .innerJoin(tiposFactura, eq(tiposFactura.id, facturasPropiedad.tipoFacturaId))
-      .where(inArray(facturasPropiedad.inmuebleId, ids))
+      .where(or(
+        ...(ids.length > 0 ? [inArray(facturasPropiedad.inmuebleId, ids)] : []),
+        ...(eds.length > 0 ? [inArray(facturasPropiedad.edificacionId, eds)] : []),
+      ))
       .orderBy(desc(facturasPropiedad.fechaVencimiento));
 
     const hoy = new Date();
@@ -94,9 +114,10 @@ export const facturasPropiedadRouter = router({
     };
   }),
 
-  registrar: delPropietario
+  registrar: privado
     .input(z.object({
-      inmuebleId: z.number().int().positive(),
+      inmuebleId: z.number().int().positive().optional(),
+      edificacionId: z.number().int().positive().optional(),
       tipoFacturaId: z.number().int().positive(),
       periodo: z.string().trim().max(10),
       fechaVencimiento: dia,
@@ -106,6 +127,11 @@ export const facturasPropiedadRouter = router({
       archivoId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      if ((input.inmuebleId === undefined) === (input.edificacionId === undefined)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Decí si la factura es de una unidad o de la edificación" });
+      }
+      const donde: Sitio = { inmuebleId: input.inmuebleId ?? null, edificacionId: input.edificacionId ?? null };
+      exigirSitio(ctx.usuario.roles, donde);
       const [tipo] = await ctx.db
         .select({ periodicidad: tiposFactura.periodicidad, activo: tiposFactura.activo, nombre: tiposFactura.nombre })
         .from(tiposFactura).where(eq(tiposFactura.id, input.tipoFacturaId)).limit(1);
@@ -119,10 +145,10 @@ export const facturasPropiedadRouter = router({
             tipo.periodicidad === "mensual" ? "un mes" : tipo.periodicidad === "bimensual" ? "un bimestre" : "un año"}`,
         });
       }
-      await validarArchivo(ctx, input.archivoId, input.inmuebleId);
+      await validarArchivo(ctx, input.archivoId, donde);
 
       await ctx.db.insert(facturasPropiedad).values({
-        inmuebleId: input.inmuebleId, tipoFacturaId: input.tipoFacturaId, periodo: input.periodo,
+        inmuebleId: donde.inmuebleId, edificacionId: donde.edificacionId, tipoFacturaId: input.tipoFacturaId, periodo: input.periodo,
         fechaVencimiento: aFecha(input.fechaVencimiento), valor: input.valor.toFixed(2),
         estado: input.estado, responsable: input.responsable,
         archivoId: input.archivoId ?? null, registradaPorId: ctx.usuario.id,
@@ -143,7 +169,7 @@ export const facturasPropiedadRouter = router({
       if (f.estado === "pagado") {
         throw new TRPCError({ code: "CONFLICT", message: "Esa factura ya está pagada" });
       }
-      await validarArchivo(ctx, input.comprobanteArchivoId, f.inmuebleId);
+      await validarArchivo(ctx, input.comprobanteArchivoId, f);
 
       await ctx.db.update(facturasPropiedad).set({
         estado: "pagado",
@@ -163,31 +189,35 @@ export const facturasPropiedadRouter = router({
     }),
 });
 
-/** La factura, si es de una unidad del usuario. */
+/** La factura, si es de una unidad o edificación sobre las que el usuario manda. */
 async function facturaPropia(
-  ctx: { db: import("../db/index.js").Database; usuario: { roles: import("../auth/roles.js").RolOtorgado[] } },
+  ctx: { db: import("../db/index.js").Database; usuario: { roles: RolOtorgado[] } },
   facturaId: number,
 ) {
   const [f] = await ctx.db
-    .select({ inmuebleId: facturasPropiedad.inmuebleId, estado: facturasPropiedad.estado })
+    .select({
+      inmuebleId: facturasPropiedad.inmuebleId, edificacionId: facturasPropiedad.edificacionId,
+      estado: facturasPropiedad.estado,
+    })
     .from(facturasPropiedad).where(eq(facturasPropiedad.id, facturaId)).limit(1);
   if (!f) throw new TRPCError({ code: "NOT_FOUND", message: "Esa factura no existe" });
-  if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", f.inmuebleId)) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
-  }
+  exigirSitio(ctx.usuario.roles, f);
   return f;
 }
 
-/** Un archivo adjunto debe haberse subido para esta misma unidad. */
+/** Un archivo adjunto debe haberse subido para este mismo sitio. */
 async function validarArchivo(
   ctx: { db: import("../db/index.js").Database },
   archivoId: number | undefined,
-  inmuebleId: number,
+  s: Sitio,
 ) {
   if (archivoId === undefined) return;
   const [a] = await ctx.db.select({ tipo: archivos.entidadTipo, entidad: archivos.entidadId })
     .from(archivos).where(eq(archivos.id, archivoId)).limit(1);
-  if (!a || a.tipo !== "factura_propiedad" || a.entidad !== inmuebleId) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Ese archivo no es de esta unidad" });
+  const esperado = s.inmuebleId !== null
+    ? { tipo: "factura_propiedad", entidad: s.inmuebleId }
+    : { tipo: "factura_edificacion", entidad: s.edificacionId };
+  if (!a || a.tipo !== esperado.tipo || a.entidad !== esperado.entidad) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Ese archivo no es de este sitio" });
   }
 }

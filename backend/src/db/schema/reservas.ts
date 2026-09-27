@@ -5,15 +5,18 @@ import {
   mysqlTable, int, varchar, date, time, timestamp, smallint, boolean, mysqlEnum, index,
 } from "drizzle-orm/mysql-core";
 
-import { inmuebles } from "./inventario.js";
+import { inmuebles, edificaciones } from "./inventario.js";
 import { usuarios } from "./identidad.js";
 
 /** Un recurso reservable de la unidad: salón social, BBQ, cancha, lo que sea.
  *  Sin ninguna fila acá, la unidad no tiene nada que reservar. */
 export const areasComunes = mysqlTable("areas_comunes", {
   id: int("id", { unsigned: true }).autoincrement().primaryKey(),
-  inmuebleId: int("inmueble_id", { unsigned: true }).notNull()
+  /** De la unidad, si es suelta; de la edificación, si pertenece a una. Una de las dos. */
+  inmuebleId: int("inmueble_id", { unsigned: true })
     .references(() => inmuebles.id, { onDelete: "cascade" }),
+  edificacionId: int("edificacion_id", { unsigned: true })
+    .references(() => edificaciones.id, { onDelete: "cascade" }),
   nombre: varchar("nombre", { length: 120 }).notNull(),
   descripcion: varchar("descripcion", { length: 255 }),
   capacidad: smallint("capacidad", { unsigned: true }),
@@ -21,7 +24,7 @@ export const areasComunes = mysqlTable("areas_comunes", {
   creadaPorId: int("creada_por_id", { unsigned: true })
     .references(() => usuarios.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (t) => [index("ix_areascomunes_inmueble").on(t.inmuebleId, t.activa)]);
+}, (t) => [index("ix_areascomunes_inmueble").on(t.inmuebleId, t.activa), index("ix_areascomunes_edificacion").on(t.edificacionId, t.activa)]);
 
 export const ESTADOS_RESERVA = ["pendiente", "aprobada", "rechazada", "cancelada"] as const;
 
