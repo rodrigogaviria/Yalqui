@@ -42,7 +42,7 @@ export const rentabilidadRouter = router({
       ...ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion"),
     ];
     if (ids.length === 0 && eds.length === 0) return [];
-    return ctx.db
+    const filas = await ctx.db
       .select({
         id: movimientos.id,
         monto: movimientos.monto,
@@ -67,6 +67,24 @@ export const rentabilidadRouter = router({
         ),
       ))
       .orderBy(desc(movimientos.fecha), desc(movimientos.id));
+
+    // Las partes de cada gasto repartido: lo que le tocó a cada unidad.
+    const padres = filas.filter((f) => f.edificacion !== null).map((f) => f.id);
+    const partes = padres.length === 0 ? [] : await ctx.db
+      .select({
+        padreId: movimientos.movimientoPadreId, monto: movimientos.monto,
+        direccion: inmuebles.direccion, complemento: inmuebles.complemento,
+      })
+      .from(movimientos)
+      .innerJoin(inmuebles, eq(inmuebles.id, movimientos.inmuebleId))
+      .where(inArray(movimientos.movimientoPadreId, padres))
+      .orderBy(inmuebles.direccion, inmuebles.complemento);
+
+    return filas.map((f) => ({
+      ...f,
+      partes: partes.filter((x) => x.padreId === f.id)
+        .map((x) => ({ unidad: `${x.direccion}${x.complemento ? `, ${x.complemento}` : ""}`, monto: x.monto })),
+    }));
   }),
 
   /**

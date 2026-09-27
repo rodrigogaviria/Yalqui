@@ -137,6 +137,21 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
                 </div>
               </div>
               <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>{pesos(Number(g.monto))}</div>
+              {g.partes.length > 0 && (
+                <details style={{ flexBasis: "100%" }}>
+                  <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--tinta-2)" }}>
+                    Ver el reparto entre {g.partes.length} unidades
+                  </summary>
+                  <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
+                    {g.partes.map((x) => (
+                      <div key={x.unidad} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                        <span>{x.unidad}</span>
+                        <span className="num">{pesos(Number(x.monto))}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           ))}
         </div>
