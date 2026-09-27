@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, privado } from "../trpc/base.js";
 import { ambitosCon, tieneRol } from "../auth/roles.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { repartirEnEdificacion } from "./gastoDeFactura.js";
 import { movimientos } from "../db/schema/finanzas.js";
-import { inmuebles } from "../db/schema/inventario.js";
+import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { tiposMovimiento } from "../db/schema/administracion.js";
 
 const dinero = z.number().min(0).max(999_999_999);
@@ -28,6 +28,46 @@ export const rentabilidadRouter = router({
       .where(eq(tiposMovimiento.activo, true))
       .orderBy(tiposMovimiento.tipo, tiposMovimiento.orden),
   ),
+
+  /**
+   * Los gastos tal como se anotaron: uno por gasto. Uno sobre la edificación
+   * sale una sola vez, con su total, y no una vez por cada unidad entre las
+   * que se reparte —esas partes viven en el resumen, que es lo que suma Mis
+   * Rendimientos—.
+   */
+  gastos: privado.query(async ({ ctx }) => {
+    const ids = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+    const eds = [
+      ...ambitosCon(ctx.usuario.roles, "propietario", "edificacion"),
+      ...ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion"),
+    ];
+    if (ids.length === 0 && eds.length === 0) return [];
+    return ctx.db
+      .select({
+        id: movimientos.id,
+        monto: movimientos.monto,
+        fecha: movimientos.fecha,
+        nota: movimientos.nota,
+        origenTipo: movimientos.origenTipo,
+        prorrateo: movimientos.prorrateo,
+        edificacion: edificaciones.nombre,
+        direccion: inmuebles.direccion,
+        complemento: inmuebles.complemento,
+        concepto: tiposMovimiento.nombre,
+      })
+      .from(movimientos)
+      .leftJoin(inmuebles, eq(inmuebles.id, movimientos.inmuebleId))
+      .leftJoin(edificaciones, eq(edificaciones.id, movimientos.edificacionId))
+      .leftJoin(tiposMovimiento, eq(tiposMovimiento.id, movimientos.tipoMovimientoId))
+      .where(and(
+        eq(movimientos.tipo, "egreso"),
+        or(
+          ...(ids.length > 0 ? [and(inArray(movimientos.inmuebleId, ids), isNull(movimientos.movimientoPadreId))] : []),
+          ...(eds.length > 0 ? [inArray(movimientos.edificacionId, eds)] : []),
+        ),
+      ))
+      .orderBy(desc(movimientos.fecha), desc(movimientos.id));
+  }),
 
   /**
    * Ingresos y egresos del propietario, con el resultado del período.

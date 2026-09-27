@@ -13,11 +13,11 @@ import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
 export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: string }> }) {
   const [registrando, setRegistrando] = useState(false);
   const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
-    const [resumen, tipos] = await Promise.all([
-      api.rentabilidad.resumen.query({}),
+    const [gastos, tipos] = await Promise.all([
+      api.rentabilidad.gastos.query(),
       api.rentabilidad.tipos.query(),
     ]);
-    return { resumen, tipos: tipos.filter((t) => t.tipo === "egreso") };
+    return { gastos, tipos: tipos.filter((t) => t.tipo === "egreso") };
   });
   const [edificaciones, setEdificaciones] = useState<Array<{ id: number; nombre: string }>>([]);
   useEffect(() => { void api.inmuebles.misEdificaciones.query().then(setEdificaciones).catch(() => setEdificaciones([])); }, []);
@@ -31,7 +31,8 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
   if (datos === null) return <p style={{ color: "var(--tinta-2)" }}>Cargando…</p>;
 
-  const gastos = datos.resumen.movimientos.filter((m) => m.tipo === "egreso");
+  const gastos = datos.gastos;
+  const total = gastos.reduce((t, g) => t + Number(g.monto), 0);
   const mesActual = new Date().toISOString().slice(0, 7);
   const delMes = gastos.filter((g) => String(g.fecha).slice(0, 7) === mesActual)
     .reduce((t, g) => t + Number(g.monto), 0);
@@ -105,7 +106,7 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
 
       <Cifras>
         <Cifra titulo="Este mes" valor={pesos(delMes)} tono={delMes > 0 ? "mal" : "normal"} />
-        <Cifra titulo="Total registrado" valor={pesos(datos.resumen.egresos)} />
+        <Cifra titulo="Total registrado" valor={pesos(total)} />
         <Cifra titulo="Gastos" valor={String(gastos.length)} />
       </Cifras>
 
@@ -123,15 +124,14 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
               <div style={{ flex: "1 1 260px", minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 600 }}>
                   {g.concepto ?? "Sin clasificar"}
-                  {g.reparto !== null && (
-                    <span className="pastilla" style={{ marginLeft: 8, fontSize: 11 }}>Parte de un gasto de la edificación</span>
-                  )}
                   {g.origenTipo === "factura_propiedad" && (
                     <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>De una factura</span>
                   )}
                 </div>
                 <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
-                  {g.direccion}{g.complemento ? `, ${g.complemento}` : ""}
+                  {g.edificacion
+                    ? `${g.edificacion} · toda la edificación (reparto ${g.prorrateo === "por_area" ? "por área" : g.prorrateo === "por_canon" ? "por canon" : "en partes iguales"})`
+                    : `${g.direccion}${g.complemento ? `, ${g.complemento}` : ""}`}
                   {" · "}{new Date(g.fecha).toLocaleDateString("es-CO", { timeZone: "UTC" })}
                   {g.nota ? ` · ${g.nota}` : ""}
                 </div>
