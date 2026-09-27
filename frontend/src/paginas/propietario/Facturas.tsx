@@ -184,7 +184,7 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
                   </div>
                   <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
                     {f.edificacion
-                      ? `${f.edificacion} · toda la edificación`
+                      ? `${f.edificacion} · toda la edificación (reparto ${f.prorrateo === "por_area" ? "por área" : f.prorrateo === "por_canon" ? "por canon" : "en partes iguales"})`
                       : `${f.direccion}${f.complemento ? `, ${f.complemento}` : ""}`} · {periodoTexto(f.periodicidad, f.periodo)}
                   </div>
                   <div style={{ fontSize: 12.5, color: "var(--tinta-3)", marginTop: 2 }}>
@@ -284,6 +284,18 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
   );
 }
 
+/** Le dice a la persona qué pasará con el gasto: se genera solo, o no si paga el inquilino. */
+function NotaGasto({ responsable, pagada }: { responsable: "propietario" | "inquilino"; pagada: boolean }) {
+  if (responsable === "inquilino") {
+    return <p style={{ margin: 0, fontSize: 12.5, color: "var(--tinta-3)" }}>La paga el inquilino: no genera un gasto tuyo.</p>;
+  }
+  return (
+    <p style={{ margin: 0, fontSize: 12.5, color: "var(--tinta-3)" }}>
+      {pagada ? "Al guardar se genera el gasto con el valor y la fecha del pago." : "Cuando la pagues, se genera el gasto solo en Mis Gastos."}
+    </p>
+  );
+}
+
 /** El período guardado («2026-09», «2026-B3», «2026») desarmado en sus partes. */
 function partesDePeriodo(periodo: string) {
   const [anio = "", resto = ""] = periodo.split("-");
@@ -311,6 +323,7 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
   const [valor, setValor] = useState(String(Number(factura.valor)));
   const [estado, setEstado] = useState<"sin_pagar" | "pagado">(factura.estado === "pagado" ? "pagado" : "sin_pagar");
   const [responsable, setResponsable] = useState(factura.responsable);
+  const [prorrateo, setProrrateo] = useState<"partes_iguales" | "por_area" | "por_canon">(factura.prorrateo === "ninguno" ? "partes_iguales" : factura.prorrateo);
   const [medidor, setMedidor] = useState(factura.numeroMedidor ?? "");
   const [referencia, setReferencia] = useState(factura.referenciaPago ?? "");
   const [fechaPago, setFechaPago] = useState(factura.fechaPago ? String(factura.fechaPago).slice(0, 10) : hoyISO());
@@ -331,6 +344,7 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
       const comprobanteArchivoId = estado === "pagado" && comprobante ? await subir(donde, comprobante) : undefined;
       await api.facturasPropiedad.editar.mutate({
         facturaId: factura.id, periodo, fechaVencimiento: vence, valor: Number(valor), responsable, estado,
+        ...(factura.edificacionId !== null ? { prorrateo } : {}),
         ...(tipo?.requiereMedidor ? { numeroMedidor: medidor.trim() } : {}),
         ...(tipo?.requiereReferencia ? { referenciaPago: referencia.trim() } : {}),
         ...(archivoId !== undefined ? { archivoId } : {}),
@@ -383,6 +397,15 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
             <option value="pagado">Pagado</option>
           </select>
         </Campo>
+        {factura.edificacionId !== null && (
+          <Campo etiqueta="Reparto entre las unidades">
+            <select value={prorrateo} onChange={(e) => setProrrateo(e.target.value as typeof prorrateo)}>
+              <option value="partes_iguales">Partes iguales</option>
+              <option value="por_area">Por área</option>
+              <option value="por_canon">Por canon</option>
+            </select>
+          </Campo>
+        )}
         <Campo etiqueta="Factura (archivo)" ayuda={factura.archivoId !== null ? "Ya tiene uno: elegir otro lo reemplaza" : "Opcional"}>
           <input type="file" accept={ACEPTA} onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
         </Campo>
@@ -398,8 +421,9 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
         </div>
       )}
       {estado === "sin_pagar" && factura.estado === "pagado" && (
-        <div className="aviso ojo">Al dejarla sin pagar se borran la fecha, el valor y el comprobante del pago.</div>
+        <div className="aviso ojo">Al dejarla sin pagar se borran la fecha, el valor y el comprobante del pago, y su gasto.</div>
       )}
+      <NotaGasto responsable={responsable} pagada={estado === "pagado"} />
 
       {error && <div className="aviso malo" role="alert">{error}</div>}
       <div><button type="submit" className="boton" disabled={enviando}>{enviando ? "Guardando…" : "Guardar cambios"}</button></div>
@@ -487,6 +511,7 @@ function FormularioPago({ factura, alTerminar }: { factura: Factura; alTerminar:
       <button type="submit" className="boton" style={{ height: 38, fontSize: 13.5, padding: "0 16px" }} disabled={enviando}>
         {enviando ? "Guardando…" : "Registrar pago"}
       </button>
+      <div style={{ flexBasis: "100%" }}><NotaGasto responsable={factura.responsable} pagada /></div>
       {error && <div className="aviso malo" role="alert" style={{ flexBasis: "100%" }}>{error}</div>}
     </form>
   );
@@ -512,6 +537,9 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
   const [medidorTocado, setMedidorTocado] = useState(false);
   const [referencia, setReferencia] = useState("");
   const [referenciaTocada, setReferenciaTocada] = useState(false);
+  const [prorrateo, setProrrateo] = useState<"partes_iguales" | "por_area" | "por_canon">("partes_iguales");
+  const [fechaPago, setFechaPago] = useState(hoyISO());
+  const [valorPagado, setValorPagado] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -549,6 +577,8 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
         fechaVencimiento: vence, valor: Number(valor), estado, responsable,
         ...(tipo.requiereMedidor ? { numeroMedidor: medidorFinal.trim() } : {}),
         ...(tipo.requiereReferencia ? { referenciaPago: referenciaFinal.trim() } : {}),
+        ...(donde && "edificacionId" in donde ? { prorrateo } : {}),
+        ...(estado === "pagado" ? { fechaPago, valorPagado: Number(valorPagado || valor) } : {}),
         ...(archivoId !== undefined ? { archivoId } : {}),
       });
       alTerminar();
@@ -645,10 +675,29 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
             <option value="inquilino">Inquilino</option>
           </select>
         </Campo>
+        {unidad.startsWith("e") && (
+          <Campo etiqueta="Reparto entre las unidades" ayuda="Cómo se divide el gasto cuando se pague">
+            <select value={prorrateo} onChange={(e) => setProrrateo(e.target.value as typeof prorrateo)}>
+              <option value="partes_iguales">Partes iguales</option>
+              <option value="por_area">Por área</option>
+              <option value="por_canon">Por canon</option>
+            </select>
+          </Campo>
+        )}
         <Campo etiqueta="Factura (archivo)" ayuda="Opcional · foto o PDF, hasta 10 MB">
           <input type="file" accept={ACEPTA} onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
         </Campo>
       </div>
+
+      {estado === "pagado" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
+          <Campo etiqueta="Fecha del pago"><input type="date" required value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} /></Campo>
+          <Campo etiqueta="Valor pagado" ayuda="Si lo dejás vacío, el de la factura">
+            <input type="number" min={1} step="any" value={valorPagado} placeholder={valor} onChange={(e) => setValorPagado(e.target.value)} />
+          </Campo>
+        </div>
+      )}
+      <NotaGasto responsable={responsable} pagada={estado === "pagado"} />
 
       {error && <div className="aviso malo" role="alert">{error}</div>}
       <div>

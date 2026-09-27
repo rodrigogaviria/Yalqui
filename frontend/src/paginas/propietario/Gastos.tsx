@@ -106,7 +106,12 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
               padding: "13px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
             }}>
               <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 600 }}>{g.concepto ?? "Sin clasificar"}</div>
+                <div style={{ fontSize: 14.5, fontWeight: 600 }}>
+                  {g.concepto ?? "Sin clasificar"}
+                  {g.origenTipo === "factura_propiedad" && (
+                    <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>De una factura</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
                   {g.direccion}{g.complemento ? `, ${g.complemento}` : ""}
                   {" · "}{new Date(g.fecha).toLocaleDateString("es-CO", { timeZone: "UTC" })}

@@ -53,6 +53,7 @@ export const rentabilidadRouter = router({
           monto: movimientos.monto,
           fecha: movimientos.fecha,
           nota: movimientos.nota,
+          origenTipo: movimientos.origenTipo,
           inmuebleId: inmuebles.id,
           direccion: inmuebles.direccion,
           complemento: inmuebles.complemento,

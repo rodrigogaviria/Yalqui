@@ -6,6 +6,7 @@ import { ambitosCon, tieneRol, type RolOtorgado } from "../auth/roles.js";
 import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { archivos } from "../db/schema/identidad.js";
 import { facturasPropiedad, tiposFactura } from "../db/schema/facturasPropiedad.js";
+import { sincronizarGasto } from "./gastoDeFactura.js";
 
 /** Quien manda sobre la edificación: su dueño o su administrador. */
 export const puedeSobreEdificacion = (roles: RolOtorgado[], edificacionId: number) =>
@@ -22,6 +23,7 @@ function exigirSitio(roles: RolOtorgado[], s: Sitio) {
 }
 
 const dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usá el formato AAAA-MM-DD");
+const hoy = () => new Date().toISOString().slice(0, 10);
 const valor = z.number().positive().max(9_999_999_999);
 
 /** Cómo se escribe el período de consumo según cada cuánto llega la factura. */
@@ -83,6 +85,7 @@ export const facturasPropiedadRouter = router({
         motivoAnulacion: facturasPropiedad.motivoAnulacion,
         anuladaAt: facturasPropiedad.anuladaAt,
         responsable: facturasPropiedad.responsable,
+        prorrateo: facturasPropiedad.prorrateo,
         numeroMedidor: facturasPropiedad.numeroMedidor,
         referenciaPago: facturasPropiedad.referenciaPago,
         archivoId: facturasPropiedad.archivoId,
@@ -133,6 +136,11 @@ export const facturasPropiedadRouter = router({
       responsable: z.enum(["propietario", "inquilino"]).default("propietario"),
       numeroMedidor: z.string().trim().max(40).optional(),
       referenciaPago: z.string().trim().max(60).optional(),
+      /** Cómo se reparte entre las unidades si la factura es de la edificación. */
+      prorrateo: z.enum(["partes_iguales", "por_area", "por_canon"]).optional(),
+      /** Solo si se registra ya pagada: el pago. */
+      fechaPago: dia.optional(),
+      valorPagado: valor.optional(),
       archivoId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -165,13 +173,23 @@ export const facturasPropiedadRouter = router({
       }
       await validarArchivo(ctx, input.archivoId, donde);
 
-      await ctx.db.insert(facturasPropiedad).values({
+      if (donde.edificacionId !== null && !input.prorrateo) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Elegí cómo se reparte entre las unidades" });
+      }
+      const pagada = input.estado === "pagado";
+      await ctx.db.transaction(async (tx) => {
+      const [nueva] = await tx.insert(facturasPropiedad).values({
         inmuebleId: donde.inmuebleId, edificacionId: donde.edificacionId, tipoFacturaId: input.tipoFacturaId, periodo: input.periodo,
         fechaVencimiento: aFecha(input.fechaVencimiento), valor: input.valor.toFixed(2),
         estado: input.estado, responsable: input.responsable,
+        prorrateo: donde.edificacionId !== null ? input.prorrateo! : "ninguno",
+        fechaPago: pagada ? aFecha(input.fechaPago ?? hoy()) : null,
+        valorPagado: pagada ? (input.valorPagado ?? input.valor).toFixed(2) : null,
         numeroMedidor: tipo.requiereMedidor ? input.numeroMedidor! : null,
         referenciaPago: tipo.requiereReferencia ? input.referenciaPago! : null,
         archivoId: input.archivoId ?? null, registradaPorId: ctx.usuario.id,
+      }).$returningId();
+      await sincronizarGasto(tx, nueva!.id);
       });
       return { ok: true };
     }),
@@ -194,12 +212,15 @@ export const facturasPropiedadRouter = router({
       }
       await validarArchivo(ctx, input.comprobanteArchivoId, f);
 
-      await ctx.db.update(facturasPropiedad).set({
-        estado: "pagado",
-        fechaPago: aFecha(input.fechaPago),
-        valorPagado: input.valor.toFixed(2),
-        comprobanteArchivoId: input.comprobanteArchivoId ?? null,
-      }).where(eq(facturasPropiedad.id, input.facturaId));
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(facturasPropiedad).set({
+          estado: "pagado",
+          fechaPago: aFecha(input.fechaPago),
+          valorPagado: input.valor.toFixed(2),
+          comprobanteArchivoId: input.comprobanteArchivoId ?? null,
+        }).where(eq(facturasPropiedad.id, input.facturaId));
+        await sincronizarGasto(tx, input.facturaId);
+      });
       return { estado: "pagado" as const };
     }),
 
@@ -217,6 +238,7 @@ export const facturasPropiedadRouter = router({
       fechaVencimiento: dia.optional(),
       valor: valor.optional(),
       responsable: z.enum(["propietario", "inquilino"]).optional(),
+      prorrateo: z.enum(["partes_iguales", "por_area", "por_canon"]).optional(),
       numeroMedidor: z.string().trim().max(40).optional(),
       referenciaPago: z.string().trim().max(60).optional(),
       archivoId: z.number().int().positive().optional(),
@@ -264,6 +286,7 @@ export const facturasPropiedadRouter = router({
       if (input.fechaVencimiento !== undefined) cambios["fechaVencimiento"] = aFecha(input.fechaVencimiento);
       if (input.valor !== undefined) cambios["valor"] = input.valor.toFixed(2);
       if (input.responsable !== undefined) cambios["responsable"] = input.responsable;
+      if (input.prorrateo !== undefined && f.edificacionId !== null) cambios["prorrateo"] = input.prorrateo;
       if (f.requiereMedidor) cambios["numeroMedidor"] = medidor.trim();
       if (f.requiereReferencia) cambios["referenciaPago"] = referencia.trim();
       if (input.archivoId !== undefined) cambios["archivoId"] = input.archivoId;
@@ -281,9 +304,31 @@ export const facturasPropiedadRouter = router({
         if (input.comprobanteArchivoId !== undefined) cambios["comprobanteArchivoId"] = input.comprobanteArchivoId;
       }
 
-      await ctx.db.update(facturasPropiedad).set(cambios).where(eq(facturasPropiedad.id, input.facturaId));
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(facturasPropiedad).set(cambios).where(eq(facturasPropiedad.id, input.facturaId));
+        await sincronizarGasto(tx, input.facturaId);
+      });
       return { ok: true };
     }),
+
+  /** Vuelve a generar los gastos de todas mis facturas: para las que se pagaron antes de que el gasto naciera solo. */
+  sincronizarGastos: privado.mutation(async ({ ctx }) => {
+    const ids = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+    const eds = [
+      ...ambitosCon(ctx.usuario.roles, "propietario", "edificacion"),
+      ...ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion"),
+    ];
+    const donde = or(
+      ...(ids.length > 0 ? [inArray(facturasPropiedad.inmuebleId, ids)] : []),
+      ...(eds.length > 0 ? [inArray(facturasPropiedad.edificacionId, eds)] : []),
+    );
+    if (ids.length === 0 && eds.length === 0) return { revisadas: 0 };
+    const filas = await ctx.db.select({ id: facturasPropiedad.id }).from(facturasPropiedad).where(donde);
+    await ctx.db.transaction(async (tx) => {
+      for (const f of filas) await sincronizarGasto(tx, f.id);
+    });
+    return { revisadas: filas.length };
+  }),
 
   /**
    * Anula una factura, con su motivo. No se borra: una factura registrada es
@@ -301,10 +346,13 @@ export const facturasPropiedadRouter = router({
       if (f.estado === "anulada") {
         throw new TRPCError({ code: "CONFLICT", message: "Esa factura ya está anulada" });
       }
-      await ctx.db.update(facturasPropiedad).set({
-        estado: "anulada", motivoAnulacion: input.motivo,
-        anuladaAt: new Date(), anuladaPorId: ctx.usuario.id,
-      }).where(eq(facturasPropiedad.id, input.facturaId));
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(facturasPropiedad).set({
+          estado: "anulada", motivoAnulacion: input.motivo,
+          anuladaAt: new Date(), anuladaPorId: ctx.usuario.id,
+        }).where(eq(facturasPropiedad.id, input.facturaId));
+        await sincronizarGasto(tx, input.facturaId);
+      });
       return { estado: "anulada" as const };
     }),
 });

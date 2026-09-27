@@ -27,7 +27,7 @@ export const movimientos = mysqlTable("movimientos", {
 	// you can use { mode: 'date' }, if you want to have Date as type for this column
 	fecha: date({ mode: 'string' }).notNull(),
 	prorrateo: mysqlEnum(['ninguno','partes_iguales','por_area','por_canon']).default('ninguno').notNull(),
-	origenTipo: mysqlEnum("origen_tipo", ['pago_arriendo','incidencia','factura_yalqui','obligacion','manual']).notNull(),
+	origenTipo: mysqlEnum("origen_tipo", ['pago_arriendo','incidencia','factura_yalqui','obligacion','manual','factura_propiedad']).notNull(),
 	origenId: bigint("origen_id", { mode: "number", unsigned: true }),
 	nota: varchar({ length: 255 }),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),

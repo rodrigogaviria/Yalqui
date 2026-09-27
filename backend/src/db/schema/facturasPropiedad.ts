@@ -19,6 +19,8 @@ export const tiposFactura = mysqlTable("tipos_factura", {
   requiereMedidor: boolean("requiere_medidor").notNull().default(false),
   /** Internet se paga con una referencia que hay que digitar. */
   requiereReferencia: boolean("requiere_referencia").notNull().default(false),
+  /** El concepto de gasto que genera su pago. Sin él, «Otro egreso». */
+  tipoMovimientoId: int("tipo_movimiento_id", { unsigned: true }),
   activo: boolean("activo").notNull().default(true),
   orden: smallint("orden", { unsigned: true }).notNull().default(0),
 }, (t) => [uniqueIndex("uk_tipofactura_codigo").on(t.codigo)]);
@@ -38,6 +40,8 @@ export const facturasPropiedad = mysqlTable("facturas_propiedad", {
   valor: decimal("valor", { precision: 14, scale: 2 }).notNull(),
   estado: mysqlEnum("estado", ["sin_pagar", "pagado", "anulada"]).notNull().default("sin_pagar"),
   responsable: mysqlEnum("responsable", ["propietario", "inquilino"]).notNull().default("propietario"),
+  /** Cómo se reparte entre las unidades una factura de toda la edificación. */
+  prorrateo: mysqlEnum("prorrateo", ["ninguno", "partes_iguales", "por_area", "por_canon"]).notNull().default("ninguno"),
   numeroMedidor: varchar("numero_medidor", { length: 40 }),
   referenciaPago: varchar("referencia_pago", { length: 60 }),
   archivoId: bigint("archivo_id", { mode: "number", unsigned: true }),
