@@ -70,6 +70,8 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
   const [pagando, setPagando] = useState<Factura | null>(null);
   const [filtroUnidad, setFiltroUnidad] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
+  const [filtroAnio, setFiltroAnio] = useState("");
+  const [filtroMes, setFiltroMes] = useState("");
   const { datos, error, aviso, ocupado, accion, cargar, setAviso } = usePantalla(async () => {
     const [mias, tipos, yalqui] = await Promise.all([
       api.facturasPropiedad.mias.query(),
@@ -83,9 +85,18 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
   if (datos === null) return <p style={{ color: "var(--tinta-2)" }}>Cargando…</p>;
 
   const { mias, tipos, yalqui } = datos;
-  const visibles = mias.facturas.filter((f) =>
+  // Año y mes son los de la fecha de vencimiento: es lo único que toda factura
+  // tiene con día exacto, mientras que el período de consumo puede ser un
+  // bimestre o un año entero.
+  const anios = [...new Set(mias.facturas.map((f) => String(f.fechaVencimiento).slice(0, 4)))].sort().reverse();
+  const visibles = mias.facturas
+    .filter((f) => filtroAnio === "" || String(f.fechaVencimiento).slice(0, 4) === filtroAnio)
+    .filter((f) => filtroMes === "" || String(f.fechaVencimiento).slice(5, 7) === filtroMes)
+    .filter((f) =>
     (filtroUnidad === "" || (filtroUnidad.startsWith("e") ? `e${f.edificacionId}` === filtroUnidad : String(f.inmuebleId) === filtroUnidad))
-    && (filtroEstado === "" || f.situacion === filtroEstado));
+    && (filtroEstado === "" || f.situacion === filtroEstado))
+    // La más reciente primero: por vencimiento y, a igual fecha, la última registrada.
+    .sort((a, b) => String(b.fechaVencimiento).localeCompare(String(a.fechaVencimiento)) || b.id - a.id);
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -122,6 +133,14 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
             <optgroup label="Unidades">
               {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
             </optgroup>
+          </select>
+          <select aria-label="Año" value={filtroAnio} onChange={(e) => setFiltroAnio(e.target.value)} style={{ maxWidth: 130 }}>
+            <option value="">Todos los años</option>
+            {anios.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <select aria-label="Mes" value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} style={{ maxWidth: 160 }}>
+            <option value="">Todos los meses</option>
+            {MESES.map((m, i) => <option key={m} value={String(i + 1).padStart(2, "0")}>{m}</option>)}
           </select>
           <select aria-label="Estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ maxWidth: 200 }}>
             <option value="">Todos los estados</option>
