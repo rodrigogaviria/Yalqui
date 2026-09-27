@@ -212,6 +212,7 @@ export function TiposFactura({ avisar }: { avisar: (m: string) => void }) {
     { clave: "categoria", titulo: "Categoría", tipo: "seleccion", diccionario: "categoriaFactura", ancho: 190 },
     { clave: "periodicidad", titulo: "Período de pago", tipo: "seleccion", diccionario: "periodoFactura", editable: false, ancho: 160 },
     { clave: "requiereMedidor", titulo: "Pide # medidor", tipo: "booleano", ancho: 130 },
+    { clave: "requiereReferencia", titulo: "Pide referencia de pago", tipo: "booleano", ancho: 150 },
   ];
 
   return (

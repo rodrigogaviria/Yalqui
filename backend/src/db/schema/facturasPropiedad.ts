@@ -17,6 +17,8 @@ export const tiposFactura = mysqlTable("tipos_factura", {
   periodicidad: mysqlEnum("periodicidad", PERIODICIDADES_FACTURA).notNull().default("mensual"),
   /** Agua, energía y gas son de un medidor: sin su número no se sabe de cuál. */
   requiereMedidor: boolean("requiere_medidor").notNull().default(false),
+  /** Internet se paga con una referencia que hay que digitar. */
+  requiereReferencia: boolean("requiere_referencia").notNull().default(false),
   activo: boolean("activo").notNull().default(true),
   orden: smallint("orden", { unsigned: true }).notNull().default(0),
 }, (t) => [uniqueIndex("uk_tipofactura_codigo").on(t.codigo)]);
@@ -34,13 +36,18 @@ export const facturasPropiedad = mysqlTable("facturas_propiedad", {
   periodo: varchar("periodo", { length: 10 }).notNull(),
   fechaVencimiento: date("fecha_vencimiento").notNull(),
   valor: decimal("valor", { precision: 14, scale: 2 }).notNull(),
-  estado: mysqlEnum("estado", ["sin_pagar", "pagado"]).notNull().default("sin_pagar"),
+  estado: mysqlEnum("estado", ["sin_pagar", "pagado", "anulada"]).notNull().default("sin_pagar"),
   responsable: mysqlEnum("responsable", ["propietario", "inquilino"]).notNull().default("propietario"),
   numeroMedidor: varchar("numero_medidor", { length: 40 }),
+  referenciaPago: varchar("referencia_pago", { length: 60 }),
   archivoId: bigint("archivo_id", { mode: "number", unsigned: true }),
   fechaPago: date("fecha_pago"),
   valorPagado: decimal("valor_pagado", { precision: 14, scale: 2 }),
   comprobanteArchivoId: bigint("comprobante_archivo_id", { mode: "number", unsigned: true }),
+  motivoAnulacion: varchar("motivo_anulacion", { length: 500 }),
+  anuladaAt: timestamp("anulada_at"),
+  anuladaPorId: int("anulada_por_id", { unsigned: true })
+    .references(() => usuarios.id, { onDelete: "set null" }),
   registradaPorId: int("registrada_por_id", { unsigned: true })
     .references(() => usuarios.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),

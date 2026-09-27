@@ -50,6 +50,7 @@ export const facturasPropiedadRouter = router({
         id: tiposFactura.id, nombre: tiposFactura.nombre,
         categoria: tiposFactura.categoria, periodicidad: tiposFactura.periodicidad,
         requiereMedidor: tiposFactura.requiereMedidor,
+        requiereReferencia: tiposFactura.requiereReferencia,
       })
       .from(tiposFactura)
       .where(eq(tiposFactura.activo, true))
@@ -79,8 +80,11 @@ export const facturasPropiedadRouter = router({
         fechaVencimiento: facturasPropiedad.fechaVencimiento,
         valor: facturasPropiedad.valor,
         estado: facturasPropiedad.estado,
+        motivoAnulacion: facturasPropiedad.motivoAnulacion,
+        anuladaAt: facturasPropiedad.anuladaAt,
         responsable: facturasPropiedad.responsable,
         numeroMedidor: facturasPropiedad.numeroMedidor,
+        referenciaPago: facturasPropiedad.referenciaPago,
         archivoId: facturasPropiedad.archivoId,
         fechaPago: facturasPropiedad.fechaPago,
         valorPagado: facturasPropiedad.valorPagado,
@@ -100,7 +104,8 @@ export const facturasPropiedadRouter = router({
     hoy.setUTCHours(0, 0, 0, 0);
     const facturas = filas.map((f) => ({
       ...f,
-      situacion: f.estado === "pagado" ? "pagada" as const
+      situacion: f.estado === "anulada" ? "anulada" as const
+        : f.estado === "pagado" ? "pagada" as const
         : new Date(f.fechaVencimiento) < hoy ? "vencida" as const : "pendiente" as const,
     }));
 
@@ -110,7 +115,7 @@ export const facturasPropiedadRouter = router({
     return {
       total: facturas.length,
       facturas,
-      sinPagar: suma((f) => f.situacion !== "pagada"),
+      sinPagar: suma((f) => f.situacion === "pendiente" || f.situacion === "vencida"),
       vencido: suma((f) => f.situacion === "vencida"),
       pagado: suma((f) => f.situacion === "pagada"),
     };
@@ -127,6 +132,7 @@ export const facturasPropiedadRouter = router({
       estado: z.enum(["sin_pagar", "pagado"]).default("sin_pagar"),
       responsable: z.enum(["propietario", "inquilino"]).default("propietario"),
       numeroMedidor: z.string().trim().max(40).optional(),
+      referenciaPago: z.string().trim().max(60).optional(),
       archivoId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -138,7 +144,7 @@ export const facturasPropiedadRouter = router({
       const [tipo] = await ctx.db
         .select({
           periodicidad: tiposFactura.periodicidad, activo: tiposFactura.activo, nombre: tiposFactura.nombre,
-          requiereMedidor: tiposFactura.requiereMedidor,
+          requiereMedidor: tiposFactura.requiereMedidor, requiereReferencia: tiposFactura.requiereReferencia,
         })
         .from(tiposFactura).where(eq(tiposFactura.id, input.tipoFacturaId)).limit(1);
       if (!tipo) throw new TRPCError({ code: "NOT_FOUND", message: "Ese tipo de factura no existe" });
@@ -154,6 +160,9 @@ export const facturasPropiedadRouter = router({
       if (tipo.requiereMedidor && !input.numeroMedidor) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `La factura de ${tipo.nombre.toLowerCase()} necesita el número de medidor` });
       }
+      if (tipo.requiereReferencia && !input.referenciaPago) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `La factura de ${tipo.nombre.toLowerCase()} necesita la referencia de pago` });
+      }
       await validarArchivo(ctx, input.archivoId, donde);
 
       await ctx.db.insert(facturasPropiedad).values({
@@ -161,6 +170,7 @@ export const facturasPropiedadRouter = router({
         fechaVencimiento: aFecha(input.fechaVencimiento), valor: input.valor.toFixed(2),
         estado: input.estado, responsable: input.responsable,
         numeroMedidor: tipo.requiereMedidor ? input.numeroMedidor! : null,
+        referenciaPago: tipo.requiereReferencia ? input.referenciaPago! : null,
         archivoId: input.archivoId ?? null, registradaPorId: ctx.usuario.id,
       });
       return { ok: true };
@@ -176,6 +186,9 @@ export const facturasPropiedadRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const f = await facturaPropia(ctx, input.facturaId);
+      if (f.estado === "anulada") {
+        throw new TRPCError({ code: "CONFLICT", message: "Esa factura está anulada" });
+      }
       if (f.estado === "pagado") {
         throw new TRPCError({ code: "CONFLICT", message: "Esa factura ya está pagada" });
       }
@@ -190,12 +203,109 @@ export const facturasPropiedadRouter = router({
       return { estado: "pagado" as const };
     }),
 
-  eliminar: privado
-    .input(z.object({ facturaId: z.number().int().positive() }))
+  /**
+   * Corrige una factura registrada: período, vencimiento, valor, responsable,
+   * medidor, referencia, el archivo y el pago. El tipo y el sitio (unidad o
+   * edificación) no se cambian: cambiarlos rompería las reglas del tipo —su
+   * período, su medidor— y, si se equivocó ahí, lo correcto es anularla y
+   * registrar otra. Una anulada no se edita.
+   */
+  editar: privado
+    .input(z.object({
+      facturaId: z.number().int().positive(),
+      periodo: z.string().trim().max(10).optional(),
+      fechaVencimiento: dia.optional(),
+      valor: valor.optional(),
+      responsable: z.enum(["propietario", "inquilino"]).optional(),
+      numeroMedidor: z.string().trim().max(40).optional(),
+      referenciaPago: z.string().trim().max(60).optional(),
+      archivoId: z.number().int().positive().optional(),
+      estado: z.enum(["sin_pagar", "pagado"]).optional(),
+      fechaPago: dia.optional(),
+      valorPagado: valor.optional(),
+      comprobanteArchivoId: z.number().int().positive().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
-      await facturaPropia(ctx, input.facturaId);
-      await ctx.db.delete(facturasPropiedad).where(eq(facturasPropiedad.id, input.facturaId));
+      const [f] = await ctx.db
+        .select({
+          inmuebleId: facturasPropiedad.inmuebleId, edificacionId: facturasPropiedad.edificacionId,
+          estado: facturasPropiedad.estado, numeroMedidor: facturasPropiedad.numeroMedidor,
+          referenciaPago: facturasPropiedad.referenciaPago, fechaPago: facturasPropiedad.fechaPago,
+          valorPagado: facturasPropiedad.valorPagado, valor: facturasPropiedad.valor,
+          periodicidad: tiposFactura.periodicidad, requiereMedidor: tiposFactura.requiereMedidor,
+          requiereReferencia: tiposFactura.requiereReferencia, tipo: tiposFactura.nombre,
+        })
+        .from(facturasPropiedad)
+        .innerJoin(tiposFactura, eq(tiposFactura.id, facturasPropiedad.tipoFacturaId))
+        .where(eq(facturasPropiedad.id, input.facturaId)).limit(1);
+      if (!f) throw new TRPCError({ code: "NOT_FOUND", message: "Esa factura no existe" });
+      exigirSitio(ctx.usuario.roles, f);
+      if (f.estado === "anulada") {
+        throw new TRPCError({ code: "CONFLICT", message: "Una factura anulada no se edita" });
+      }
+
+      if (input.periodo !== undefined && !periodoValido(f.periodicidad, input.periodo)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `El período de ${f.tipo} es ${f.periodicidad}` });
+      }
+      const medidor = input.numeroMedidor ?? f.numeroMedidor ?? "";
+      if (f.requiereMedidor && medidor.trim() === "") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `La factura de ${f.tipo.toLowerCase()} necesita el número de medidor` });
+      }
+      const referencia = input.referenciaPago ?? f.referenciaPago ?? "";
+      if (f.requiereReferencia && referencia.trim() === "") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `La factura de ${f.tipo.toLowerCase()} necesita la referencia de pago` });
+      }
+      await validarArchivo(ctx, input.archivoId, f);
+      await validarArchivo(ctx, input.comprobanteArchivoId, f);
+
+      const estadoFinal = input.estado ?? f.estado;
+      const cambios: Record<string, unknown> = {};
+      if (input.periodo !== undefined) cambios["periodo"] = input.periodo;
+      if (input.fechaVencimiento !== undefined) cambios["fechaVencimiento"] = aFecha(input.fechaVencimiento);
+      if (input.valor !== undefined) cambios["valor"] = input.valor.toFixed(2);
+      if (input.responsable !== undefined) cambios["responsable"] = input.responsable;
+      if (f.requiereMedidor) cambios["numeroMedidor"] = medidor.trim();
+      if (f.requiereReferencia) cambios["referenciaPago"] = referencia.trim();
+      if (input.archivoId !== undefined) cambios["archivoId"] = input.archivoId;
+
+      if (estadoFinal === "sin_pagar") {
+        // Volver a sin pagar borra el pago: no puede quedar un comprobante de algo no pagado.
+        Object.assign(cambios, { estado: "sin_pagar", fechaPago: null, valorPagado: null, comprobanteArchivoId: null });
+      } else {
+        const fechaPago = input.fechaPago ?? (f.fechaPago ? new Date(f.fechaPago).toISOString().slice(0, 10) : undefined);
+        const valorPagado = input.valorPagado ?? (f.valorPagado !== null ? Number(f.valorPagado) : undefined);
+        if (fechaPago === undefined || valorPagado === undefined) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Para dejarla pagada hace falta la fecha y el valor del pago" });
+        }
+        Object.assign(cambios, { estado: "pagado", fechaPago: aFecha(fechaPago), valorPagado: valorPagado.toFixed(2) });
+        if (input.comprobanteArchivoId !== undefined) cambios["comprobanteArchivoId"] = input.comprobanteArchivoId;
+      }
+
+      await ctx.db.update(facturasPropiedad).set(cambios).where(eq(facturasPropiedad.id, input.facturaId));
       return { ok: true };
+    }),
+
+  /**
+   * Anula una factura, con su motivo. No se borra: una factura registrada es
+   * un rastro de plata, y anularla la deja a la vista sin contarla en los
+   * totales. Sirve tanto para una registrada por error como para una
+   * pagada que se cargó mal.
+   */
+  anular: privado
+    .input(z.object({
+      facturaId: z.number().int().positive(),
+      motivo: z.string().trim().min(4, "Contá por qué se anula").max(500),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const f = await facturaPropia(ctx, input.facturaId);
+      if (f.estado === "anulada") {
+        throw new TRPCError({ code: "CONFLICT", message: "Esa factura ya está anulada" });
+      }
+      await ctx.db.update(facturasPropiedad).set({
+        estado: "anulada", motivoAnulacion: input.motivo,
+        anuladaAt: new Date(), anuladaPorId: ctx.usuario.id,
+      }).where(eq(facturasPropiedad.id, input.facturaId));
+      return { estado: "anulada" as const };
     }),
 });
 

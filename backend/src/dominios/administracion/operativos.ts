@@ -202,13 +202,14 @@ export const operativosRouter = router({
         .pipe(z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, "La categoría son letras, números o guion bajo")),
       periodicidad: z.enum(PERIODICIDADES_FACTURA).default("mensual"),
       requiereMedidor: z.boolean().default(false),
+      requiereReferencia: z.boolean().default(false),
     }))
     .mutation(async ({ ctx, input }) => {
       try {
         const [res] = await ctx.db.insert(tiposFactura).values({
           codigo: input.codigo, nombre: input.nombre,
           categoria: input.categoria, periodicidad: input.periodicidad,
-          requiereMedidor: input.requiereMedidor,
+          requiereMedidor: input.requiereMedidor, requiereReferencia: input.requiereReferencia,
         });
         return { id: nuevoId(res) };
       } catch (e) {
@@ -225,6 +226,7 @@ export const operativosRouter = router({
       categoria: z.string().transform(normalizarCodigo)
         .pipe(z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, "La categoría son letras, números o guion bajo")).optional(),
       requiereMedidor: z.boolean().optional(),
+      requiereReferencia: z.boolean().optional(),
       orden: z.number().int().min(0).max(999).optional(),
     }))
     .mutation(async ({ ctx, input }) => {

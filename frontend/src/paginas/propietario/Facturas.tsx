@@ -15,6 +15,7 @@ const SITUACION = {
   pendiente: { texto: "Pendiente", clase: "pausado" },
   vencida: { texto: "Vencida", clase: "mora" },
   pagada: { texto: "Pagada", clase: "arrendado" },
+  anulada: { texto: "Anulada", clase: "borrador" },
 } as const;
 
 const BIMESTRES = [
@@ -64,12 +65,14 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
   useEffect(() => { void api.inmuebles.misEdificaciones.query().then(setEdificaciones).catch(() => setEdificaciones([])); }, []);
   const [registrando, setRegistrando] = useState(false);
   const [pagando, setPagando] = useState<Factura | null>(null);
+  const [anulando, setAnulando] = useState<Factura | null>(null);
+  const [editando, setEditando] = useState<Factura | null>(null);
   const [filtroUnidad, setFiltroUnidad] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [filtroAnio, setFiltroAnio] = useState("");
   const [filtroMes, setFiltroMes] = useState("");
-  const { datos, error, aviso, ocupado, accion, cargar, setAviso } = usePantalla(async () => {
+  const { datos, error, aviso, cargar, setAviso } = usePantalla(async () => {
     const [mias, tipos, yalqui] = await Promise.all([
       api.facturasPropiedad.mias.query(),
       api.facturasPropiedad.tipos.query(),
@@ -137,11 +140,11 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
             <option value="">Todos los tipos</option>
             {tiposUsados.map((t) => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
           </select>
-          <select aria-label="Año" value={filtroAnio} onChange={(e) => setFiltroAnio(e.target.value)} style={{ maxWidth: 130 }}>
+          <select aria-label="Año" value={filtroAnio} onChange={(e) => setFiltroAnio(e.target.value)} style={{ minWidth: 150 }}>
             <option value="">Todos los años</option>
             {anios.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
-          <select aria-label="Mes" value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} style={{ maxWidth: 160 }}>
+          <select aria-label="Mes" value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} style={{ minWidth: 175 }}>
             <option value="">Todos los meses</option>
             {MESES.map((m, i) => <option key={m} value={String(i + 1).padStart(2, "0")}>{m}</option>)}
           </select>
@@ -150,6 +153,7 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
             <option value="pendiente">Pendientes</option>
             <option value="vencida">Vencidas</option>
             <option value="pagada">Pagadas</option>
+            <option value="anulada">Anuladas</option>
           </select>
         </div>
       )}
@@ -168,7 +172,8 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
             return (
               <article key={f.id} className="tarjeta" style={{
                 padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
-                borderLeft: `4px solid ${f.situacion === "vencida" ? "var(--mal)" : f.situacion === "pagada" ? "var(--bien)" : "var(--ojo)"}`,
+                borderLeft: `4px solid ${f.situacion === "vencida" ? "var(--mal)" : f.situacion === "pagada" ? "var(--bien)" : f.situacion === "anulada" ? "var(--linea)" : "var(--ojo)"}`,
+                opacity: f.situacion === "anulada" ? 0.7 : 1,
               }}>
                 <div style={{ flex: "1 1 260px", minWidth: 0 }}>
                   <div style={{ fontSize: 14.5, fontWeight: 600 }}>
@@ -185,15 +190,21 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
                   <div style={{ fontSize: 12.5, color: "var(--tinta-3)", marginTop: 2 }}>
                     Vence el {dia(f.fechaVencimiento)} · la paga {f.responsable === "inquilino" ? "el inquilino" : "el propietario"}
                     {f.numeroMedidor ? ` · medidor ${f.numeroMedidor}` : ""}
+                    {f.referenciaPago ? ` · ref. ${f.referenciaPago}` : ""}
                     {f.fechaPago ? ` · pagada el ${dia(f.fechaPago)}` : ""}
                   </div>
+                  {f.situacion === "anulada" && (
+                    <div style={{ fontSize: 12.5, color: "var(--mal)", marginTop: 2 }}>
+                      Anulada{f.anuladaAt ? ` el ${dia(f.anuladaAt)}` : ""}: {f.motivoAnulacion}
+                    </div>
+                  )}
                 </div>
-                <div className="num" style={{ width: 120, textAlign: "right", fontSize: 15.5, fontWeight: 600 }}>
+                <div className="num" style={{ width: 120, textAlign: "right", fontSize: 15.5, fontWeight: 600, textDecoration: f.situacion === "anulada" ? "line-through" : "none" }}>
                   {pesos(Number(f.valorPagado ?? f.valor))}
                 </div>
                 <span className={`pastilla ${s.clase}`} style={{ minWidth: 78, textAlign: "center" }}>{s.texto}</span>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {f.situacion !== "pagada" && (
+                  {f.situacion !== "pagada" && f.situacion !== "anulada" && (
                     <button className="boton" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
                       onClick={() => setPagando(f)}>
                       Registrar pago
@@ -207,15 +218,18 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
                     <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 10px" }}
                       onClick={() => abrirArchivo(f.comprobanteArchivoId!)}>Ver comprobante</button>
                   )}
-                  <button className="boton riesgo" style={{ height: 34, fontSize: 13, padding: "0 10px" }}
-                    disabled={ocupado === `e-${f.id}`}
-                    onClick={() => {
-                      if (window.confirm(`¿Eliminar la factura de ${f.tipo}? No se puede deshacer.`)) {
-                        void accion(`e-${f.id}`, () => api.facturasPropiedad.eliminar.mutate({ facturaId: f.id }), "Factura eliminada.");
-                      }
-                    }}>
-                    Eliminar
-                  </button>
+                  {f.situacion !== "anulada" && (
+                    <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 10px" }}
+                      onClick={() => setEditando(f)}>
+                      Editar
+                    </button>
+                  )}
+                  {f.situacion !== "anulada" && (
+                    <button className="boton riesgo" style={{ height: 34, fontSize: 13, padding: "0 10px" }}
+                      onClick={() => setAnulando(f)}>
+                      Anular
+                    </button>
+                  )}
                 </div>
               </article>
             );
@@ -243,6 +257,22 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
         </section>
       )}
 
+      {editando && (
+        <Ventana titulo={`Editar factura · ${editando.tipo} · ${editando.edificacion ?? `${editando.direccion}${editando.complemento ? `, ${editando.complemento}` : ""}`}`}
+          alCerrar={() => setEditando(null)}>
+          <FormularioEdicion factura={editando} tipo={tipos.find((t) => t.nombre === editando.tipo)}
+            alTerminar={() => { setEditando(null); setAviso("Factura actualizada."); void cargar(); }} />
+        </Ventana>
+      )}
+
+      {anulando && (
+        <Ventana titulo={`Anular factura · ${anulando.tipo} · ${anulando.edificacion ?? `${anulando.direccion}${anulando.complemento ? `, ${anulando.complemento}` : ""}`}`}
+          alCerrar={() => setAnulando(null)}>
+          <FormularioAnulacion factura={anulando}
+            alTerminar={() => { setAnulando(null); setAviso("Factura anulada."); void cargar(); }} />
+        </Ventana>
+      )}
+
       {pagando && (
         <Ventana titulo={`Registrar pago · ${pagando.tipo} · ${pagando.edificacion ?? `${pagando.direccion}${pagando.complemento ? `, ${pagando.complemento}` : ""}`}`}
           alCerrar={() => setPagando(null)}>
@@ -251,6 +281,168 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
         </Ventana>
       )}
     </div>
+  );
+}
+
+/** El período guardado («2026-09», «2026-B3», «2026») desarmado en sus partes. */
+function partesDePeriodo(periodo: string) {
+  const [anio = "", resto = ""] = periodo.split("-");
+  return {
+    anio,
+    mes: resto && !resto.startsWith("B") ? periodo : `${anio}-01`,
+    bimestre: resto.startsWith("B") ? resto.slice(1) : "1",
+  };
+}
+
+/**
+ * Corrige una factura ya registrada. El tipo y a nombre de quién está no se
+ * cambian —arrastran las reglas del tipo—: si se equivocó ahí, se anula y se
+ * registra otra.
+ */
+function FormularioEdicion({ factura, tipo, alTerminar }: {
+  factura: Factura; tipo: Tipo | undefined; alTerminar: () => void;
+}) {
+  const inicial = partesDePeriodo(factura.periodo);
+  const donde: Donde = factura.inmuebleId !== null ? { inmuebleId: factura.inmuebleId } : { edificacionId: factura.edificacionId! };
+  const [mes, setMes] = useState(inicial.mes);
+  const [bimestre, setBimestre] = useState(inicial.bimestre);
+  const [anio, setAnio] = useState(inicial.anio);
+  const [vence, setVence] = useState(String(factura.fechaVencimiento).slice(0, 10));
+  const [valor, setValor] = useState(String(Number(factura.valor)));
+  const [estado, setEstado] = useState<"sin_pagar" | "pagado">(factura.estado === "pagado" ? "pagado" : "sin_pagar");
+  const [responsable, setResponsable] = useState(factura.responsable);
+  const [medidor, setMedidor] = useState(factura.numeroMedidor ?? "");
+  const [referencia, setReferencia] = useState(factura.referenciaPago ?? "");
+  const [fechaPago, setFechaPago] = useState(factura.fechaPago ? String(factura.fechaPago).slice(0, 10) : hoyISO());
+  const [valorPagado, setValorPagado] = useState(String(Number(factura.valorPagado ?? factura.valor)));
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [comprobante, setComprobante] = useState<File | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const periodicidad = factura.periodicidad;
+  const periodo = periodicidad === "mensual" ? mes : periodicidad === "bimensual" ? `${anio}-B${bimestre}` : anio;
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true); setError(null);
+    try {
+      const archivoId = archivo ? await subir(donde, archivo) : undefined;
+      const comprobanteArchivoId = estado === "pagado" && comprobante ? await subir(donde, comprobante) : undefined;
+      await api.facturasPropiedad.editar.mutate({
+        facturaId: factura.id, periodo, fechaVencimiento: vence, valor: Number(valor), responsable, estado,
+        ...(tipo?.requiereMedidor ? { numeroMedidor: medidor.trim() } : {}),
+        ...(tipo?.requiereReferencia ? { referenciaPago: referencia.trim() } : {}),
+        ...(archivoId !== undefined ? { archivoId } : {}),
+        ...(estado === "pagado" ? { fechaPago, valorPagado: Number(valorPagado) } : {}),
+        ...(comprobanteArchivoId !== undefined ? { comprobanteArchivoId } : {}),
+      });
+      alTerminar();
+    } catch (err) {
+      const { mensajeDeError } = await import("../../lib/api");
+      setError(mensajeDeError(err));
+    } finally { setEnviando(false); }
+  }
+
+  return (
+    <form onSubmit={enviar} style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
+        {periodicidad === "mensual" && (
+          <Campo etiqueta="Mes de consumo"><input type="month" required value={mes} onChange={(e) => setMes(e.target.value)} /></Campo>
+        )}
+        {periodicidad === "bimensual" && (
+          <>
+            <Campo etiqueta="Bimestre de consumo">
+              <select value={bimestre} onChange={(e) => setBimestre(e.target.value)}>
+                {BIMESTRES.map((b, i) => <option key={b} value={i + 1}>Bimestre {i + 1} · {b}</option>)}
+              </select>
+            </Campo>
+            <Campo etiqueta="Año"><input type="number" required min={2000} max={2100} value={anio} onChange={(e) => setAnio(e.target.value)} /></Campo>
+          </>
+        )}
+        {periodicidad === "anual" && (
+          <Campo etiqueta="Año de consumo"><input type="number" required min={2000} max={2100} value={anio} onChange={(e) => setAnio(e.target.value)} /></Campo>
+        )}
+        <Campo etiqueta="Fecha de vencimiento"><input type="date" required value={vence} onChange={(e) => setVence(e.target.value)} /></Campo>
+        <Campo etiqueta="Valor"><input type="number" required min={1} step="any" value={valor} onChange={(e) => setValor(e.target.value)} /></Campo>
+        {tipo?.requiereMedidor && (
+          <Campo etiqueta="# Medidor"><input required maxLength={40} value={medidor} onChange={(e) => setMedidor(e.target.value)} /></Campo>
+        )}
+        {tipo?.requiereReferencia && (
+          <Campo etiqueta="Referencia de pago"><input required maxLength={60} value={referencia} onChange={(e) => setReferencia(e.target.value)} /></Campo>
+        )}
+        <Campo etiqueta="Responsable del pago">
+          <select value={responsable} onChange={(e) => setResponsable(e.target.value as typeof responsable)}>
+            <option value="propietario">Propietario</option>
+            <option value="inquilino">Inquilino</option>
+          </select>
+        </Campo>
+        <Campo etiqueta="Estado">
+          <select value={estado} onChange={(e) => setEstado(e.target.value as typeof estado)}>
+            <option value="sin_pagar">Sin pagar</option>
+            <option value="pagado">Pagado</option>
+          </select>
+        </Campo>
+        <Campo etiqueta="Factura (archivo)" ayuda={factura.archivoId !== null ? "Ya tiene uno: elegir otro lo reemplaza" : "Opcional"}>
+          <input type="file" accept={ACEPTA} onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
+        </Campo>
+      </div>
+
+      {estado === "pagado" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, paddingTop: 4 }}>
+          <Campo etiqueta="Fecha del pago"><input type="date" required value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} /></Campo>
+          <Campo etiqueta="Valor pagado"><input type="number" required min={1} step="any" value={valorPagado} onChange={(e) => setValorPagado(e.target.value)} /></Campo>
+          <Campo etiqueta="Comprobante" ayuda={factura.comprobanteArchivoId !== null ? "Ya tiene uno: elegir otro lo reemplaza" : "Opcional"}>
+            <input type="file" accept={ACEPTA} onChange={(e) => setComprobante(e.target.files?.[0] ?? null)} />
+          </Campo>
+        </div>
+      )}
+      {estado === "sin_pagar" && factura.estado === "pagado" && (
+        <div className="aviso ojo">Al dejarla sin pagar se borran la fecha, el valor y el comprobante del pago.</div>
+      )}
+
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+      <div><button type="submit" className="boton" disabled={enviando}>{enviando ? "Guardando…" : "Guardar cambios"}</button></div>
+    </form>
+  );
+}
+
+/** Anular pide el motivo: la factura queda a la vista, tachada, con la razón. */
+function FormularioAnulacion({ factura, alTerminar }: { factura: Factura; alTerminar: () => void }) {
+  const [motivo, setMotivo] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true); setError(null);
+    try {
+      await api.facturasPropiedad.anular.mutate({ facturaId: factura.id, motivo });
+      alTerminar();
+    } catch (err) {
+      const { mensajeDeError } = await import("../../lib/api");
+      setError(mensajeDeError(err));
+    } finally { setEnviando(false); }
+  }
+
+  return (
+    <form onSubmit={enviar} style={{ display: "grid", gap: 12 }}>
+      <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-2)" }}>
+        La factura no se borra: queda visible como anulada, con este motivo, y deja
+        de contar en los totales.
+      </p>
+      <Campo etiqueta="Motivo de anulación">
+        <textarea required minLength={4} maxLength={500} rows={3} value={motivo}
+          placeholder="Se registró dos veces / valor mal digitado / ya no aplica"
+          onChange={(e) => setMotivo(e.target.value)} />
+      </Campo>
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+      <div>
+        <button type="submit" className="boton riesgo" disabled={enviando || motivo.trim().length < 4}>
+          {enviando ? "Anulando…" : "Anular factura"}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -318,6 +510,8 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
   const [responsable, setResponsable] = useState<"propietario" | "inquilino">("propietario");
   const [medidor, setMedidor] = useState("");
   const [medidorTocado, setMedidorTocado] = useState(false);
+  const [referencia, setReferencia] = useState("");
+  const [referenciaTocada, setReferenciaTocada] = useState(false);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -331,6 +525,13 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
         && (unidad.startsWith("e") ? `e${f.edificacionId}` === unidad : String(f.inmuebleId) === unidad))?.numeroMedidor ?? ""
     : "";
   const medidorFinal = medidorTocado ? medidor : sugerido;
+
+  // La referencia de pago de un servicio tampoco cambia de un mes a otro.
+  const referenciaSugerida = tipo?.requiereReferencia
+    ? anteriores.find((f) => f.tipo === tipo.nombre && f.referenciaPago
+        && (unidad.startsWith("e") ? `e${f.edificacionId}` === unidad : String(f.inmuebleId) === unidad))?.referenciaPago ?? ""
+    : "";
+  const referenciaFinal = referenciaTocada ? referencia : referenciaSugerida;
   const categorias = [...new Set(tipos.map((t) => t.categoria))];
 
   const periodo = !tipo ? "" : tipo.periodicidad === "mensual" ? mes
@@ -347,6 +548,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
         ...donde, tipoFacturaId: tipo.id, periodo,
         fechaVencimiento: vence, valor: Number(valor), estado, responsable,
         ...(tipo.requiereMedidor ? { numeroMedidor: medidorFinal.trim() } : {}),
+        ...(tipo.requiereReferencia ? { referenciaPago: referenciaFinal.trim() } : {}),
         ...(archivoId !== undefined ? { archivoId } : {}),
       });
       alTerminar();
@@ -418,6 +620,12 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
               onChange={(e) => { setMedidor(e.target.value); setMedidorTocado(true); }} />
           </Campo>
         )}
+        {tipo?.requiereReferencia && (
+          <Campo etiqueta="Referencia de pago" ayuda={referenciaSugerida && !referenciaTocada ? "La de la última factura" : "Es la que se digita para pagar"}>
+            <input required value={referenciaFinal} maxLength={60} placeholder="Ej. 1234567890"
+              onChange={(e) => { setReferencia(e.target.value); setReferenciaTocada(true); }} />
+          </Campo>
+        )}
         <Campo etiqueta="Fecha de vencimiento">
           <input type="date" required value={vence} onChange={(e) => setVence(e.target.value)} />
         </Campo>
@@ -444,7 +652,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
 
       {error && <div className="aviso malo" role="alert">{error}</div>}
       <div>
-        <button type="submit" className="boton" disabled={enviando || !tipo || !vence || Number(valor) <= 0 || (tipo.requiereMedidor && medidorFinal.trim() === "")}>
+        <button type="submit" className="boton" disabled={enviando || !tipo || !vence || Number(valor) <= 0 || (tipo.requiereMedidor && medidorFinal.trim() === "") || (tipo.requiereReferencia && referenciaFinal.trim() === "")}>
           {enviando ? "Guardando…" : "Guardar factura"}
         </button>
       </div>
