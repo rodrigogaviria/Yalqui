@@ -74,6 +74,8 @@ export const incidencias = mysqlTable("incidencias", {
 	/** De quién es el número para coordinar la visita del técnico. Puede no ser
 	 *  el de la cuenta: quien reporta a veces da el de quien va a abrir. */
 	celularReporta: varchar("celular_reporta", { length: 30 }),
+	/** Quién la reportó, en palabras: la unidad o persona por la que la registra el propietario. */
+	reportadaPorNombre: varchar("reportada_por_nombre", { length: 191 }),
 	/** El tipo sale del catálogo administrable. La `categoria` de abajo es el
 	 *  ENUM anterior: se conserva por los índices y ya no se escribe. */
 	tipoIncidenciaId: int("tipo_incidencia_id", { unsigned: true }),

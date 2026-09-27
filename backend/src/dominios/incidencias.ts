@@ -96,6 +96,7 @@ export const incidenciasRouter = router({
           resueltaAt: incidencias.resueltaAt,
           ambito: incidencias.ambito,
           celularReporta: incidencias.celularReporta,
+          reportadaPorNombre: incidencias.reportadaPorNombre,
           inmuebleId: inmuebles.id,
           direccion: inmuebles.direccion,
           complemento: inmuebles.complemento,
@@ -173,6 +174,8 @@ export const incidenciasRouter = router({
       costoEstimado: dinero.optional(),
       /** A quién llamar. Si no viene, se toma el de quien reporta. */
       celularReporta: z.string().trim().max(30).optional(),
+      /** La unidad o persona que reportó, si quien registra lo hace por otro. */
+      reportadaPorNombre: z.string().trim().max(191).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (input.ambito === "unidad" && input.inmuebleId === undefined) {
@@ -231,6 +234,7 @@ export const incidenciasRouter = router({
           edificacionId: input.edificacionId ?? null,
           reportadaPorId: ctx.usuario.id,
           celularReporta: celular,
+          reportadaPorNombre: input.reportadaPorNombre || null,
           tipoIncidenciaId: input.tipoIncidenciaId,
           titulo: input.titulo,
           descripcion: input.descripcion ?? null,

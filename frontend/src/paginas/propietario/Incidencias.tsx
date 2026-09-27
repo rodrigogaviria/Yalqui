@@ -104,6 +104,11 @@ export function Incidencias({ unidades }: { unidades: Array<{ id: number; titulo
                     {i.descripcion && (
                       <div style={{ fontSize: 13, color: "var(--tinta-2)", marginTop: 4 }}>{i.descripcion}</div>
                     )}
+                    {i.reportadaPorNombre && (
+                      <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 3 }}>
+                        Reportó: {i.reportadaPorNombre}
+                      </div>
+                    )}
                     {i.celularReporta && (
                       <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 3 }}>
                         Contacto: <a href={`tel:${i.celularReporta}`}>{i.celularReporta}</a>
@@ -160,7 +165,7 @@ function Formulario({ unidades, edificaciones, tipos, ocupado, alReportar }: {
     ambito: "unidad" | "area_comun";
     inmuebleId?: number; edificacionId?: number;
     tipoIncidenciaId: number; titulo: string;
-    descripcion?: string; celularReporta?: string;
+    descripcion?: string; celularReporta?: string; reportadaPorNombre?: string;
   }) => void;
 }) {
   const [ambito, setAmbito] = useState<"unidad" | "area_comun">("unidad");
@@ -170,6 +175,7 @@ function Formulario({ unidades, edificaciones, tipos, ocupado, alReportar }: {
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [celular, setCelular] = useState("");
+  const [quien, setQuien] = useState("");
 
   const tipo = tipos.find((t) => String(t.id) === tipoId);
 
@@ -212,6 +218,9 @@ function Formulario({ unidades, edificaciones, tipos, ocupado, alReportar }: {
           </select>
         </Campo>
 
+        <Campo etiqueta="Quién reportó" ayuda="Unidad o persona que avisó · opcional">
+          <input value={quien} maxLength={191} placeholder="Apto 203 · María Pérez" onChange={(e) => setQuien(e.target.value)} />
+        </Campo>
         <Campo etiqueta="A quién llamar" ayuda="Si lo dejás vacío se usa tu teléfono">
           <input value={celular} onChange={(e) => setCelular(e.target.value)}
             placeholder="3001234567" />
@@ -245,6 +254,7 @@ function Formulario({ unidades, edificaciones, tipos, ocupado, alReportar }: {
             titulo: titulo.trim(),
             ...(descripcion.trim() === "" ? {} : { descripcion: descripcion.trim() }),
             ...(celular.trim() === "" ? {} : { celularReporta: celular.trim() }),
+            ...(quien.trim() === "" ? {} : { reportadaPorNombre: quien.trim() }),
           })}>
           {ocupado ? "Reportando…" : "Reportar"}
         </button>
