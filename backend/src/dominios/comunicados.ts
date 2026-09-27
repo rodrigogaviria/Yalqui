@@ -172,6 +172,33 @@ export const comunicadosRouter = router({
       return { estado: "enviado" as const };
     }),
 
+  /**
+   * Vuelve a mandar uno ya enviado: queda registrada la nueva fecha de envío.
+   * Como el envío real aún no está conectado, hoy solo actualiza el registro.
+   */
+  reenviar: privado
+    .input(z.object({ comunicadoId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const c = await comunicadoPropio(ctx, input.comunicadoId);
+      if (c.estado !== "enviado") {
+        throw new TRPCError({ code: "CONFLICT", message: "Solo se reenvía uno que ya se envió" });
+      }
+      await ctx.db
+        .update(comunicados)
+        .set({ enviadoAt: new Date().toISOString().slice(0, 19).replace("T", " ") })
+        .where(eq(comunicados.id, input.comunicadoId));
+      return { estado: "enviado" as const };
+    }),
+
+  /** Borra el comunicado, sea cual sea su estado. Su alcance y sus lecturas se van con él. */
+  eliminar: privado
+    .input(z.object({ comunicadoId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      await comunicadoPropio(ctx, input.comunicadoId);
+      await ctx.db.delete(comunicados).where(eq(comunicados.id, input.comunicadoId));
+      return { ok: true };
+    }),
+
   /** Descarta un borrador que no se va a mandar. Uno ya enviado no se toca: es historial. */
   descartar: privado
     .input(z.object({ comunicadoId: z.number().int().positive() }))

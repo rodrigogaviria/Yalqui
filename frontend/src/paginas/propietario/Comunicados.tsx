@@ -99,8 +99,8 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
                 {c.cuerpo.length > 260 ? `${c.cuerpo.slice(0, 260)}…` : c.cuerpo}
               </p>
 
-              {c.estado === "borrador" && (
-                <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {c.estado === "borrador" && (
                   <button className="boton" style={{ height: 36, fontSize: 13.5 }}
                     disabled={ocupado === c.id}
                     onClick={() => void accion(c.id,
@@ -108,15 +108,25 @@ export function Comunicados({ unidades }: { unidades: Array<{ id: number; titulo
                       "Comunicado marcado como enviado.")}>
                     {ocupado === c.id ? "…" : "Enviar"}
                   </button>
-                  <button className="boton fantasma" style={{ height: 36, fontSize: 13.5 }}
+                )}
+                {c.estado === "enviado" && (
+                  <button className="boton" style={{ height: 36, fontSize: 13.5 }}
                     disabled={ocupado === c.id}
                     onClick={() => void accion(c.id,
-                      () => api.comunicados.descartar.mutate({ comunicadoId: c.id }),
-                      "Borrador descartado.")}>
-                    Descartar
+                      () => api.comunicados.reenviar.mutate({ comunicadoId: c.id }),
+                      "Comunicado reenviado.")}>
+                    {ocupado === c.id ? "…" : "Reenviar"}
                   </button>
-                </div>
-              )}
+                )}
+                <button className="boton fantasma" style={{ height: 36, fontSize: 13.5 }}
+                  disabled={ocupado === c.id}
+                  onClick={() => {
+                    if (!window.confirm(`¿Eliminar «${c.titulo}»? No se puede deshacer.`)) return;
+                    void accion(c.id, () => api.comunicados.eliminar.mutate({ comunicadoId: c.id }), "Comunicado eliminado.");
+                  }}>
+                  Eliminar
+                </button>
+              </div>
 
               {c.enviadoAt && (
                 <div style={{ fontSize: 12, color: "var(--tinta-3)" }}>
