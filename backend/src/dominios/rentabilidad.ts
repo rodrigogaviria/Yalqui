@@ -1,17 +1,15 @@
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { router, privado, exigirRol } from "../trpc/base.js";
-import { ambitosCon } from "../auth/roles.js";
+import { router, privado } from "../trpc/base.js";
+import { ambitosCon, tieneRol } from "../auth/roles.js";
+import { puedeSobreEdificacion } from "./facturasPropiedad.js";
+import { repartirEnEdificacion } from "./gastoDeFactura.js";
 import { movimientos } from "../db/schema/finanzas.js";
 import { inmuebles } from "../db/schema/inventario.js";
 import { tiposMovimiento } from "../db/schema/administracion.js";
 
 const dinero = z.number().min(0).max(999_999_999);
-const delPropietario = exigirRol<{ inmuebleId: number }>(
-  "propietario", "inmueble", (e) => e.inmuebleId,
-);
-
 /** Un mes en formato AAAA-MM, como lo escribe el selector del navegador. */
 const periodo = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Usá el formato AAAA-MM");
 
@@ -54,6 +52,7 @@ export const rentabilidadRouter = router({
           fecha: movimientos.fecha,
           nota: movimientos.nota,
           origenTipo: movimientos.origenTipo,
+          reparto: movimientos.movimientoPadreId,
           inmuebleId: inmuebles.id,
           direccion: inmuebles.direccion,
           complemento: inmuebles.complemento,
@@ -112,15 +111,33 @@ export const rentabilidadRouter = router({
     }),
 
   /** Registra un ingreso o egreso a mano. */
-  registrar: delPropietario
+  /**
+   * Anota un movimiento a mano. Sobre una unidad, o sobre una edificación: en
+   * ese caso se reparte entre sus unidades como elija quien lo registra.
+   */
+  registrar: privado
     .input(z.object({
-      inmuebleId: z.number().int().positive(),
+      inmuebleId: z.number().int().positive().optional(),
+      edificacionId: z.number().int().positive().optional(),
+      prorrateo: z.enum(["partes_iguales", "por_area", "por_canon"]).optional(),
       tipoMovimientoId: z.number().int().positive(),
       monto: dinero,
       fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usá el formato AAAA-MM-DD"),
       nota: z.string().trim().max(255).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      if ((input.inmuebleId === undefined) === (input.edificacionId === undefined)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Decí si el gasto es de una unidad o de la edificación" });
+      }
+      const puede = input.inmuebleId !== undefined
+        ? tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)
+        : puedeSobreEdificacion(ctx.usuario.roles, input.edificacionId!);
+      if (!puede) throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
+      if (input.edificacionId !== undefined && !input.prorrateo) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Elegí cómo se reparte entre las unidades" });
+      }
+      if (input.monto <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "El monto debe ser mayor a cero" });
+
       const [tipo] = await ctx.db
         .select({ tipo: tiposMovimiento.tipo, activo: tiposMovimiento.activo })
         .from(tiposMovimiento)
@@ -130,20 +147,23 @@ export const rentabilidadRouter = router({
       if (!tipo) throw new TRPCError({ code: "NOT_FOUND", message: "Ese concepto no existe" });
       if (!tipo.activo) throw new TRPCError({ code: "CONFLICT", message: "Ese concepto está anulado" });
 
-      const [res] = await ctx.db.insert(movimientos).values({
-        ambito: "unidad",
-        inmuebleId: input.inmuebleId,
-        // El signo lo da el concepto, no quien registra: si el monto pudiera ser
-        // negativo, un mismo gasto entraría a veces como egreso y a veces como
-        // ingreso en negativo, y los totales dejarían de cuadrar.
-        tipo: tipo.tipo,
-        tipoMovimientoId: input.tipoMovimientoId,
-        monto: input.monto.toFixed(2),
-        fecha: input.fecha,
-        origenTipo: "manual",
-        nota: input.nota ?? null,
-      });
+      // El signo lo da el concepto, no quien registra: si el monto pudiera ser
+      // negativo, un mismo gasto entraría a veces como egreso y a veces como
+      // ingreso en negativo, y los totales dejarían de cuadrar.
+      const comunes = {
+        tipo: tipo.tipo, tipoMovimientoId: input.tipoMovimientoId, fecha: input.fecha,
+        origenTipo: "manual" as const, nota: input.nota ?? null,
+      };
 
+      if (input.edificacionId !== undefined) {
+        await ctx.db.transaction((tx) =>
+          repartirEnEdificacion(tx, input.edificacionId!, input.prorrateo!, comunes, input.monto));
+        return { movimientoId: null };
+      }
+
+      const [res] = await ctx.db.insert(movimientos).values({
+        ...comunes, ambito: "unidad", inmuebleId: input.inmuebleId!, monto: input.monto.toFixed(2),
+      });
       return { movimientoId: Number((res as { insertId: number }).insertId) };
     }),
 });

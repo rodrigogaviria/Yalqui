@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
@@ -19,7 +19,10 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
     ]);
     return { resumen, tipos: tipos.filter((t) => t.tipo === "egreso") };
   });
+  const [edificaciones, setEdificaciones] = useState<Array<{ id: number; nombre: string }>>([]);
+  useEffect(() => { void api.inmuebles.misEdificaciones.query().then(setEdificaciones).catch(() => setEdificaciones([])); }, []);
   const [inmuebleId, setInmuebleId] = useState("");
+  const [prorrateo, setProrrateo] = useState<"partes_iguales" | "por_area" | "por_canon">("partes_iguales");
   const [tipoId, setTipoId] = useState("");
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
@@ -32,7 +35,8 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
   const mesActual = new Date().toISOString().slice(0, 7);
   const delMes = gastos.filter((g) => String(g.fecha).slice(0, 7) === mesActual)
     .reduce((t, g) => t + Number(g.monto), 0);
-  const unidad = inmuebleId || String(unidades[0]?.id ?? "");
+  const unidad = inmuebleId || (edificaciones[0] ? `e${edificaciones[0].id}` : String(unidades[0]?.id ?? ""));
+  const esEdificacion = unidad.startsWith("e");
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -52,10 +56,20 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
             <Campo etiqueta="Propiedad">
               <select value={unidad} onChange={(e) => setInmuebleId(e.target.value)}>
+                {edificaciones.map((e) => <option key={`e${e.id}`} value={`e${e.id}`}>{e.nombre} (toda la edificación)</option>)}
                 {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
               </select>
             </Campo>
-            <Campo etiqueta="Concepto">
+            {esEdificacion && (
+              <Campo etiqueta="Reparto entre las unidades">
+                <select value={prorrateo} onChange={(e) => setProrrateo(e.target.value as typeof prorrateo)}>
+                  <option value="partes_iguales">Partes iguales</option>
+                  <option value="por_area">Por área</option>
+                  <option value="por_canon">Por canon</option>
+                </select>
+              </Campo>
+            )}
+            <Campo etiqueta="Tipo de gasto">
               <select value={tipoId} onChange={(e) => setTipoId(e.target.value)}>
                 <option value="">Elegí uno…</option>
                 {datos.tipos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
@@ -69,7 +83,7 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
               <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </Campo>
           </div>
-          <Campo etiqueta="Nota" ayuda="Opcional">
+          <Campo etiqueta="Concepto" ayuda="Opcional · qué se pagó">
             <input value={nota} onChange={(e) => setNota(e.target.value)} />
           </Campo>
           <div>
@@ -77,7 +91,8 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
               disabled={ocupado === "nuevo" || tipoId === "" || Number(monto) <= 0}
               onClick={() => void accion("nuevo",
                 () => api.rentabilidad.registrar.mutate({
-                  inmuebleId: Number(unidad), tipoMovimientoId: Number(tipoId),
+                  ...(esEdificacion ? { edificacionId: Number(unidad.slice(1)), prorrateo } : { inmuebleId: Number(unidad) }),
+                  tipoMovimientoId: Number(tipoId),
                   monto: Number(monto), fecha, ...(nota.trim() ? { nota: nota.trim() } : {}),
                 }),
                 "Gasto registrado.",
@@ -108,6 +123,9 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
               <div style={{ flex: "1 1 260px", minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 600 }}>
                   {g.concepto ?? "Sin clasificar"}
+                  {g.reparto !== null && (
+                    <span className="pastilla" style={{ marginLeft: 8, fontSize: 11 }}>Parte de un gasto de la edificación</span>
+                  )}
                   {g.origenTipo === "factura_propiedad" && (
                     <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>De una factura</span>
                   )}

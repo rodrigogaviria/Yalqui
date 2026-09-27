@@ -83,37 +83,54 @@ export async function sincronizarGasto(db: Database | Tx, facturaId: number): Pr
       return;
     }
 
-    const [ed] = await tx.select({ propietarioId: edificaciones.propietarioId }).from(edificaciones)
-      .where(eq(edificaciones.id, f.edificacionId!)).limit(1);
-    const unidades = await tx
-      .select({ id: inmuebles.id, complemento: inmuebles.complemento, area: inmuebles.areaConstruidaM2, canon: inmuebles.canonBase })
-      .from(inmuebles)
-      .where(ed?.propietarioId
-        ? and(eq(inmuebles.edificacionId, f.edificacionId!), eq(inmuebles.propietarioId, ed.propietarioId))
-        : eq(inmuebles.edificacionId, f.edificacionId!));
-    if (unidades.length === 0) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "La edificación no tiene unidades entre las que repartir el gasto" });
-    }
-
-    const reparto = f.prorrateo === "ninguno" ? "partes_iguales" : f.prorrateo;
-    const pesos = unidades.map((u) =>
-      reparto === "por_area" ? Number(u.area ?? 0) : reparto === "por_canon" ? Number(u.canon) : 1);
-    if (pesos.some((p) => p <= 0)) {
-      const sin = unidades.filter((_, i) => pesos[i]! <= 0).map((u) => u.complemento ?? `#${u.id}`);
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `No se puede repartir ${reparto === "por_area" ? "por área" : "por canon"}: falta ${reparto === "por_area" ? "el área" : "el canon"} de ${sin.join(", ")}`,
-      });
-    }
-
-    const [padre] = await tx.insert(movimientos).values({
-      ...comunes, ambito: "edificacion", edificacionId: f.edificacionId, monto: total.toFixed(2), prorrateo: reparto,
-    });
-    const padreId = Number((padre as { insertId: number }).insertId);
-    const partes = repartir(total, pesos);
-    await tx.insert(movimientos).values(unidades.map((u, i) => ({
-      ...comunes, ambito: "unidad" as const, inmuebleId: u.id, movimientoPadreId: padreId,
-      monto: partes[i]!.toFixed(2), prorrateo: reparto,
-    })));
+    await repartirEnEdificacion(tx, f.edificacionId!, f.prorrateo === "ninguno" ? "partes_iguales" : f.prorrateo, comunes, total);
   });
+}
+
+type Comunes = {
+  tipo: "ingreso" | "egreso"; tipoMovimientoId: number | null; fecha: string;
+  origenTipo: "factura_propiedad" | "manual"; origenId?: number; nota: string | null;
+};
+
+/**
+ * Anota un movimiento de una edificación: uno padre por el total y uno por
+ * cada unidad del dueño de la edificación, repartido como se pida. Los hijos
+ * son los que cuentan en Mis Rendimientos. Lo usan el gasto que nace de una
+ * factura y el gasto que se anota a mano sobre la edificación.
+ */
+export async function repartirEnEdificacion(
+  tx: Tx, edificacionId: number, reparto: "partes_iguales" | "por_area" | "por_canon",
+  comunes: Comunes, total: number,
+): Promise<void> {
+  const [ed] = await tx.select({ propietarioId: edificaciones.propietarioId }).from(edificaciones)
+    .where(eq(edificaciones.id, edificacionId)).limit(1);
+  const unidades = await tx
+    .select({ id: inmuebles.id, complemento: inmuebles.complemento, area: inmuebles.areaConstruidaM2, canon: inmuebles.canonBase })
+    .from(inmuebles)
+    .where(ed?.propietarioId
+      ? and(eq(inmuebles.edificacionId, edificacionId), eq(inmuebles.propietarioId, ed.propietarioId))
+      : eq(inmuebles.edificacionId, edificacionId));
+  if (unidades.length === 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "La edificación no tiene unidades entre las que repartir el gasto" });
+  }
+
+  const pesos = unidades.map((u) =>
+    reparto === "por_area" ? Number(u.area ?? 0) : reparto === "por_canon" ? Number(u.canon) : 1);
+  if (pesos.some((p) => p <= 0)) {
+    const sin = unidades.filter((_, i) => pesos[i]! <= 0).map((u) => u.complemento ?? `#${u.id}`);
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `No se puede repartir ${reparto === "por_area" ? "por área" : "por canon"}: falta ${reparto === "por_area" ? "el área" : "el canon"} de ${sin.join(", ")}`,
+    });
+  }
+
+  const [padre] = await tx.insert(movimientos).values({
+    ...comunes, ambito: "edificacion", edificacionId: edificacionId, monto: total.toFixed(2), prorrateo: reparto,
+  });
+  const padreId = Number((padre as { insertId: number }).insertId);
+  const partes = repartir(total, pesos);
+  await tx.insert(movimientos).values(unidades.map((u, i) => ({
+    ...comunes, ambito: "unidad" as const, inmuebleId: u.id, movimientoPadreId: padreId,
+    monto: partes[i]!.toFixed(2), prorrateo: reparto,
+  })));
 }

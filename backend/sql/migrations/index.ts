@@ -72,6 +72,8 @@ import m033 from "./033_anular_factura.sql";
 import m034 from "./034_referencia_pago.sql";
 // @ts-ignore
 import m035 from "./035_gasto_de_factura.sql";
+// @ts-ignore
+import m036 from "./036_tipo_gasto_insumo.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -115,4 +117,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "033", nombre: "anular_factura", sql: m033 as string },
   { version: "034", nombre: "referencia_pago", sql: m034 as string },
   { version: "035", nombre: "gasto_de_factura", sql: m035 as string },
+  { version: "036", nombre: "tipo_gasto_insumo", sql: m036 as string },
 ];
