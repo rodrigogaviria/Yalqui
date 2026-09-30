@@ -80,6 +80,8 @@ import m037 from "./037_incidencia_reportada_por.sql";
 import m038 from "./038_unidad_fechas_contrato.sql";
 // @ts-ignore
 import m039 from "./039_pago_unidad_monto.sql";
+// @ts-ignore
+import m040 from "./040_pago_unidad_anular.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -127,4 +129,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "037", nombre: "incidencia_reportada_por", sql: m037 as string },
   { version: "038", nombre: "unidad_fechas_contrato", sql: m038 as string },
   { version: "039", nombre: "pago_unidad_monto", sql: m039 as string },
+  { version: "040", nombre: "pago_unidad_anular", sql: m040 as string },
 ];

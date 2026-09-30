@@ -10,6 +10,7 @@ export const PASTILLA_PAGO: Record<PagoDeUnidad["estado"], { texto: string; clas
   pendiente: { texto: "En revisión", clase: "pausado" },
   confirmado: { texto: "Confirmado", clase: "arrendado" },
   rechazado: { texto: "Rechazado", clase: "mora" },
+  anulado: { texto: "Anulado", clase: "borrador" },
 };
 
 /** El día del mes en que se espera el pago, recortado al último día de meses cortos. */

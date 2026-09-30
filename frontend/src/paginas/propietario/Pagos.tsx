@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "../../lib/api";
+import { api, mensajeDeError } from "../../lib/api";
 import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
 import { SubirPago } from "../../componentes/SubirPago";
@@ -23,6 +23,8 @@ export function Pagos() {
   const [vista, setVista] = useState<"lista" | "calendario">("calendario");
   const [mes, setMes] = useState(() => ({ anio: new Date().getFullYear(), mes: new Date().getMonth() }));
   const [subiendo, setSubiendo] = useState<{ unidad: string; inmuebleId: number; fecha: string } | null>(null);
+  const [editando, setEditando] = useState<PagoUnidad | null>(null);
+  const [anulando, setAnulando] = useState<PagoUnidad | null>(null);
   const { datos, error, aviso, ocupado, accion, cargar, setAviso } = usePantalla(async () => {
     const [facturas, porVerificar, unidades, pagosUnidad] = await Promise.all([
       api.facturacion.misFacturas.query(),
@@ -182,6 +184,60 @@ export function Pagos() {
         </section>
       )}
 
+      {pagosUnidad.some((p) => p.estado !== "pendiente") && (
+        <section className="tarjeta" style={{ padding: "18px 20px", display: "grid", gap: 12 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Pagos registrados</h2>
+          {pagosUnidad.filter((p) => p.estado !== "pendiente")
+            .sort((a, b) => +new Date(b.fechaPago) - +new Date(a.fechaPago))
+            .map((p) => {
+              const u = unidades.find((x) => x.id === p.inmuebleId);
+              const anulado = p.estado === "anulado";
+              return (
+                <div key={p.id} style={{
+                  display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+                  padding: "12px 14px", borderRadius: 10, border: "1px solid var(--linea)",
+                  opacity: anulado ? 0.6 : 1,
+                }}>
+                  <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 600 }}>
+                      {u ? `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}` : `Unidad ${p.inmuebleId}`}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
+                      Pago del {new Date(p.fechaPago).toLocaleDateString("es-CO", { timeZone: "UTC" })} · {p.medio === "efectivo" ? "efectivo" : "transferencia"}
+                      {p.monto !== null && ` · ${pesos(Number(p.monto))}`}
+                      {anulado && p.motivoRechazo ? ` · Anulado: ${p.motivoRechazo}` : ""}
+                      {p.estado === "rechazado" && p.motivoRechazo ? ` · Rechazado: ${p.motivoRechazo}` : ""}
+                    </div>
+                  </div>
+                  <span className={`pastilla ${anulado ? "borrador" : p.estado === "rechazado" ? "mora" : "arrendado"}`}>
+                    {anulado ? "Anulado" : p.estado === "rechazado" ? "Rechazado" : "Confirmado"}
+                  </span>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {p.comprobanteArchivoId !== null && (
+                      <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
+                        onClick={() => abrirArchivo(p.comprobanteArchivoId!)}>
+                        Ver comprobante
+                      </button>
+                    )}
+                    {!anulado && (
+                      <>
+                        <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
+                          onClick={() => setEditando(p)}>
+                          Editar
+                        </button>
+                        <button className="boton riesgo" style={{ height: 38, fontSize: 13.5 }}
+                          onClick={() => setAnulando(p)}>
+                          Anular
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+        </section>
+      )}
+
       {vista === "calendario" ? (
         <Calendario facturas={cuenta.facturas} unidades={unidades} pagosUnidad={pagosUnidad} mes={mes} setMes={setMes}
           alElegir={elegir} />
@@ -206,6 +262,26 @@ export function Pagos() {
               setAviso(`Pago de ${subiendo.unidad} registrado (${periodo}).`);
               void cargar();
             }} />
+        </Ventana>
+      )}
+
+      {editando && (
+        <Ventana titulo="Editar pago" alCerrar={() => setEditando(null)}>
+          <FormularioEditarPago pago={editando} alTerminar={() => {
+            setEditando(null);
+            setAviso("Pago actualizado.");
+            void cargar();
+          }} />
+        </Ventana>
+      )}
+
+      {anulando && (
+        <Ventana titulo="Anular pago" alCerrar={() => setAnulando(null)}>
+          <FormularioAnularPago pago={anulando} alTerminar={() => {
+            setAnulando(null);
+            setAviso("Pago anulado.");
+            void cargar();
+          }} />
         </Ventana>
       )}
     </div>
@@ -569,4 +645,108 @@ function nombreMes(periodo: string): string {
   const fecha = new Date(Number(ano), Number(mes) - 1, 1);
   const texto = fecha.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/** Corrige fecha, medio, valor o comprobante de un pago ya registrado. */
+function FormularioEditarPago({ pago, alTerminar }: { pago: PagoUnidad; alTerminar: () => void }) {
+  const [fecha, setFecha] = useState(String(pago.fechaPago).slice(0, 10));
+  const [medio, setMedio] = useState<"efectivo" | "transferencia">(pago.medio);
+  const [monto, setMonto] = useState(pago.monto !== null ? String(Number(pago.monto)) : "");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true); setError(null);
+    try {
+      let comprobanteArchivoId: number | undefined;
+      if (archivo) {
+        const subida = await api.archivos.solicitarSubidaPagoUnidad.mutate({
+          inmuebleId: pago.inmuebleId,
+          nombre: archivo.name,
+          mime: archivo.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp" | "image/heic",
+          bytes: archivo.size,
+        });
+        const r = await fetch(subida.url, { method: "PUT", headers: { "content-type": archivo.type }, body: archivo });
+        if (!r.ok) throw new Error("No se pudo subir el archivo. Probá de nuevo.");
+        comprobanteArchivoId = subida.archivoId;
+      }
+      await api.facturacion.editarPagoUnidad.mutate({
+        pagoId: pago.id, fechaPago: new Date(fecha), medio,
+        ...(monto.trim() !== "" ? { monto: Number(monto) } : {}),
+        ...(comprobanteArchivoId !== undefined ? { comprobanteArchivoId } : {}),
+      });
+      alTerminar();
+    } catch (err) {
+      setError(mensajeDeError(err));
+    } finally { setEnviando(false); }
+  }
+
+  return (
+    <form onSubmit={enviar} style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12 }}>
+        <Campo etiqueta="Fecha del pago">
+          <input type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} />
+        </Campo>
+        <Campo etiqueta="Medio de pago">
+          <select value={medio} onChange={(e) => setMedio(e.target.value as typeof medio)}>
+            <option value="transferencia">Transferencia</option>
+            <option value="efectivo">Efectivo</option>
+          </select>
+        </Campo>
+        <Campo etiqueta="Valor">
+          <input type="number" min={1} step="any" value={monto} onChange={(e) => setMonto(e.target.value)} />
+        </Campo>
+      </div>
+      <Campo etiqueta="Reemplazar comprobante" ayuda="Opcional · foto o PDF, hasta 10 MB">
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
+          onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
+      </Campo>
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+      <div>
+        <button type="submit" className="boton" disabled={enviando}>
+          {enviando ? "Guardando…" : "Guardar cambios"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** Anula un pago sin borrarlo: queda de historial, fuera del calendario y los totales. */
+function FormularioAnularPago({ pago, alTerminar }: { pago: PagoUnidad; alTerminar: () => void }) {
+  const [motivo, setMotivo] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true); setError(null);
+    try {
+      await api.facturacion.anularPagoUnidad.mutate({ pagoId: pago.id, motivo });
+      alTerminar();
+    } catch (err) {
+      setError(mensajeDeError(err));
+    } finally { setEnviando(false); }
+  }
+
+  return (
+    <form onSubmit={enviar} style={{ display: "grid", gap: 12 }}>
+      <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-2)" }}>
+        El pago no se borra: queda visible como anulado, con este motivo, y deja de
+        contar en el calendario y en los totales.
+      </p>
+      <Campo etiqueta="Motivo de anulación">
+        <textarea required minLength={4} maxLength={500} rows={3} value={motivo}
+          placeholder="Se registró dos veces / valor mal digitado / unidad equivocada"
+          onChange={(e) => setMotivo(e.target.value)} />
+      </Campo>
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+      <div>
+        <button type="submit" className="boton riesgo" disabled={enviando || motivo.trim().length < 4}>
+          {enviando ? "Anulando…" : "Anular pago"}
+        </button>
+      </div>
+    </form>
+  );
 }

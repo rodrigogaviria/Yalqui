@@ -84,7 +84,11 @@ export const pagosUnidad = mysqlTable("pagos_unidad", {
   medio: mysqlEnum("medio", ["efectivo", "transferencia"]).notNull(),
   /** Nulo en los pagos de antes de que existiera: eran binarios, sin monto. */
   monto: decimal("monto", { precision: 14, scale: 2 }),
-  estado: mysqlEnum("estado", ["pendiente", "confirmado", "rechazado"]).notNull().default("confirmado"),
+  /** `anulado` es un pago que se cargó mal y se retira sin borrarlo: queda
+   *  de historial, fuera de lo que cuenta en el calendario. */
+  estado: mysqlEnum("estado", ["pendiente", "confirmado", "rechazado", "anulado"]).notNull().default("confirmado"),
+  /** El motivo de por qué se rechazó o se anuló. Un solo campo porque un pago
+   *  solo está en uno de los dos estados a la vez. */
   motivoRechazo: varchar("motivo_rechazo", { length: 500 }),
   comprobanteArchivoId: bigint("comprobante_archivo_id", { mode: "number", unsigned: true }),
   registradoPorId: int("registrado_por_id", { unsigned: true }),

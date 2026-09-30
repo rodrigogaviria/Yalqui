@@ -101,6 +101,87 @@ export const facturacionRouter = router({
       return { estado: input.decision };
     }),
 
+  /**
+   * Anula un pago que se cargó mal: fecha, medio o unidad equivocados. No se
+   * borra —queda de historial, con su motivo— pero deja de contar en el
+   * calendario y en los totales, igual que una factura anulada.
+   */
+  anularPagoUnidad: privado
+    .input(z.object({
+      pagoId: z.number().int().positive(),
+      motivo: z.string().trim().min(4, "Contá por qué se anula").max(500),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [p] = await ctx.db.select({ inmuebleId: pagosUnidad.inmuebleId, estado: pagosUnidad.estado })
+        .from(pagosUnidad).where(eq(pagosUnidad.id, input.pagoId)).limit(1);
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Ese pago no existe" });
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", p.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      if (p.estado === "anulado") {
+        throw new TRPCError({ code: "CONFLICT", message: "Ese pago ya está anulado" });
+      }
+      await ctx.db.update(pagosUnidad).set({ estado: "anulado", motivoRechazo: input.motivo })
+        .where(eq(pagosUnidad.id, input.pagoId));
+      return { estado: "anulado" as const };
+    }),
+
+  /**
+   * Corrige un pago ya registrado: fecha, medio, monto o comprobante. El de
+   * un pago anulado no se toca — si se cargó mal del todo, anularlo y
+   * registrar otro es lo correcto, no resucitarlo con la edición.
+   */
+  editarPagoUnidad: privado
+    .input(z.object({
+      pagoId: z.number().int().positive(),
+      fechaPago: z.coerce.date().optional(),
+      medio: z.enum(["efectivo", "transferencia"]).optional(),
+      monto: dinero.optional(),
+      comprobanteArchivoId: z.number().int().positive().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [p] = await ctx.db.select({
+        inmuebleId: pagosUnidad.inmuebleId, estado: pagosUnidad.estado,
+        medio: pagosUnidad.medio, comprobanteArchivoId: pagosUnidad.comprobanteArchivoId,
+      }).from(pagosUnidad).where(eq(pagosUnidad.id, input.pagoId)).limit(1);
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Ese pago no existe" });
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", p.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      if (p.estado === "anulado") {
+        throw new TRPCError({ code: "CONFLICT", message: "Un pago anulado no se edita" });
+      }
+
+      const medio = input.medio ?? p.medio;
+      const comprobanteArchivoId = input.comprobanteArchivoId ?? p.comprobanteArchivoId ?? undefined;
+      if (medio === "transferencia" && comprobanteArchivoId === undefined) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Una transferencia necesita comprobante" });
+      }
+      if (input.comprobanteArchivoId !== undefined) {
+        const [a] = await ctx.db.select({ tipo: archivos.entidadTipo, entidad: archivos.entidadId })
+          .from(archivos).where(eq(archivos.id, input.comprobanteArchivoId)).limit(1);
+        if (!a || a.tipo !== "pago_unidad" || a.entidad !== p.inmuebleId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Ese comprobante no es de esta unidad" });
+        }
+      }
+
+      const set: Record<string, unknown> = {};
+      if (input.medio !== undefined) set["medio"] = input.medio;
+      if (input.monto !== undefined) set["monto"] = input.monto.toFixed(2);
+      if (input.comprobanteArchivoId !== undefined) set["comprobanteArchivoId"] = input.comprobanteArchivoId;
+      if (input.fechaPago !== undefined) {
+        const f = input.fechaPago;
+        set["fechaPago"] = f;
+        set["periodo"] = `${f.getUTCFullYear()}-${String(f.getUTCMonth() + 1).padStart(2, "0")}`;
+      }
+      if (Object.keys(set).length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No hay nada que cambiar" });
+      }
+
+      await ctx.db.update(pagosUnidad).set(set).where(eq(pagosUnidad.id, input.pagoId));
+      return { ok: true };
+    }),
+
   /** Los pagos registrados sobre las unidades del propietario. */
   misPagosUnidad: privado.query(async ({ ctx }) => {
     const ids = ctx.usuario.roles
