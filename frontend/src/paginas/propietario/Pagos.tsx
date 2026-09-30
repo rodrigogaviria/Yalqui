@@ -96,6 +96,7 @@ export function Pagos() {
                   </div>
                   <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
                     Pago del {new Date(p.fechaPago).toLocaleDateString("es-CO", { timeZone: "UTC" })} · {p.medio === "efectivo" ? "efectivo" : "transferencia"}
+                    {p.monto !== null && ` · ${pesos(Number(p.monto))}`}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

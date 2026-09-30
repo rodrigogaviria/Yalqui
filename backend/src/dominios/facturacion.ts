@@ -29,38 +29,48 @@ const delPropietario = exigirRol<{ inmuebleId: number }>(
 
 export const facturacionRouter = router({
   /**
-   * Registra el pago de una unidad: fecha, medio y comprobante.
+   * Registra el pago de una unidad: fecha y una o varias partes, cada una con
+   * su medio, su monto y su comprobante.
    *
-   * No pasa por factura ni contrato, así sirve para unidades arrendadas que
-   * todavía no tienen uno firmado en Yalqui. El mes de la fecha es el que
-   * queda pago en el calendario. La transferencia exige comprobante; el
-   * efectivo no, porque muchas veces no hay nada que fotografiar.
+   * Varias partes es lo que permite anotar que el mismo pago llegó dividido:
+   * una porción en efectivo y el resto por transferencia, cada una con su
+   * propio comprobante. No pasa por factura ni contrato, así sirve para
+   * unidades arrendadas que todavía no tienen uno firmado en Yalqui. El mes
+   * de la fecha es el que queda pago en el calendario. La transferencia
+   * exige comprobante; el efectivo no, porque muchas veces no hay nada que
+   * fotografiar.
    */
   registrarPagoUnidad: delPropietario
     .input(z.object({
       inmuebleId: z.number().int().positive(),
       fechaPago: z.coerce.date(),
-      medio: z.enum(["efectivo", "transferencia"]),
-      comprobanteArchivoId: z.number().int().positive().optional(),
+      partes: z.array(z.object({
+        monto: dinero,
+        medio: z.enum(["efectivo", "transferencia"]),
+        comprobanteArchivoId: z.number().int().positive().optional(),
+      })).min(1).max(6),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (input.medio === "transferencia" && input.comprobanteArchivoId === undefined) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Una transferencia necesita comprobante" });
-      }
-      if (input.comprobanteArchivoId !== undefined) {
-        const [a] = await ctx.db.select({ tipo: archivos.entidadTipo, entidad: archivos.entidadId })
-          .from(archivos).where(eq(archivos.id, input.comprobanteArchivoId)).limit(1);
-        if (!a || a.tipo !== "pago_unidad" || a.entidad !== input.inmuebleId) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Ese comprobante no es de esta unidad" });
+      for (const parte of input.partes) {
+        if (parte.medio === "transferencia" && parte.comprobanteArchivoId === undefined) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Una transferencia necesita comprobante" });
+        }
+        if (parte.comprobanteArchivoId !== undefined) {
+          const [a] = await ctx.db.select({ tipo: archivos.entidadTipo, entidad: archivos.entidadId })
+            .from(archivos).where(eq(archivos.id, parte.comprobanteArchivoId)).limit(1);
+          if (!a || a.tipo !== "pago_unidad" || a.entidad !== input.inmuebleId) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Ese comprobante no es de esta unidad" });
+          }
         }
       }
       const f = input.fechaPago;
       const periodo = `${f.getUTCFullYear()}-${String(f.getUTCMonth() + 1).padStart(2, "0")}`;
-      await ctx.db.insert(pagosUnidad).values({
-        inmuebleId: input.inmuebleId, periodo, fechaPago: f, medio: input.medio,
-        comprobanteArchivoId: input.comprobanteArchivoId ?? null,
+      await ctx.db.insert(pagosUnidad).values(input.partes.map((parte) => ({
+        inmuebleId: input.inmuebleId, periodo, fechaPago: f, medio: parte.medio,
+        monto: parte.monto.toFixed(2),
+        comprobanteArchivoId: parte.comprobanteArchivoId ?? null,
         registradoPorId: ctx.usuario.id,
-      });
+      })));
       return { periodo };
     }),
 
@@ -100,7 +110,8 @@ export const facturacionRouter = router({
     return ctx.db
       .select({
         id: pagosUnidad.id, inmuebleId: pagosUnidad.inmuebleId, periodo: pagosUnidad.periodo,
-        fechaPago: pagosUnidad.fechaPago, medio: pagosUnidad.medio, estado: pagosUnidad.estado,
+        fechaPago: pagosUnidad.fechaPago, medio: pagosUnidad.medio, monto: pagosUnidad.monto,
+        estado: pagosUnidad.estado,
         motivoRechazo: pagosUnidad.motivoRechazo,
         comprobanteArchivoId: pagosUnidad.comprobanteArchivoId,
       })

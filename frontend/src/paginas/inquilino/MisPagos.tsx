@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../../lib/api";
 import { SubirPago } from "../../componentes/SubirPago";
 import { Ventana } from "../../componentes/Ventana";
+import { pesos } from "../../componentes/Dinero";
 import { usePantalla, Encabezado, Vacio } from "../propietario/comun";
 import { PASTILLA_PAGO, fechaCorta, nombreUnidad, verComprobante } from "./comun";
 
@@ -44,6 +45,7 @@ export function MisPagos() {
                   <div style={{ fontSize: 14.5, fontWeight: 600 }}>Pago del {fechaCorta(p.fechaPago)}</div>
                   <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
                     {p.medio === "efectivo" ? "Efectivo" : "Transferencia"}
+                    {p.monto !== null && ` · ${pesos(Number(p.monto))}`}
                     {p.estado === "rechazado" && p.motivoRechazo ? ` · Motivo: ${p.motivoRechazo}` : ""}
                   </div>
                 </div>
