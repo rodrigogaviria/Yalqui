@@ -226,11 +226,21 @@ const periodoDe = (m: Mes) => `${m.anio}-${String(m.mes + 1).padStart(2, "0")}`;
  *  cuadrícula y de los totales de arriba, para que nunca se contradigan. */
 type PagoUnidad = Awaited<ReturnType<typeof api.facturacion.misPagosUnidad.query>>[number];
 
+/** Si la unidad tiene fecha de inicio (o fin) de contrato, el mes solo cuenta
+ *  dentro de ese rango: antes de empezar, o después de terminar, no hay pago
+ *  previsto que mostrar. Sin fechas puestas, se usa el estado como hasta ahora. */
+function dentroDelContrato(u: Unidad, m: Mes): boolean {
+  const periodo = periodoDe(m);
+  if (u.contratoFechaInicio && periodo < String(u.contratoFechaInicio).slice(0, 7)) return false;
+  if (u.contratoFechaFin && periodo > String(u.contratoFechaFin).slice(0, 7)) return false;
+  return true;
+}
+
 function situacionDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUnidad[], m: Mes) {
   const hoy = new Date();
   const ultimo = new Date(m.anio, m.mes + 1, 0).getDate();
   const periodo = periodoDe(m);
-  return unidades.filter((u) => u.estado === "arrendado").map((u) => {
+  return unidades.filter((u) => u.estado === "arrendado" && dentroDelContrato(u, m)).map((u) => {
     const dia = Math.min(u.diaPago, ultimo);
     // Pago si hay factura pagada o un pago registrado sobre la unidad ese mes.
     const pagada = facturas.some(

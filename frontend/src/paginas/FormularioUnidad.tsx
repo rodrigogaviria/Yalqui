@@ -50,6 +50,8 @@ export function FormularioUnidad({
   const [valorAdministracion, setValorAdministracion] = useState("");
   const [diaPago, setDiaPago] = useState("5");
   const [diasGracia, setDiasGracia] = useState("5");
+  const [contratoFechaInicio, setContratoFechaInicio] = useState("");
+  const [contratoFechaFin, setContratoFechaFin] = useState("");
   const [administracionIncluida, setAdministracionIncluida] = useState(false);
   const [habitaciones, setHabitaciones] = useState("");
   const [banos, setBanos] = useState("");
@@ -82,6 +84,8 @@ export function FormularioUnidad({
         setValorAdministracion(texto(unidad.valorAdministracion));
         setDiaPago(texto(unidad.diaPago) || "5");
         setDiasGracia(texto(unidad.diasGracia) || "0");
+        setContratoFechaInicio(unidad.contratoFechaInicio ? String(unidad.contratoFechaInicio).slice(0, 10) : "");
+        setContratoFechaFin(unidad.contratoFechaFin ? String(unidad.contratoFechaFin).slice(0, 10) : "");
         setAdministracionIncluida(unidad.administracionIncluida);
         setHabitaciones(texto(unidad.habitaciones));
         setBanos(texto(unidad.banos));
@@ -172,6 +176,8 @@ export function FormularioUnidad({
       valorAdministracion: admin,
       diaPago: Number(diaPago) || 5,
       diasGracia: Number(diasGracia) || 0,
+      contratoFechaInicio: contratoFechaInicio || undefined,
+      contratoFechaFin: contratoFechaFin || undefined,
       administracionIncluida,
       habitaciones: numero(habitaciones),
       banos: numero(banos),
@@ -287,6 +293,12 @@ export function FormularioUnidad({
           <Campo etiqueta="Día previsto de pago" ayuda="Del 1 al 31. Es el que toma el contrato">
             <input type="number" min={1} max={31} value={diaPago}
               onChange={(e) => setDiaPago(e.target.value)} required />
+          </Campo>
+          <Campo etiqueta="Inicio del contrato" ayuda="Desde ahí sale en el calendario de Mis Pagos">
+            <input type="date" value={contratoFechaInicio} onChange={(e) => setContratoFechaInicio(e.target.value)} />
+          </Campo>
+          <Campo etiqueta="Fin del contrato" ayuda="Opcional">
+            <input type="date" value={contratoFechaFin} onChange={(e) => setContratoFechaFin(e.target.value)} />
           </Campo>
           <Campo etiqueta="Días de gracia" ayuda="Después de ese día antes de contar mora">
             <input type="number" min={0} max={30} value={diasGracia}

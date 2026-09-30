@@ -71,6 +71,11 @@ export const inmuebles = mysqlTable("inmuebles", {
    *  antes de contar mora. Nacen en el contrato con estos valores. */
   diaPago: tinyint("dia_pago", { unsigned: true }).notNull().default(5),
   diasGracia: tinyint("dias_gracia", { unsigned: true }).notNull().default(5),
+  /** El contrato en curso de la unidad, para el camino directo que no pasa
+   *  por generar el documento formal. Desde el inicio, el calendario de Mis
+   *  Pagos muestra el día previsto; en el fin, deja de mostrarlo. */
+  contratoFechaInicio: date("contrato_fecha_inicio"),
+  contratoFechaFin: date("contrato_fecha_fin"),
   topeIngresoPct: decimal("tope_ingreso_pct", { precision: 5, scale: 2 }).notNull().default("50.00"),
   serviciosPublicosIncluidos: mysqlEnum("servicios_publicos_incluidos",
     ["ninguno", "algunos", "todos"]).notNull().default("ninguno"),

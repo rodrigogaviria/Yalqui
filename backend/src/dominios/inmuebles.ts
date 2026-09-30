@@ -17,6 +17,7 @@ import { pagosArriendo, pagosUnidad } from "../db/schema/dinero.js";
 import { incidencias } from "../db/schema/operacion.js";
 
 const dinero = z.number().nonnegative().max(9_999_999_999).multipleOf(0.01);
+const aFecha = (s: string) => new Date(`${s}T00:00:00Z`);
 
 const nuevo = z.object({
   tipo: z.enum(TIPOS_UNIDAD),
@@ -29,6 +30,8 @@ const nuevo = z.object({
   valorAdministracion: dinero.default(0),
   diaPago: z.number().int().min(1).max(31).default(5),
   diasGracia: z.number().int().min(0).max(30).default(5),
+  contratoFechaInicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usá el formato AAAA-MM-DD").optional(),
+  contratoFechaFin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usá el formato AAAA-MM-DD").optional(),
   administracionIncluida: z.boolean().default(false),
   habitaciones: z.number().int().min(0).max(50).optional(),
   banos: z.number().int().min(0).max(50).optional(),
@@ -115,6 +118,10 @@ export const inmueblesRouter = router({
         message: "El máximo de ocupantes no puede ser menor que los que incluye el canon",
       });
     }
+    if (input.contratoFechaFin !== undefined && input.contratoFechaInicio !== undefined
+        && input.contratoFechaFin <= input.contratoFechaInicio) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "El fin del contrato debe ser después del inicio" });
+    }
 
     if (input.edificacionId !== undefined && !puedeSobreEdificacion(ctx.usuario.roles, input.edificacionId)) {
       throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa edificación" });
@@ -144,6 +151,8 @@ export const inmueblesRouter = router({
         valorAdministracion: input.valorAdministracion.toFixed(2),
         diaPago: input.diaPago,
         diasGracia: input.diasGracia,
+        contratoFechaInicio: input.contratoFechaInicio ? aFecha(input.contratoFechaInicio) : null,
+        contratoFechaFin: input.contratoFechaFin ? aFecha(input.contratoFechaFin) : null,
         canonBase: input.canonBase.toFixed(2),
         descripcion: input.descripcion ?? null,
         matriculaInmobiliaria: input.matriculaInmobiliaria ?? null,
@@ -290,6 +299,8 @@ export const inmueblesRouter = router({
         valorAdministracion: inmuebles.valorAdministracion,
         diaPago: inmuebles.diaPago,
         diasGracia: inmuebles.diasGracia,
+        contratoFechaInicio: inmuebles.contratoFechaInicio,
+        contratoFechaFin: inmuebles.contratoFechaFin,
       })
       .from(inmuebles)
       .leftJoin(edificaciones, eq(edificaciones.id, inmuebles.edificacionId))
@@ -382,9 +393,13 @@ export const inmueblesRouter = router({
       // El máximo de ocupantes se valida contra el valor que va a quedar, no
       // contra el que manda el cliente: si solo se edita uno de los dos, el
       // otro sale de la base.
-      if (c.ocupantesMaximo !== undefined || c.ocupantesBase !== undefined) {
+      if (c.ocupantesMaximo !== undefined || c.ocupantesBase !== undefined
+          || c.contratoFechaInicio !== undefined || c.contratoFechaFin !== undefined) {
         const [actual] = await ctx.db
-          .select({ base: inmuebles.ocupantesBase, maximo: inmuebles.ocupantesMaximo })
+          .select({
+            base: inmuebles.ocupantesBase, maximo: inmuebles.ocupantesMaximo,
+            contratoFechaInicio: inmuebles.contratoFechaInicio, contratoFechaFin: inmuebles.contratoFechaFin,
+          })
           .from(inmuebles)
           .where(eq(inmuebles.id, input.inmuebleId))
           .limit(1);
@@ -397,6 +412,12 @@ export const inmueblesRouter = router({
             code: "BAD_REQUEST",
             message: "El máximo de ocupantes no puede ser menor que los que incluye el canon",
           });
+        }
+
+        const inicio = c.contratoFechaInicio ?? actual.contratoFechaInicio;
+        const fin = c.contratoFechaFin ?? actual.contratoFechaFin;
+        if (inicio !== null && fin !== null && String(fin) <= String(inicio)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "El fin del contrato debe ser después del inicio" });
         }
       }
 
@@ -419,6 +440,8 @@ export const inmueblesRouter = router({
       if (c.valorAdministracion !== undefined) set["valorAdministracion"] = c.valorAdministracion.toFixed(2);
       if (c.diaPago !== undefined) set["diaPago"] = c.diaPago;
       if (c.diasGracia !== undefined) set["diasGracia"] = c.diasGracia;
+      if (c.contratoFechaInicio !== undefined) set["contratoFechaInicio"] = aFecha(c.contratoFechaInicio);
+      if (c.contratoFechaFin !== undefined) set["contratoFechaFin"] = aFecha(c.contratoFechaFin);
       if (c.canonBase !== undefined) set["canonBase"] = c.canonBase.toFixed(2);
       if (c.descripcion !== undefined) set["descripcion"] = c.descripcion || null;
       if (c.matriculaInmobiliaria !== undefined) set["matriculaInmobiliaria"] = c.matriculaInmobiliaria || null;
