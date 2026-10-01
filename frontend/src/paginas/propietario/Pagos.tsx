@@ -16,6 +16,7 @@ type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["fa
 const TONO: Record<string, { fondo: string; borde: string; texto: string; nombre: string }> = {
   vencida:   { fondo: "var(--mal-tenue)",  borde: "#f7d3d3", texto: "#7d211d", nombre: "Vencida" },
   pagada:    { fondo: "var(--bien-tenue)", borde: "#bfe9d3", texto: "#0e3b24", nombre: "Pagada" },
+  parcial:   { fondo: "#f6c343",           borde: "#d4a017", texto: "#4a3500", nombre: "Pago parcial" },
   porVencer: { fondo: "var(--ojo-tenue)",  borde: "#f2e2b2", texto: "#4a3405", nombre: "Por vencer" },
 };
 
@@ -313,21 +314,39 @@ function dentroDelContrato(u: Unidad, m: Mes): boolean {
   return true;
 }
 
+/** Lo que ya se pagó de la unidad en ese período: las facturas de contrato
+ *  (total menos saldo) más los pagos directos confirmados. Un pago de antes
+ *  de que existiera el monto —puro «sí o no»— cuenta como el canon completo,
+ *  para no volver «parcial» lo que ya se había marcado como pago. */
+function montoPagadoDelMes(u: Unidad, facturas: Factura[], pagos: PagoUnidad[], periodo: string): number {
+  let total = 0;
+  for (const f of facturas) {
+    if (f.inmuebleId === u.id && f.periodo === periodo) total += Number(f.total) - Number(f.saldo);
+  }
+  for (const p of pagos) {
+    if (p.inmuebleId === u.id && p.periodo === periodo && p.estado === "confirmado") {
+      total += p.monto !== null ? Number(p.monto) : Number(u.canonBase);
+    }
+  }
+  return total;
+}
+
 function situacionDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUnidad[], m: Mes) {
   const hoy = new Date();
   const ultimo = new Date(m.anio, m.mes + 1, 0).getDate();
   const periodo = periodoDe(m);
   return unidades.filter((u) => u.estado === "arrendado" && dentroDelContrato(u, m)).map((u) => {
     const dia = Math.min(u.diaPago, ultimo);
-    // Pago si hay factura pagada o un pago registrado sobre la unidad ese mes.
-    const pagada = facturas.some(
-      (f) => f.inmuebleId === u.id && f.periodo === periodo && f.situacion === "pagada",
-    ) || pagos.some((p) => p.inmuebleId === u.id && p.periodo === periodo && p.estado === "confirmado");
+    const previsto = Number(u.canonBase);
+    const pagadoMonto = montoPagadoDelMes(u, facturas, pagos, periodo);
     const limite = new Date(m.anio, m.mes, dia + u.diasGracia, 23, 59, 59);
-    const tono: keyof typeof TONO = pagada ? "pagada" : hoy > limite ? "vencida" : "porVencer";
+    const tono: keyof typeof TONO =
+      pagadoMonto >= previsto ? "pagada"
+      : pagadoMonto > 0 ? "parcial"
+      : hoy > limite ? "vencida" : "porVencer";
     // Días corridos desde que venció el plazo (con gracia), solo tiene sentido si está vencida.
     const diasVencido = tono === "vencida" ? Math.floor((+hoy - +limite) / 86_400_000) : 0;
-    return { u, dia, tono, diasVencido };
+    return { u, dia, tono, diasVencido, pagadoMonto, previsto };
   });
 }
 
@@ -352,9 +371,11 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
   const primerDiaSemana = (new Date(mes.anio, mes.mes, 1).getDay() + 6) % 7; // lunes = 0
   const periodo = periodoDe(mes);
 
-  const porDia = new Map<number, Array<{ u: Unidad; tono: keyof typeof TONO; diasVencido: number }>>();
-  for (const { u, dia, tono, diasVencido } of situacionDelMes(unidades, facturas, pagosUnidad, mes)) {
-    porDia.set(dia, [...(porDia.get(dia) ?? []), { u, tono, diasVencido }]);
+  const porDia = new Map<number, Array<{
+    u: Unidad; tono: keyof typeof TONO; diasVencido: number; pagadoMonto: number; previsto: number;
+  }>>();
+  for (const { u, dia, tono, diasVencido, pagadoMonto, previsto } of situacionDelMes(unidades, facturas, pagosUnidad, mes)) {
+    porDia.set(dia, [...(porDia.get(dia) ?? []), { u, tono, diasVencido, pagadoMonto, previsto }]);
   }
 
   const celdas: Array<number | null> = [
@@ -409,12 +430,13 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
                 <>
                   <span className="num" style={{ fontSize: 12, color: "var(--tinta-3)" }}>{dia}</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {(porDia.get(dia) ?? []).map(({ u, tono, diasVencido }) => {
+                    {(porDia.get(dia) ?? []).map(({ u, tono, diasVencido, pagadoMonto, previsto }) => {
                       const t = TONO[tono]!;
                       const titulo = [
                         `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`,
                         u.inquilino ?? "Sin inquilino registrado",
                         t.nombre,
+                        tono === "parcial" ? `pagó ${pesos(pagadoMonto)} de ${pesos(previsto)}` : null,
                         tono === "vencida" ? `${diasVencido} día${diasVencido === 1 ? "" : "s"} de vencido` : null,
                         tono === "pagada" ? null : "tocá para subir el pago",
                       ].filter(Boolean).join(" · ");
