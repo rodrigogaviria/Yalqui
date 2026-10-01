@@ -8,6 +8,7 @@ import { repartirEnEdificacion } from "./gastoDeFactura.js";
 import { movimientos } from "../db/schema/finanzas.js";
 import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { tiposMovimiento } from "../db/schema/administracion.js";
+import { proveedores } from "../db/schema/operacion.js";
 
 const dinero = z.number().min(0).max(999_999_999);
 /** Un mes en formato AAAA-MM, como lo escribe el selector del navegador. */
@@ -27,6 +28,16 @@ export const rentabilidadRouter = router({
       .from(tiposMovimiento)
       .where(eq(tiposMovimiento.activo, true))
       .orderBy(tiposMovimiento.tipo, tiposMovimiento.orden),
+  ),
+
+  /** El catálogo de proveedores, para elegir quién cobró un gasto. Es el
+   *  mismo de incidencias; lo administra Yalqui, no cada propietario. */
+  proveedores: privado.query(({ ctx }) =>
+    ctx.db
+      .select({ id: proveedores.id, razonSocial: proveedores.razonSocial })
+      .from(proveedores)
+      .where(eq(proveedores.activo, true))
+      .orderBy(proveedores.razonSocial),
   ),
 
   /**
@@ -184,8 +195,8 @@ export const rentabilidadRouter = router({
       monto: dinero,
       fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usá el formato AAAA-MM-DD"),
       nota: z.string().trim().max(255).optional(),
-      /** Quién cobró: obligatorio en un gasto, no tiene sentido en un ingreso. */
-      proveedor: z.string().trim().max(191).optional(),
+      /** Quién cobró, del catálogo: obligatorio en un gasto, no tiene sentido en un ingreso. */
+      proveedorId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if ((input.inmuebleId === undefined) === (input.edificacionId === undefined)) {
@@ -208,8 +219,17 @@ export const rentabilidadRouter = router({
 
       if (!tipo) throw new TRPCError({ code: "NOT_FOUND", message: "Ese concepto no existe" });
       if (!tipo.activo) throw new TRPCError({ code: "CONFLICT", message: "Ese concepto está anulado" });
-      if (tipo.tipo === "egreso" && !input.proveedor?.trim()) {
+      if (tipo.tipo === "egreso" && input.proveedorId === undefined) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "El gasto necesita a quién se le pagó" });
+      }
+
+      let proveedor: string | null = null;
+      if (input.proveedorId !== undefined) {
+        const [p] = await ctx.db.select({ razonSocial: proveedores.razonSocial, activo: proveedores.activo })
+          .from(proveedores).where(eq(proveedores.id, input.proveedorId)).limit(1);
+        if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Ese proveedor no existe" });
+        if (!p.activo) throw new TRPCError({ code: "CONFLICT", message: "Ese proveedor está anulado" });
+        proveedor = p.razonSocial;
       }
 
       // El signo lo da el concepto, no quien registra: si el monto pudiera ser
@@ -217,7 +237,8 @@ export const rentabilidadRouter = router({
       // ingreso en negativo, y los totales dejarían de cuadrar.
       const comunes = {
         tipo: tipo.tipo, tipoMovimientoId: input.tipoMovimientoId, fecha: input.fecha,
-        origenTipo: "manual" as const, nota: input.nota ?? null, proveedor: input.proveedor?.trim() || null,
+        origenTipo: "manual" as const, nota: input.nota ?? null,
+        proveedor, proveedorId: input.proveedorId ?? null,
       };
 
       if (input.edificacionId !== undefined) {

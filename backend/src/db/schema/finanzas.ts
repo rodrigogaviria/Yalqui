@@ -10,6 +10,7 @@ import { contratos } from "./contrato.js";
 import { pagosArriendo } from "./dinero.js";
 import { archivos, usuarios } from "./identidad.js";
 import { edificaciones, inmuebles } from "./inventario.js";
+import { proveedores } from "./operacion.js";
 
 export const movimientos = mysqlTable("movimientos", {
 	id: bigint({ mode: "number", unsigned: true }).autoincrement().notNull(),
@@ -30,9 +31,11 @@ export const movimientos = mysqlTable("movimientos", {
 	origenTipo: mysqlEnum("origen_tipo", ['pago_arriendo','incidencia','factura_yalqui','obligacion','manual','factura_propiedad']).notNull(),
 	origenId: bigint("origen_id", { mode: "number", unsigned: true }),
 	nota: varchar({ length: 255 }),
-	/** Quién cobró el gasto: texto libre, no el catálogo de proveedores de
-	 *  incidencias, que administra Yalqui y no cada propietario. */
+	/** La razón social del proveedor al momento del gasto, copiada del
+	 *  catálogo: una fila vieja sigue mostrando el nombre aunque el proveedor
+	 *  se edite o se borre después. */
 	proveedor: varchar({ length: 191 }),
+	proveedorId: int("proveedor_id", { unsigned: true }).references(() => proveedores.id, { onDelete: "set null" }),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 },
 (table) => [

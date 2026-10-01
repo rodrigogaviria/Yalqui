@@ -14,17 +14,18 @@ import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
 export function Rentabilidad({ unidades }: { unidades: Array<{ id: number; titulo: string }> }) {
   const [registrando, setRegistrando] = useState(false);
   const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
-    const [resumen, tipos] = await Promise.all([
+    const [resumen, tipos, proveedores] = await Promise.all([
       api.rentabilidad.resumen.query({}),
       api.rentabilidad.tipos.query(),
+      api.rentabilidad.proveedores.query(),
     ]);
-    return { resumen, tipos };
+    return { resumen, tipos, proveedores };
   });
 
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
   if (datos === null) return <p style={{ color: "var(--tinta-2)" }}>Cargando…</p>;
 
-  const { resumen, tipos } = datos;
+  const { resumen, tipos, proveedores } = datos;
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -44,6 +45,7 @@ export function Rentabilidad({ unidades }: { unidades: Array<{ id: number; titul
         <Formulario
           unidades={unidades}
           tipos={tipos}
+          proveedores={proveedores}
           ocupado={ocupado === "nuevo"}
           alRegistrar={(entrada) => void accion("nuevo",
             () => api.rentabilidad.registrar.mutate(entrada),
@@ -132,20 +134,21 @@ function Barra({ titulo, ingresos, egresos, neto }: {
   );
 }
 
-function Formulario({ unidades, tipos, ocupado, alRegistrar }: {
+function Formulario({ unidades, tipos, proveedores, ocupado, alRegistrar }: {
   unidades: Array<{ id: number; titulo: string }>;
   tipos: Awaited<ReturnType<typeof api.rentabilidad.tipos.query>>;
+  proveedores: Awaited<ReturnType<typeof api.rentabilidad.proveedores.query>>;
   ocupado: boolean;
   alRegistrar: (e: {
     inmuebleId: number; tipoMovimientoId: number; monto: number; fecha: string;
-    proveedor?: string; nota?: string;
+    proveedorId?: number; nota?: string;
   }) => void;
 }) {
   const [inmuebleId, setInmuebleId] = useState(String(unidades[0]?.id ?? ""));
   const [tipoId, setTipoId] = useState("");
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
-  const [proveedor, setProveedor] = useState("");
+  const [proveedorId, setProveedorId] = useState("");
   const [nota, setNota] = useState("");
 
   if (unidades.length === 0) {
@@ -186,7 +189,10 @@ function Formulario({ unidades, tipos, ocupado, alRegistrar }: {
         </Campo>
         {esEgreso && (
           <Campo etiqueta="Proveedor" ayuda="A quién se le pagó">
-            <input value={proveedor} placeholder="Plomería López, Homecenter…" onChange={(e) => setProveedor(e.target.value)} />
+            <select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
+              <option value="">Elegí uno…</option>
+              {proveedores.map((p) => <option key={p.id} value={p.id}>{p.razonSocial}</option>)}
+            </select>
           </Campo>
         )}
       </div>
@@ -197,13 +203,13 @@ function Formulario({ unidades, tipos, ocupado, alRegistrar }: {
 
       <div>
         <button className="boton"
-          disabled={ocupado || tipoId === "" || Number(monto) <= 0 || (esEgreso && proveedor.trim() === "")}
+          disabled={ocupado || tipoId === "" || Number(monto) <= 0 || (esEgreso && proveedorId === "")}
           onClick={() => alRegistrar({
             inmuebleId: Number(inmuebleId),
             tipoMovimientoId: Number(tipoId),
             monto: Number(monto),
             fecha,
-            ...(esEgreso ? { proveedor: proveedor.trim() } : {}),
+            ...(esEgreso ? { proveedorId: Number(proveedorId) } : {}),
             ...(nota.trim() === "" ? {} : { nota: nota.trim() }),
           })}>
           {ocupado ? "Registrando…" : "Registrar"}

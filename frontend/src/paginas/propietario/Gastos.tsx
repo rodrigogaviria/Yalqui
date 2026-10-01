@@ -17,11 +17,12 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
   const [mes, setMes] = useState(() => ({ anio: new Date().getFullYear(), mes: new Date().getMonth() }));
   const [registrando, setRegistrando] = useState(false);
   const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
-    const [gastos, tipos] = await Promise.all([
+    const [gastos, tipos, proveedores] = await Promise.all([
       api.rentabilidad.gastos.query(),
       api.rentabilidad.tipos.query(),
+      api.rentabilidad.proveedores.query(),
     ]);
-    return { gastos, tipos: tipos.filter((t) => t.tipo === "egreso") };
+    return { gastos, tipos: tipos.filter((t) => t.tipo === "egreso"), proveedores };
   });
   const [edificaciones, setEdificaciones] = useState<Array<{ id: number; nombre: string }>>([]);
   useEffect(() => { void api.inmuebles.misEdificaciones.query().then(setEdificaciones).catch(() => setEdificaciones([])); }, []);
@@ -30,7 +31,7 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
   const [tipoId, setTipoId] = useState("");
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
-  const [proveedor, setProveedor] = useState("");
+  const [proveedorId, setProveedorId] = useState("");
   const [nota, setNota] = useState("");
 
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
@@ -104,7 +105,10 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
               <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </Campo>
             <Campo etiqueta="Proveedor" ayuda="A quién se le pagó">
-              <input value={proveedor} placeholder="Plomería López, Homecenter…" onChange={(e) => setProveedor(e.target.value)} />
+              <select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
+                <option value="">Elegí uno…</option>
+                {datos.proveedores.map((p) => <option key={p.id} value={p.id}>{p.razonSocial}</option>)}
+              </select>
             </Campo>
           </div>
           <Campo etiqueta="Concepto" ayuda="Opcional · qué se pagó">
@@ -112,16 +116,16 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
           </Campo>
           <div>
             <button className="boton"
-              disabled={ocupado === "nuevo" || tipoId === "" || Number(monto) <= 0 || proveedor.trim() === ""}
+              disabled={ocupado === "nuevo" || tipoId === "" || Number(monto) <= 0 || proveedorId === ""}
               onClick={() => void accion("nuevo",
                 () => api.rentabilidad.registrar.mutate({
                   ...(esEdificacion ? { edificacionId: Number(unidad.slice(1)), prorrateo } : { inmuebleId: Number(unidad) }),
                   tipoMovimientoId: Number(tipoId),
-                  monto: Number(monto), fecha, proveedor: proveedor.trim(),
+                  monto: Number(monto), fecha, proveedorId: Number(proveedorId),
                   ...(nota.trim() ? { nota: nota.trim() } : {}),
                 }),
                 "Gasto registrado.",
-              ).then(() => { setRegistrando(false); setMonto(""); setNota(""); setProveedor(""); setTipoId(""); })}>
+              ).then(() => { setRegistrando(false); setMonto(""); setNota(""); setProveedorId(""); setTipoId(""); })}>
               {ocupado === "nuevo" ? "Guardando…" : "Guardar gasto"}
             </button>
           </div>
