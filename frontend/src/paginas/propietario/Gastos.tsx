@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
+import { Ventana } from "../../componentes/Ventana";
 import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
 
 type Gasto = Awaited<ReturnType<typeof api.rentabilidad.gastos.query>>[number];
@@ -16,6 +17,7 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
   const [vista, setVista] = useState<"calendario" | "lista">("calendario");
   const [mes, setMes] = useState(() => ({ anio: new Date().getFullYear(), mes: new Date().getMonth() }));
   const [registrando, setRegistrando] = useState(false);
+  const [detalle, setDetalle] = useState<Gasto | null>(null);
   const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
     const [gastos, tipos, proveedores] = await Promise.all([
       api.rentabilidad.gastos.query(),
@@ -144,9 +146,15 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
           descontados en Mis Rendimientos.
         </Vacio>
       ) : vista === "calendario" ? (
-        <CalendarioGastos gastos={gastos} mes={mes} setMes={setMes} />
+        <CalendarioGastos gastos={gastos} mes={mes} setMes={setMes} alElegir={setDetalle} />
       ) : (
-        <ListaGastos gastos={gastos} />
+        <ListaGastos gastos={gastos} alElegir={setDetalle} />
+      )}
+
+      {detalle && (
+        <Ventana titulo="Detalle del gasto" alCerrar={() => setDetalle(null)}>
+          <DetalleGasto gasto={detalle} />
+        </Ventana>
       )}
     </div>
   );
@@ -155,6 +163,24 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
 type Mes = { anio: number; mes: number };
 const periodoDe = (m: Mes) => `${m.anio}-${String(m.mes + 1).padStart(2, "0")}`;
 
+/**
+ * El tipo de gasto, con el servicio puntual si es genérico.
+ *
+ * «Servicios públicos» agrupa agua, energía, gas e internet: de un gasto que
+ * nació solo de una factura pagada, la nota ya dice «Factura de agua · …», y
+ * de ahí sale el servicio. Sin eso, o si el tipo ya es específico (Seguro,
+ * Impuesto predial), se deja el tipo tal cual.
+ */
+function tituloGasto(g: Gasto): string {
+  const base = g.concepto ?? "Sin clasificar";
+  if (g.origenTipo !== "factura_propiedad" || !g.nota) return base;
+  const m = /^Factura de ([^·]+)/i.exec(g.nota);
+  if (!m) return base;
+  const servicio = m[1]!.trim();
+  const capitalizado = servicio.charAt(0).toUpperCase() + servicio.slice(1);
+  return capitalizado.toLowerCase() === base.toLowerCase() ? base : `${base} · ${capitalizado}`;
+}
+
 function nombreMes(periodo: string): string {
   const [ano, mes] = periodo.split("-");
   const fecha = new Date(Number(ano), Number(mes) - 1, 1);
@@ -162,8 +188,10 @@ function nombreMes(periodo: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
-/** Cada gasto puesto en el día en que se pagó, con su concepto y su valor a la vista. */
-function CalendarioGastos({ gastos, mes, setMes }: { gastos: Gasto[]; mes: Mes; setMes: (m: Mes) => void }) {
+/** Cada gasto puesto en el día en que se pagó, con su tipo y su valor a la vista; tocarlo muestra el detalle. */
+function CalendarioGastos({ gastos, mes, setMes, alElegir }: {
+  gastos: Gasto[]; mes: Mes; setMes: (m: Mes) => void; alElegir: (g: Gasto) => void;
+}) {
   const ultimo = new Date(mes.anio, mes.mes + 1, 0).getDate();
   const primerDiaSemana = (new Date(mes.anio, mes.mes, 1).getDay() + 6) % 7; // lunes = 0
   const periodo = periodoDe(mes);
@@ -224,15 +252,15 @@ function CalendarioGastos({ gastos, mes, setMes }: { gastos: Gasto[]; mes: Mes; 
                   <span className="num" style={{ fontSize: 12, color: "var(--tinta-3)" }}>{dia}</span>
                   <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                     {(porDia.get(dia) ?? []).map((g) => (
-                      <div key={g.id}
-                        title={`${g.concepto ?? "Sin clasificar"} · ${pesos(Number(g.monto))}${g.proveedor ? ` · ${g.proveedor}` : ""}`}
+                      <button key={g.id} type="button" onClick={() => alElegir(g)}
+                        title={`${tituloGasto(g)} · ${pesos(Number(g.monto))}${g.proveedor ? ` · ${g.proveedor}` : ""} · tocá para ver el detalle`}
                         style={{
-                          fontSize: 11, padding: "2px 6px", borderRadius: 6,
-                          background: "var(--mal-tenue)", color: "#7d211d",
+                          fontSize: 11, padding: "2px 6px", borderRadius: 6, border: "none", cursor: "pointer",
+                          background: "var(--mal-tenue)", color: "#7d211d", textAlign: "left", fontFamily: "inherit",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         }}>
-                        <strong>{g.concepto ?? "Sin clasificar"}</strong> · {pesos(Number(g.monto))}
-                      </div>
+                        <strong>{tituloGasto(g)}</strong> · {pesos(Number(g.monto))}
+                      </button>
                     ))}
                   </div>
                 </>
@@ -245,16 +273,20 @@ function CalendarioGastos({ gastos, mes, setMes }: { gastos: Gasto[]; mes: Mes; 
   );
 }
 
-function ListaGastos({ gastos }: { gastos: Gasto[] }) {
+function ListaGastos({ gastos, alElegir }: { gastos: Gasto[]; alElegir: (g: Gasto) => void }) {
   return (
     <div style={{ display: "grid", gap: 8 }}>
       {gastos.map((g) => (
-        <div key={g.id} className="tarjeta" style={{
-          padding: "13px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
-        }}>
+        <div key={g.id} className="tarjeta" role="button" tabIndex={0}
+          onClick={() => alElegir(g)}
+          onKeyDown={(e) => { if (e.key === "Enter") alElegir(g); }}
+          style={{
+            padding: "13px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+            cursor: "pointer",
+          }}>
           <div style={{ flex: "1 1 260px", minWidth: 0 }}>
             <div style={{ fontSize: 14.5, fontWeight: 600 }}>
-              {g.concepto ?? "Sin clasificar"}
+              {tituloGasto(g)}
               {g.origenTipo === "factura_propiedad" && (
                 <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>De una factura</span>
               )}
@@ -270,7 +302,7 @@ function ListaGastos({ gastos }: { gastos: Gasto[] }) {
           </div>
           <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>{pesos(Number(g.monto))}</div>
           {g.partes.length > 0 && (
-            <details style={{ flexBasis: "100%" }}>
+            <details style={{ flexBasis: "100%" }} onClick={(e) => e.stopPropagation()}>
               <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--tinta-2)" }}>
                 Ver el reparto entre {g.partes.length} unidades
               </summary>
@@ -286,6 +318,48 @@ function ListaGastos({ gastos }: { gastos: Gasto[] }) {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Todo lo que se sabe de un gasto: para cuando la pastilla del calendario, o la fila de la lista, se quedan cortas. */
+function DetalleGasto({ gasto: g }: { gasto: Gasto }) {
+  const fila = (etiqueta: string, valor: React.ReactNode) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--linea)" }}>
+      <span style={{ color: "var(--tinta-2)", fontSize: 13.5 }}>{etiqueta}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 600, textAlign: "right" }}>{valor}</span>
+    </div>
+  );
+  return (
+    <div style={{ display: "grid", gap: 4 }}>
+      {g.origenTipo === "factura_propiedad" && (
+        <span className="pastilla publicado" style={{ width: "fit-content", fontSize: 11 }}>De una factura</span>
+      )}
+      {fila("Tipo de gasto", tituloGasto(g))}
+      {fila("Valor", pesos(Number(g.monto)))}
+      {fila("Fecha", new Date(g.fecha).toLocaleDateString("es-CO", { timeZone: "UTC" }))}
+      {fila("Propiedad", g.edificacion
+        ? `${g.edificacion} · toda la edificación`
+        : `${g.direccion}${g.complemento ? `, ${g.complemento}` : ""}`)}
+      {g.edificacion && fila("Reparto", g.prorrateo === "por_area" ? "Por área" : g.prorrateo === "por_canon" ? "Por canon" : "Partes iguales")}
+      {g.proveedor && fila("Proveedor", g.proveedor)}
+      {g.nota && fila("Concepto", g.nota)}
+
+      {g.partes.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>
+            Reparto entre {g.partes.length} unidades
+          </div>
+          <div style={{ display: "grid", gap: 4 }}>
+            {g.partes.map((x) => (
+              <div key={x.unidad} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span>{x.unidad}</span>
+                <span className="num">{pesos(Number(x.monto))}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
