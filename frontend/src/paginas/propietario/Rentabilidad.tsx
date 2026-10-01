@@ -91,7 +91,9 @@ export function Rentabilidad({ unidades }: { unidades: Array<{ id: number; titul
                 </span>
                 <span style={{ flex: "1 1 200px", minWidth: 0 }}>
                   {m.concepto ?? "Sin clasificar"}
-                  <span style={{ color: "var(--tinta-3)", fontSize: 12.5 }}> · {m.direccion}</span>
+                  <span style={{ color: "var(--tinta-3)", fontSize: 12.5 }}>
+                    {" "}· {m.direccion}{m.proveedor ? ` · ${m.proveedor}` : ""}
+                  </span>
                 </span>
                 <span className="num" style={{
                   fontWeight: 600, color: m.tipo === "ingreso" ? "var(--bien)" : "var(--mal)",
@@ -134,12 +136,16 @@ function Formulario({ unidades, tipos, ocupado, alRegistrar }: {
   unidades: Array<{ id: number; titulo: string }>;
   tipos: Awaited<ReturnType<typeof api.rentabilidad.tipos.query>>;
   ocupado: boolean;
-  alRegistrar: (e: { inmuebleId: number; tipoMovimientoId: number; monto: number; fecha: string; nota?: string }) => void;
+  alRegistrar: (e: {
+    inmuebleId: number; tipoMovimientoId: number; monto: number; fecha: string;
+    proveedor?: string; nota?: string;
+  }) => void;
 }) {
   const [inmuebleId, setInmuebleId] = useState(String(unidades[0]?.id ?? ""));
   const [tipoId, setTipoId] = useState("");
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [proveedor, setProveedor] = useState("");
   const [nota, setNota] = useState("");
 
   if (unidades.length === 0) {
@@ -148,6 +154,7 @@ function Formulario({ unidades, tipos, ocupado, alRegistrar }: {
 
   const ingresos = tipos.filter((t) => t.tipo === "ingreso");
   const egresos = tipos.filter((t) => t.tipo === "egreso");
+  const esEgreso = egresos.some((t) => String(t.id) === tipoId);
 
   return (
     <section className="tarjeta" style={{ padding: 22, display: "grid", gap: 14 }}>
@@ -177,6 +184,11 @@ function Formulario({ unidades, tipos, ocupado, alRegistrar }: {
         <Campo etiqueta="Fecha">
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
         </Campo>
+        {esEgreso && (
+          <Campo etiqueta="Proveedor" ayuda="A quién se le pagó">
+            <input value={proveedor} placeholder="Plomería López, Homecenter…" onChange={(e) => setProveedor(e.target.value)} />
+          </Campo>
+        )}
       </div>
 
       <Campo etiqueta="Nota" ayuda="Opcional">
@@ -185,12 +197,13 @@ function Formulario({ unidades, tipos, ocupado, alRegistrar }: {
 
       <div>
         <button className="boton"
-          disabled={ocupado || tipoId === "" || Number(monto) <= 0}
+          disabled={ocupado || tipoId === "" || Number(monto) <= 0 || (esEgreso && proveedor.trim() === "")}
           onClick={() => alRegistrar({
             inmuebleId: Number(inmuebleId),
             tipoMovimientoId: Number(tipoId),
             monto: Number(monto),
             fecha,
+            ...(esEgreso ? { proveedor: proveedor.trim() } : {}),
             ...(nota.trim() === "" ? {} : { nota: nota.trim() }),
           })}>
           {ocupado ? "Registrando…" : "Registrar"}

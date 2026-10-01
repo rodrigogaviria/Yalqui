@@ -30,6 +30,9 @@ export const movimientos = mysqlTable("movimientos", {
 	origenTipo: mysqlEnum("origen_tipo", ['pago_arriendo','incidencia','factura_yalqui','obligacion','manual','factura_propiedad']).notNull(),
 	origenId: bigint("origen_id", { mode: "number", unsigned: true }),
 	nota: varchar({ length: 255 }),
+	/** Quién cobró el gasto: texto libre, no el catálogo de proveedores de
+	 *  incidencias, que administra Yalqui y no cada propietario. */
+	proveedor: varchar({ length: 191 }),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 },
 (table) => [

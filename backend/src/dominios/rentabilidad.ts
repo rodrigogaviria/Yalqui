@@ -48,6 +48,7 @@ export const rentabilidadRouter = router({
         monto: movimientos.monto,
         fecha: movimientos.fecha,
         nota: movimientos.nota,
+        proveedor: movimientos.proveedor,
         origenTipo: movimientos.origenTipo,
         prorrateo: movimientos.prorrateo,
         edificacion: edificaciones.nombre,
@@ -109,6 +110,7 @@ export const rentabilidadRouter = router({
           monto: movimientos.monto,
           fecha: movimientos.fecha,
           nota: movimientos.nota,
+          proveedor: movimientos.proveedor,
           origenTipo: movimientos.origenTipo,
           reparto: movimientos.movimientoPadreId,
           inmuebleId: inmuebles.id,
@@ -182,6 +184,8 @@ export const rentabilidadRouter = router({
       monto: dinero,
       fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usá el formato AAAA-MM-DD"),
       nota: z.string().trim().max(255).optional(),
+      /** Quién cobró: obligatorio en un gasto, no tiene sentido en un ingreso. */
+      proveedor: z.string().trim().max(191).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if ((input.inmuebleId === undefined) === (input.edificacionId === undefined)) {
@@ -204,13 +208,16 @@ export const rentabilidadRouter = router({
 
       if (!tipo) throw new TRPCError({ code: "NOT_FOUND", message: "Ese concepto no existe" });
       if (!tipo.activo) throw new TRPCError({ code: "CONFLICT", message: "Ese concepto está anulado" });
+      if (tipo.tipo === "egreso" && !input.proveedor?.trim()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "El gasto necesita a quién se le pagó" });
+      }
 
       // El signo lo da el concepto, no quien registra: si el monto pudiera ser
       // negativo, un mismo gasto entraría a veces como egreso y a veces como
       // ingreso en negativo, y los totales dejarían de cuadrar.
       const comunes = {
         tipo: tipo.tipo, tipoMovimientoId: input.tipoMovimientoId, fecha: input.fecha,
-        origenTipo: "manual" as const, nota: input.nota ?? null,
+        origenTipo: "manual" as const, nota: input.nota ?? null, proveedor: input.proveedor?.trim() || null,
       };
 
       if (input.edificacionId !== undefined) {

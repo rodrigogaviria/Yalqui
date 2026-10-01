@@ -26,6 +26,7 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
   const [tipoId, setTipoId] = useState("");
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [proveedor, setProveedor] = useState("");
   const [nota, setNota] = useState("");
 
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
@@ -83,21 +84,25 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
             <Campo etiqueta="Fecha">
               <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </Campo>
+            <Campo etiqueta="Proveedor" ayuda="A quién se le pagó">
+              <input value={proveedor} placeholder="Plomería López, Homecenter…" onChange={(e) => setProveedor(e.target.value)} />
+            </Campo>
           </div>
           <Campo etiqueta="Concepto" ayuda="Opcional · qué se pagó">
             <input value={nota} onChange={(e) => setNota(e.target.value)} />
           </Campo>
           <div>
             <button className="boton"
-              disabled={ocupado === "nuevo" || tipoId === "" || Number(monto) <= 0}
+              disabled={ocupado === "nuevo" || tipoId === "" || Number(monto) <= 0 || proveedor.trim() === ""}
               onClick={() => void accion("nuevo",
                 () => api.rentabilidad.registrar.mutate({
                   ...(esEdificacion ? { edificacionId: Number(unidad.slice(1)), prorrateo } : { inmuebleId: Number(unidad) }),
                   tipoMovimientoId: Number(tipoId),
-                  monto: Number(monto), fecha, ...(nota.trim() ? { nota: nota.trim() } : {}),
+                  monto: Number(monto), fecha, proveedor: proveedor.trim(),
+                  ...(nota.trim() ? { nota: nota.trim() } : {}),
                 }),
                 "Gasto registrado.",
-              ).then(() => { setRegistrando(false); setMonto(""); setNota(""); setTipoId(""); })}>
+              ).then(() => { setRegistrando(false); setMonto(""); setNota(""); setProveedor(""); setTipoId(""); })}>
               {ocupado === "nuevo" ? "Guardando…" : "Guardar gasto"}
             </button>
           </div>
@@ -133,6 +138,7 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
                     ? `${g.edificacion} · toda la edificación (reparto ${g.prorrateo === "por_area" ? "por área" : g.prorrateo === "por_canon" ? "por canon" : "en partes iguales"})`
                     : `${g.direccion}${g.complemento ? `, ${g.complemento}` : ""}`}
                   {" · "}{new Date(g.fecha).toLocaleDateString("es-CO", { timeZone: "UTC" })}
+                  {g.proveedor ? ` · ${g.proveedor}` : ""}
                   {g.nota ? ` · ${g.nota}` : ""}
                 </div>
               </div>

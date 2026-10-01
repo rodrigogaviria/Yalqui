@@ -90,6 +90,7 @@ export async function sincronizarGasto(db: Database | Tx, facturaId: number): Pr
 type Comunes = {
   tipo: "ingreso" | "egreso"; tipoMovimientoId: number | null; fecha: string;
   origenTipo: "factura_propiedad" | "manual"; origenId?: number; nota: string | null;
+  proveedor?: string | null;
 };
 
 /**
