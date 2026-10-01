@@ -184,7 +184,7 @@ export function Pagos() {
         </section>
       )}
 
-      {pagosUnidad.some((p) => p.estado !== "pendiente") && (
+      {vista === "lista" && pagosUnidad.some((p) => p.estado !== "pendiente") && (
         <section className="tarjeta" style={{ padding: "18px 20px", display: "grid", gap: 12 }}>
           <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Pagos registrados</h2>
           {pagosUnidad.filter((p) => p.estado !== "pendiente")
