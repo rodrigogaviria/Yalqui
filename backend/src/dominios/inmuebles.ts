@@ -308,12 +308,27 @@ export const inmueblesRouter = router({
       .orderBy(asc(inmuebles.direccion), asc(inmuebles.complemento));
 
     // Los contratos vivos de estas unidades, para poder llegar de ahí a sus
-    // pagos. Una unidad puede tener contratos terminados atrás, pero solo el
-    // vigente (o en mora) dice cuándo fue el último pago que importa hoy.
+    // pagos y a quién vive ahí. Una unidad puede tener contratos terminados
+    // atrás, pero solo el vigente (o en mora) dice qué importa hoy.
     const misContratos = await ctx.db
-      .select({ id: contratos.id, inmuebleId: contratos.inmuebleId })
+      .select({
+        id: contratos.id, inmuebleId: contratos.inmuebleId,
+        nombre: usuarios.nombre, apellido: usuarios.apellido,
+      })
       .from(contratos)
+      .innerJoin(usuarios, eq(usuarios.id, contratos.inquilinoId))
       .where(and(inArray(contratos.inmuebleId, ids), inArray(contratos.estado, ["vigente", "en_mora"])));
+
+    // El camino directo (`marcarAlquilado`) deja una aplicación aprobada sin
+    // que haya un contrato formal generado todavía: también es quien vive ahí.
+    const designados = await ctx.db
+      .select({
+        inmuebleId: aplicaciones.inmuebleId,
+        nombre: usuarios.nombre, apellido: usuarios.apellido,
+      })
+      .from(aplicaciones)
+      .innerJoin(usuarios, eq(usuarios.id, aplicaciones.inquilinoId))
+      .where(and(inArray(aplicaciones.inmuebleId, ids), eq(aplicaciones.estado, "aprobada")));
 
     const idsContrato = misContratos.map((c) => c.id);
     const ultimoPago = idsContrato.length === 0 ? [] : await ctx.db
@@ -345,8 +360,10 @@ export const inmueblesRouter = router({
       const contrato = misContratos.find((c) => c.inmuebleId === u.id);
       const pago = contrato ? ultimoPago.find((p) => p.contratoId === contrato.id) : undefined;
       const incid = incidenciasAbiertas.find((i) => i.inmuebleId === u.id);
+      const quienVive = contrato ?? designados.find((d) => d.inmuebleId === u.id);
       return {
         ...u,
+        inquilino: quienVive ? `${quienVive.nombre} ${quienVive.apellido}` : null,
         fechaUltimoPago: masReciente(
           pago?.ultimo ?? null,
           ultimoPagoUnidad.find((p) => p.inmuebleId === u.id)?.ultimo ?? null,

@@ -325,7 +325,9 @@ function situacionDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUni
     ) || pagos.some((p) => p.inmuebleId === u.id && p.periodo === periodo && p.estado === "confirmado");
     const limite = new Date(m.anio, m.mes, dia + u.diasGracia, 23, 59, 59);
     const tono: keyof typeof TONO = pagada ? "pagada" : hoy > limite ? "vencida" : "porVencer";
-    return { u, dia, tono };
+    // Días corridos desde que venció el plazo (con gracia), solo tiene sentido si está vencida.
+    const diasVencido = tono === "vencida" ? Math.floor((+hoy - +limite) / 86_400_000) : 0;
+    return { u, dia, tono, diasVencido };
   });
 }
 
@@ -350,9 +352,9 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
   const primerDiaSemana = (new Date(mes.anio, mes.mes, 1).getDay() + 6) % 7; // lunes = 0
   const periodo = periodoDe(mes);
 
-  const porDia = new Map<number, Array<{ u: Unidad; tono: keyof typeof TONO }>>();
-  for (const { u, dia, tono } of situacionDelMes(unidades, facturas, pagosUnidad, mes)) {
-    porDia.set(dia, [...(porDia.get(dia) ?? []), { u, tono }]);
+  const porDia = new Map<number, Array<{ u: Unidad; tono: keyof typeof TONO; diasVencido: number }>>();
+  for (const { u, dia, tono, diasVencido } of situacionDelMes(unidades, facturas, pagosUnidad, mes)) {
+    porDia.set(dia, [...(porDia.get(dia) ?? []), { u, tono, diasVencido }]);
   }
 
   const celdas: Array<number | null> = [
@@ -407,13 +409,20 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
                 <>
                   <span className="num" style={{ fontSize: 12, color: "var(--tinta-3)" }}>{dia}</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {(porDia.get(dia) ?? []).map(({ u, tono }) => {
+                    {(porDia.get(dia) ?? []).map(({ u, tono, diasVencido }) => {
                       const t = TONO[tono]!;
+                      const titulo = [
+                        `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`,
+                        u.inquilino ?? "Sin inquilino registrado",
+                        t.nombre,
+                        tono === "vencida" ? `${diasVencido} día${diasVencido === 1 ? "" : "s"} de vencido` : null,
+                        tono === "pagada" ? null : "tocá para subir el pago",
+                      ].filter(Boolean).join(" · ");
                       return (
                         <button key={u.id} type="button"
                           disabled={tono === "pagada"}
                           onClick={() => alElegir(u, dia)}
-                          title={`${u.direccion}${u.complemento ? `, ${u.complemento}` : ""} · ${t.nombre}${tono === "pagada" ? "" : ` · gracia ${u.diasGracia} d · tocá para subir el pago`}`}
+                          title={titulo}
                           style={{
                             fontSize: 11.5, fontWeight: 600, padding: "2px 7px", borderRadius: 6,
                             background: tono === "vencida" ? "var(--mal)" : t.fondo,
