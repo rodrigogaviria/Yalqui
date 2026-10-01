@@ -164,12 +164,12 @@ type Mes = { anio: number; mes: number };
 const periodoDe = (m: Mes) => `${m.anio}-${String(m.mes + 1).padStart(2, "0")}`;
 
 /**
- * El tipo de gasto, con el servicio puntual si es genérico.
+ * El tipo de gasto, cambiado por el servicio puntual si el tipo es genérico.
  *
  * «Servicios públicos» agrupa agua, energía, gas e internet: de un gasto que
  * nació solo de una factura pagada, la nota ya dice «Factura de agua · …», y
- * de ahí sale el servicio. Sin eso, o si el tipo ya es específico (Seguro,
- * Impuesto predial), se deja el tipo tal cual.
+ * de ahí sale cuál. Ahí se muestra «Agua», no «Servicios públicos». Sin eso,
+ * o si el tipo ya es específico (Seguro, Impuesto predial), se deja tal cual.
  */
 function tituloGasto(g: Gasto): string {
   const base = g.concepto ?? "Sin clasificar";
@@ -178,7 +178,7 @@ function tituloGasto(g: Gasto): string {
   if (!m) return base;
   const servicio = m[1]!.trim();
   const capitalizado = servicio.charAt(0).toUpperCase() + servicio.slice(1);
-  return capitalizado.toLowerCase() === base.toLowerCase() ? base : `${base} · ${capitalizado}`;
+  return capitalizado.toLowerCase() === base.toLowerCase() ? base : capitalizado;
 }
 
 function nombreMes(periodo: string): string {
