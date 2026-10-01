@@ -1,15 +1,17 @@
 import { z } from "zod";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, inArray, or, lt, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, privado } from "../trpc/base.js";
 import { unidadesDelInquilino, esArrendatarioDe } from "../auth/arrendatario.js";
-import { inmuebles } from "../db/schema/inventario.js";
+import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { usuarios, archivos } from "../db/schema/identidad.js";
 import { contratos } from "../db/schema/contrato.js";
 import { aplicaciones } from "../db/schema/demanda.js";
 import { pagosUnidad } from "../db/schema/dinero.js";
+import { areasComunes, reservas } from "../db/schema/reservas.js";
 
 const dinero = z.number().positive().max(999_999_999);
+const hora = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Hora inválida");
 import { comunicados, comunicadoUnidades, comunicadoDestinatarios } from "../db/schema/comunicacion.js";
 
 /**
@@ -146,6 +148,122 @@ export const inquilinoRouter = router({
         },
       });
       return { leido: input.leido };
+    }),
+
+  /** Las áreas comunes que puede reservar: las de su unidad, o las de la
+   *  edificación si pertenece a una. Solo las activas. */
+  areasComunes: privado.query(async ({ ctx }) => {
+    const ids = await unidadesDelInquilino(ctx.db, ctx.usuario.id);
+    if (ids.length === 0) return [];
+    const unidades = await ctx.db
+      .select({ id: inmuebles.id, edificacionId: inmuebles.edificacionId })
+      .from(inmuebles).where(inArray(inmuebles.id, ids));
+    const idsEdificacion = [...new Set(unidades.filter((u) => u.edificacionId !== null).map((u) => u.edificacionId!))];
+    const idsSueltas = unidades.filter((u) => u.edificacionId === null).map((u) => u.id);
+    if (idsEdificacion.length === 0 && idsSueltas.length === 0) return [];
+    return ctx.db
+      .select({
+        id: areasComunes.id, nombre: areasComunes.nombre, descripcion: areasComunes.descripcion,
+        capacidad: areasComunes.capacidad,
+      })
+      .from(areasComunes)
+      .where(and(
+        eq(areasComunes.activa, true),
+        or(
+          ...(idsSueltas.length > 0 ? [inArray(areasComunes.inmuebleId, idsSueltas)] : []),
+          ...(idsEdificacion.length > 0 ? [inArray(areasComunes.edificacionId, idsEdificacion)] : []),
+        ),
+      ))
+      .orderBy(areasComunes.nombre);
+  }),
+
+  /** Mis reservas, la más reciente primero. */
+  misReservas: privado.query(({ ctx }) =>
+    ctx.db
+      .select({
+        id: reservas.id, area: areasComunes.nombre,
+        fecha: reservas.fecha, horaInicio: reservas.horaInicio, horaFin: reservas.horaFin,
+        estado: reservas.estado, createdAt: reservas.createdAt,
+      })
+      .from(reservas)
+      .innerJoin(areasComunes, eq(areasComunes.id, reservas.areaComunId))
+      .where(eq(reservas.solicitanteId, ctx.usuario.id))
+      .orderBy(desc(reservas.fecha), desc(reservas.horaInicio)),
+  ),
+
+  /**
+   * Pide una reserva de un área de su unidad o de su edificación. Nace
+   * pendiente: aprobarla es cosa del propietario o de quien administra.
+   */
+  reservar: privado
+    .input(z.object({
+      areaComunId: z.number().int().positive(),
+      fecha: z.coerce.date(),
+      horaInicio: hora,
+      horaFin: hora,
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.horaFin <= input.horaInicio) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "La hora de fin debe ser después de la de inicio" });
+      }
+      const ids = await unidadesDelInquilino(ctx.db, ctx.usuario.id);
+      if (ids.length === 0) throw new TRPCError({ code: "FORBIDDEN", message: "No tenés una unidad asociada" });
+
+      const [a] = await ctx.db
+        .select({ id: areasComunes.id, inmuebleId: areasComunes.inmuebleId, edificacionId: areasComunes.edificacionId, activa: areasComunes.activa, nombre: areasComunes.nombre })
+        .from(areasComunes).where(eq(areasComunes.id, input.areaComunId)).limit(1);
+      if (!a) throw new TRPCError({ code: "NOT_FOUND", message: "Esa área no existe" });
+
+      let pertenece = a.inmuebleId !== null && ids.includes(a.inmuebleId);
+      if (!pertenece && a.edificacionId !== null) {
+        const mias = await ctx.db.select({ edificacionId: inmuebles.edificacionId })
+          .from(inmuebles).where(inArray(inmuebles.id, ids));
+        pertenece = mias.some((u) => u.edificacionId === a.edificacionId);
+      }
+      if (!pertenece) throw new TRPCError({ code: "FORBIDDEN", message: "Esa área no es de tu unidad" });
+      if (!a.activa) throw new TRPCError({ code: "CONFLICT", message: `${a.nombre} no está disponible ahora` });
+
+      const cruces = await ctx.db
+        .select({ id: reservas.id })
+        .from(reservas)
+        .where(and(
+          eq(reservas.areaComunId, input.areaComunId),
+          eq(reservas.fecha, input.fecha),
+          inArray(reservas.estado, ["pendiente", "aprobada"]),
+          lt(reservas.horaInicio, input.horaFin),
+          gt(reservas.horaFin, input.horaInicio),
+        ))
+        .limit(1);
+      if (cruces.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Ya hay una reserva de esa área en ese horario" });
+      }
+
+      const [yo] = await ctx.db.select({ nombre: usuarios.nombre, apellido: usuarios.apellido })
+        .from(usuarios).where(eq(usuarios.id, ctx.usuario.id)).limit(1);
+      const solicitante = yo ? `${yo.nombre} ${yo.apellido}` : "Sin nombre";
+
+      await ctx.db.insert(reservas).values({
+        areaComunId: input.areaComunId, solicitanteId: ctx.usuario.id, solicitante,
+        fecha: input.fecha, horaInicio: input.horaInicio, horaFin: input.horaFin, estado: "pendiente",
+      });
+      return { ok: true };
+    }),
+
+  /** Se arrepiente de una reserva propia, pendiente o ya aprobada. */
+  cancelarReserva: privado
+    .input(z.object({ reservaId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [r] = await ctx.db.select({ estado: reservas.estado, solicitanteId: reservas.solicitanteId })
+        .from(reservas).where(eq(reservas.id, input.reservaId)).limit(1);
+      if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Esa reserva no existe" });
+      if (r.solicitanteId !== ctx.usuario.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Solo podés cancelar tus reservas" });
+      }
+      if (r.estado !== "pendiente" && r.estado !== "aprobada") {
+        throw new TRPCError({ code: "CONFLICT", message: "Esa reserva ya no está activa" });
+      }
+      await ctx.db.update(reservas).set({ estado: "cancelada" }).where(eq(reservas.id, input.reservaId));
+      return { ok: true };
     }),
 });
 

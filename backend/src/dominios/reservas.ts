@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { and, asc, desc, eq, inArray, lt, gt } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, gt, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { router, exigirRol } from "../trpc/base.js";
+import { router, exigirRol, privado } from "../trpc/base.js";
 import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { usuarios } from "../db/schema/identidad.js";
 import { areasComunes, reservas } from "../db/schema/reservas.js";
-import { tieneRol, type RolOtorgado } from "../auth/roles.js";
+import { tieneRol, ambitosCon, type RolOtorgado } from "../auth/roles.js";
 import type { Database } from "../db/index.js";
 
 const soloId = z.object({ inmuebleId: z.number().int().positive() });
@@ -242,6 +242,228 @@ export const reservasRouter = router({
       if (!puedeAdministrar(ctx.usuario.roles, s) && r.solicitanteId !== ctx.usuario.id) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Solo podés cancelar tus reservas" });
       }
+      if (r.estado !== "pendiente" && r.estado !== "aprobada") {
+        throw new TRPCError({ code: "CONFLICT", message: "Esa reserva ya no está activa" });
+      }
+      await ctx.db.update(reservas).set({ estado: "cancelada" }).where(eq(reservas.id, input.reservaId));
+      return { ok: true };
+    }),
+});
+
+/* ───────────────────────── Mis Reservas · vista de portafolio ──────────── */
+
+/** De dónde salen las áreas comunes que veo sin tener que elegir unidad por
+ *  unidad: mis unidades sueltas (sin edificación) y las edificaciones que
+ *  administro. Unidades dentro de una edificación no tienen áreas propias:
+ *  comparten las de ella. */
+async function misSitios(ctx: { db: Database; usuario: { roles: RolOtorgado[] } }) {
+  const idsUnidad = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+  const idsEdificacion = [
+    ...ambitosCon(ctx.usuario.roles, "propietario", "edificacion"),
+    ...ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion"),
+  ];
+  const idsUnidadSueltas = idsUnidad.length === 0 ? [] : (await ctx.db
+    .select({ id: inmuebles.id })
+    .from(inmuebles)
+    .where(and(inArray(inmuebles.id, idsUnidad), isNull(inmuebles.edificacionId))))
+    .map((u) => u.id);
+  return { idsUnidadSueltas, idsEdificacion };
+}
+
+const dondeAreasPortafolio = (idsUnidadSueltas: number[], idsEdificacion: number[]) => or(
+  ...(idsUnidadSueltas.length > 0 ? [inArray(areasComunes.inmuebleId, idsUnidadSueltas)] : []),
+  ...(idsEdificacion.length > 0 ? [inArray(areasComunes.edificacionId, idsEdificacion)] : []),
+)!;
+
+/** El área, con el sitio y el permiso ya resueltos a partir de ella misma. */
+async function areaPropia(
+  ctx: { db: Database; usuario: { roles: RolOtorgado[] } },
+  areaComunId: number,
+) {
+  const [a] = await ctx.db
+    .select({
+      id: areasComunes.id, inmuebleId: areasComunes.inmuebleId, edificacionId: areasComunes.edificacionId,
+      activa: areasComunes.activa, nombre: areasComunes.nombre,
+    })
+    .from(areasComunes).where(eq(areasComunes.id, areaComunId)).limit(1);
+  if (!a) throw new TRPCError({ code: "NOT_FOUND", message: "Esa área no existe" });
+  const puede = a.edificacionId !== null
+    ? puedeAdministrar(ctx.usuario.roles, { edificacionId: a.edificacionId, edificacion: null })
+    : a.inmuebleId !== null && tieneRol(ctx.usuario.roles, "propietario", "inmueble", a.inmuebleId);
+  if (!puede) throw new TRPCError({ code: "FORBIDDEN", message: "Esa área no es tuya" });
+  return a;
+}
+
+/** La reserva, con el mismo permiso resuelto desde su área. */
+async function reservaPropia(
+  ctx: { db: Database; usuario: { roles: RolOtorgado[] } },
+  reservaId: number,
+) {
+  const [r] = await ctx.db
+    .select({
+      estado: reservas.estado, solicitanteId: reservas.solicitanteId,
+      areaInmuebleId: areasComunes.inmuebleId, areaEdificacionId: areasComunes.edificacionId,
+    })
+    .from(reservas)
+    .innerJoin(areasComunes, eq(areasComunes.id, reservas.areaComunId))
+    .where(eq(reservas.id, reservaId))
+    .limit(1);
+  if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Esa reserva no existe" });
+  const administra = r.areaEdificacionId !== null
+    ? puedeAdministrar(ctx.usuario.roles, { edificacionId: r.areaEdificacionId, edificacion: null })
+    : r.areaInmuebleId !== null && tieneRol(ctx.usuario.roles, "propietario", "inmueble", r.areaInmuebleId);
+  return { ...r, administra };
+}
+
+export const misReservasRouter = router({
+  /** Todas mis áreas comunes, de todo el portafolio, para configurarlas sin
+   *  tener que entrar unidad por unidad. */
+  areas: privado.query(async ({ ctx }) => {
+    const { idsUnidadSueltas, idsEdificacion } = await misSitios(ctx);
+    if (idsUnidadSueltas.length === 0 && idsEdificacion.length === 0) return [];
+    return ctx.db
+      .select({
+        id: areasComunes.id, nombre: areasComunes.nombre, descripcion: areasComunes.descripcion,
+        capacidad: areasComunes.capacidad, activa: areasComunes.activa,
+        inmuebleId: areasComunes.inmuebleId, edificacionId: areasComunes.edificacionId,
+        edificacion: edificaciones.nombre, direccion: inmuebles.direccion, complemento: inmuebles.complemento,
+      })
+      .from(areasComunes)
+      .leftJoin(edificaciones, eq(edificaciones.id, areasComunes.edificacionId))
+      .leftJoin(inmuebles, eq(inmuebles.id, areasComunes.inmuebleId))
+      .where(dondeAreasPortafolio(idsUnidadSueltas, idsEdificacion))
+      .orderBy(asc(areasComunes.nombre));
+  }),
+
+  /** Da de alta un área: de una unidad suelta, o de una edificación entera. */
+  registrarAreaComun: privado
+    .input(z.object({
+      inmuebleId: z.number().int().positive().optional(),
+      edificacionId: z.number().int().positive().optional(),
+      nombre: z.string().trim().min(2).max(120),
+      descripcion: z.string().trim().max(255).optional(),
+      capacidad: z.number().int().min(1).max(9999).optional(),
+    }).refine((v) => (v.inmuebleId === undefined) !== (v.edificacionId === undefined),
+      { message: "Decí si es de una unidad o de la edificación" }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.inmuebleId !== undefined) {
+        if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+        }
+        const [u] = await ctx.db.select({ edificacionId: inmuebles.edificacionId })
+          .from(inmuebles).where(eq(inmuebles.id, input.inmuebleId)).limit(1);
+        if (u?.edificacionId !== null) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Esa unidad pertenece a una edificación: registrá el área ahí" });
+        }
+      } else if (!puedeAdministrar(ctx.usuario.roles, { edificacionId: input.edificacionId!, edificacion: null })) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa edificación" });
+      }
+      await ctx.db.insert(areasComunes).values({
+        inmuebleId: input.inmuebleId ?? null, edificacionId: input.edificacionId ?? null,
+        nombre: input.nombre, descripcion: input.descripcion ?? null, capacidad: input.capacidad ?? null,
+        creadaPorId: ctx.usuario.id,
+      });
+      return { ok: true };
+    }),
+
+  /** Prende o apaga un área, desde cualquier parte del portafolio. */
+  activarAreaComun: privado
+    .input(z.object({ areaComunId: z.number().int().positive(), activa: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      await areaPropia(ctx, input.areaComunId);
+      await ctx.db.update(areasComunes).set({ activa: input.activa }).where(eq(areasComunes.id, input.areaComunId));
+      return { ok: true };
+    }),
+
+  /** Todas las reservas de mi portafolio: lo que se ve en el calendario y en la lista de Mis Reservas. */
+  reservas: privado.query(async ({ ctx }) => {
+    const { idsUnidadSueltas, idsEdificacion } = await misSitios(ctx);
+    if (idsUnidadSueltas.length === 0 && idsEdificacion.length === 0) return [];
+    return ctx.db
+      .select({
+        id: reservas.id, areaComunId: reservas.areaComunId, area: areasComunes.nombre,
+        solicitante: reservas.solicitante, solicitanteId: reservas.solicitanteId,
+        fecha: reservas.fecha, horaInicio: reservas.horaInicio, horaFin: reservas.horaFin,
+        estado: reservas.estado, createdAt: reservas.createdAt,
+        edificacion: edificaciones.nombre, direccion: inmuebles.direccion, complemento: inmuebles.complemento,
+      })
+      .from(reservas)
+      .innerJoin(areasComunes, eq(areasComunes.id, reservas.areaComunId))
+      .leftJoin(edificaciones, eq(edificaciones.id, areasComunes.edificacionId))
+      .leftJoin(inmuebles, eq(inmuebles.id, areasComunes.inmuebleId))
+      .where(dondeAreasPortafolio(idsUnidadSueltas, idsEdificacion))
+      .orderBy(desc(reservas.fecha), desc(reservas.horaInicio));
+  }),
+
+  /** Registra una reserva en cualquier área del portafolio, sin tener que
+   *  entrar a la unidad o la edificación primero. */
+  registrarReserva: privado
+    .input(z.object({
+      areaComunId: z.number().int().positive(),
+      solicitante: z.string().trim().min(2).max(191).optional(),
+      fecha: z.coerce.date(),
+      horaInicio: hora,
+      horaFin: hora,
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.horaFin <= input.horaInicio) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "La hora de fin debe ser después de la de inicio" });
+      }
+      const a = await areaPropia(ctx, input.areaComunId);
+      if (!a.activa) throw new TRPCError({ code: "CONFLICT", message: `${a.nombre} no está disponible ahora` });
+
+      const cruces = await ctx.db
+        .select({ id: reservas.id })
+        .from(reservas)
+        .where(and(
+          eq(reservas.areaComunId, input.areaComunId),
+          eq(reservas.fecha, input.fecha),
+          inArray(reservas.estado, ["pendiente", "aprobada"]),
+          lt(reservas.horaInicio, input.horaFin),
+          gt(reservas.horaFin, input.horaInicio),
+        ))
+        .limit(1);
+      if (cruces.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Ya hay una reserva de esa área en ese horario" });
+      }
+
+      let solicitante = input.solicitante;
+      if (solicitante === undefined) {
+        const [yo] = await ctx.db
+          .select({ nombre: usuarios.nombre, apellido: usuarios.apellido })
+          .from(usuarios).where(eq(usuarios.id, ctx.usuario.id)).limit(1);
+        solicitante = yo ? `${yo.nombre} ${yo.apellido}` : "Sin nombre";
+      }
+
+      await ctx.db.insert(reservas).values({
+        areaComunId: input.areaComunId, solicitanteId: ctx.usuario.id, solicitante,
+        fecha: input.fecha, horaInicio: input.horaInicio, horaFin: input.horaFin, estado: "aprobada",
+        decididaPorId: ctx.usuario.id, decididaAt: new Date(),
+      });
+      return { ok: true };
+    }),
+
+  /** Aprueba o rechaza una reserva pendiente —normalmente, la de un inquilino. */
+  decidirReserva: privado
+    .input(z.object({ reservaId: z.number().int().positive(), estado: z.enum(["aprobada", "rechazada"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const r = await reservaPropia(ctx, input.reservaId);
+      if (!r.administra) throw new TRPCError({ code: "FORBIDDEN", message: "Esa reserva no es tuya" });
+      if (r.estado !== "pendiente") {
+        throw new TRPCError({ code: "CONFLICT", message: "Esa reserva ya fue decidida" });
+      }
+      await ctx.db.update(reservas).set({
+        estado: input.estado, decididaPorId: ctx.usuario.id, decididaAt: new Date(),
+      }).where(eq(reservas.id, input.reservaId));
+      return { estado: input.estado };
+    }),
+
+  /** Cancela una reserva de cualquier parte del portafolio. */
+  cancelarReserva: privado
+    .input(z.object({ reservaId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const r = await reservaPropia(ctx, input.reservaId);
+      if (!r.administra) throw new TRPCError({ code: "FORBIDDEN", message: "Esa reserva no es tuya" });
       if (r.estado !== "pendiente" && r.estado !== "aprobada") {
         throw new TRPCError({ code: "CONFLICT", message: "Esa reserva ya no está activa" });
       }

@@ -15,6 +15,7 @@ import { Gastos } from "./paginas/propietario/Gastos";
 import { Contratos } from "./paginas/propietario/Contratos";
 import { Comunicados } from "./paginas/propietario/Comunicados";
 import { Incidencias } from "./paginas/propietario/Incidencias";
+import { Reservas } from "./paginas/propietario/Reservas";
 import { Rentabilidad } from "./paginas/propietario/Rentabilidad";
 import { Plan } from "./paginas/propietario/Plan";
 import { Alquilar } from "./paginas/propietario/Alquilar";
@@ -27,6 +28,7 @@ import { Inicio as InicioInquilino } from "./paginas/inquilino/Inicio";
 import { MisPagos } from "./paginas/inquilino/MisPagos";
 import { MiContrato } from "./paginas/inquilino/MiContrato";
 import { Reportar } from "./paginas/inquilino/Reportar";
+import { Reservas as ReservasInquilino } from "./paginas/inquilino/Reservas";
 import { Avisos } from "./paginas/inquilino/Avisos";
 
 type Sesion = Awaited<ReturnType<typeof api.auth.sesion.query>>;
@@ -237,6 +239,7 @@ export default function App() {
           {vista.tipo === "menu" && vista.clave === "contratos" && <Contratos />}
           {vista.tipo === "menu" && vista.clave === "comunicados" && <Comunicados unidades={unidades} />}
           {vista.tipo === "menu" && vista.clave === "incidencias" && <Incidencias unidades={unidades} />}
+          {vista.tipo === "menu" && vista.clave === "reservas" && <Reservas />}
           {vista.tipo === "menu" && vista.clave === "rentabilidad" && <Rentabilidad unidades={unidades} />}
           {vista.tipo === "menu" && vista.clave === "plan" && <Plan />}
 
@@ -246,6 +249,7 @@ export default function App() {
           {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "mis-pagos" && <MisPagos />}
           {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "mi-contrato" && <MiContrato />}
           {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "reportar" && <Reportar />}
+          {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "reservas-inquilino" && <ReservasInquilino />}
           {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "avisos" && <Avisos />}
 
           {vista.tipo === "menu" && vista.clave === "admin" && (

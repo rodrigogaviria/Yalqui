@@ -14,7 +14,7 @@ import { rentabilidadRouter } from "./dominios/rentabilidad.js";
 import { comunicadosRouter } from "./dominios/comunicados.js";
 import { planRouter } from "./dominios/plan.js";
 import { dashboardRouter } from "./dominios/dashboard.js";
-import { reservasRouter } from "./dominios/reservas.js";
+import { reservasRouter, misReservasRouter } from "./dominios/reservas.js";
 import { archivosRouter } from "./dominios/archivos.js";
 import { inquilinoRouter } from "./dominios/inquilino.js";
 import { facturasPropiedadRouter } from "./dominios/facturasPropiedad.js";
@@ -43,6 +43,7 @@ export const appRouter = router({
   plan: planRouter,
   dashboard: dashboardRouter,
   reservas: reservasRouter,
+  misReservas: misReservasRouter,
   archivos: archivosRouter,
   inquilino: inquilinoRouter,
   facturasPropiedad: facturasPropiedadRouter,
