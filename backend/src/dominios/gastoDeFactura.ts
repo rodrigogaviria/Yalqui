@@ -99,10 +99,11 @@ type Comunes = {
  * son los que cuentan en Mis Rendimientos. Lo usan el gasto que nace de una
  * factura y el gasto que se anota a mano sobre la edificación.
  */
-export async function repartirEnEdificacion(
+/** Las unidades de la edificación (las del dueño, si tiene uno fijo) con el
+ *  peso que les toca según el reparto elegido, validado. */
+async function unidadesConPeso(
   tx: Tx, edificacionId: number, reparto: "partes_iguales" | "por_area" | "por_canon",
-  comunes: Comunes, total: number,
-): Promise<void> {
+) {
   const [ed] = await tx.select({ propietarioId: edificaciones.propietarioId }).from(edificaciones)
     .where(eq(edificaciones.id, edificacionId)).limit(1);
   const unidades = await tx
@@ -124,14 +125,47 @@ export async function repartirEnEdificacion(
       message: `No se puede repartir ${reparto === "por_area" ? "por área" : "por canon"}: falta ${reparto === "por_area" ? "el área" : "el canon"} de ${sin.join(", ")}`,
     });
   }
+  return { unidades, pesos };
+}
 
-  const [padre] = await tx.insert(movimientos).values({
-    ...comunes, ambito: "edificacion", edificacionId: edificacionId, monto: total.toFixed(2), prorrateo: reparto,
-  });
-  const padreId = Number((padre as { insertId: number }).insertId);
+/** Los hijos —uno por unidad, los que cuentan en Mis Rendimientos— del
+ *  movimiento padre que ya existe con ese id. */
+async function insertarHijos(
+  tx: Tx, unidades: Array<{ id: number }>, pesos: number[], total: number,
+  reparto: "partes_iguales" | "por_area" | "por_canon", comunes: Comunes, padreId: number,
+): Promise<void> {
   const partes = repartir(total, pesos);
   await tx.insert(movimientos).values(unidades.map((u, i) => ({
     ...comunes, ambito: "unidad" as const, inmuebleId: u.id, movimientoPadreId: padreId,
     monto: partes[i]!.toFixed(2), prorrateo: reparto,
   })));
+}
+
+export async function repartirEnEdificacion(
+  tx: Tx, edificacionId: number, reparto: "partes_iguales" | "por_area" | "por_canon",
+  comunes: Comunes, total: number,
+): Promise<void> {
+  const { unidades, pesos } = await unidadesConPeso(tx, edificacionId, reparto);
+  const [padre] = await tx.insert(movimientos).values({
+    ...comunes, ambito: "edificacion", edificacionId: edificacionId, monto: total.toFixed(2), prorrateo: reparto,
+  });
+  const padreId = Number((padre as { insertId: number }).insertId);
+  await insertarHijos(tx, unidades, pesos, total, reparto, comunes, padreId);
+}
+
+/**
+ * Vuelve a repartir un gasto de edificación que ya existe: se borran sus
+ * hijos de antes y se ponen de nuevo, con el monto o el reparto que haya
+ * cambiado. El padre conserva su id, así que nada que apunte a él se rompe.
+ */
+export async function reRepartirEnEdificacion(
+  tx: Tx, edificacionId: number, reparto: "partes_iguales" | "por_area" | "por_canon",
+  comunes: Comunes, total: number, padreId: number,
+): Promise<void> {
+  const { unidades, pesos } = await unidadesConPeso(tx, edificacionId, reparto);
+  await tx.delete(movimientos).where(eq(movimientos.movimientoPadreId, padreId));
+  await tx.update(movimientos).set({
+    ...comunes, ambito: "edificacion", edificacionId, monto: total.toFixed(2), prorrateo: reparto,
+  }).where(eq(movimientos.id, padreId));
+  await insertarHijos(tx, unidades, pesos, total, reparto, comunes, padreId);
 }

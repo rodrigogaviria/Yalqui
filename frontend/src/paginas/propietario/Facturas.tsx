@@ -70,8 +70,9 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
   const [filtroUnidad, setFiltroUnidad] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
-  const [filtroAnio, setFiltroAnio] = useState("");
-  const [filtroMes, setFiltroMes] = useState("");
+  const hoy = new Date();
+  const [filtroAnio, setFiltroAnio] = useState(String(hoy.getFullYear()));
+  const [filtroMes, setFiltroMes] = useState(String(hoy.getMonth() + 1).padStart(2, "0"));
   const { datos, error, aviso, cargar, setAviso } = usePantalla(async () => {
     const [mias, tipos, yalqui] = await Promise.all([
       api.facturasPropiedad.mias.query(),

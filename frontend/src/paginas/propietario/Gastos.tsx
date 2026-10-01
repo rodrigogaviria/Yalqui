@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { api, mensajeDeError } from "../../lib/api";
 import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
 import { Ventana } from "../../componentes/Ventana";
+import { abrirArchivo } from "../../lib/archivos";
 import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
+
+const ACEPTA = "application/pdf,image/jpeg,image/png,image/webp,image/heic";
 
 type Gasto = Awaited<ReturnType<typeof api.rentabilidad.gastos.query>>[number];
 
@@ -18,7 +21,8 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
   const [mes, setMes] = useState(() => ({ anio: new Date().getFullYear(), mes: new Date().getMonth() }));
   const [registrando, setRegistrando] = useState(false);
   const [detalle, setDetalle] = useState<Gasto | null>(null);
-  const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
+  const [editandoGasto, setEditandoGasto] = useState<Gasto | null>(null);
+  const { datos, error, aviso, ocupado, accion, cargar, setAviso } = usePantalla(async () => {
     const [gastos, tipos, proveedores] = await Promise.all([
       api.rentabilidad.gastos.query(),
       api.rentabilidad.tipos.query(),
@@ -148,12 +152,19 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
       ) : vista === "calendario" ? (
         <CalendarioGastos gastos={gastos} mes={mes} setMes={setMes} alElegir={setDetalle} />
       ) : (
-        <ListaGastos gastos={gastos} alElegir={setDetalle} />
+        <ListaGastos gastos={gastos} alElegir={setDetalle} alEditar={setEditandoGasto} />
       )}
 
       {detalle && (
         <Ventana titulo="Detalle del gasto" alCerrar={() => setDetalle(null)}>
           <DetalleGasto gasto={detalle} />
+        </Ventana>
+      )}
+
+      {editandoGasto && (
+        <Ventana titulo="Editar gasto" alCerrar={() => setEditandoGasto(null)}>
+          <FormularioEditarGasto gasto={editandoGasto} tipos={datos.tipos} proveedores={datos.proveedores}
+            alTerminar={() => { setEditandoGasto(null); setAviso("Gasto actualizado."); void cargar(); }} />
         </Ventana>
       )}
     </div>
@@ -225,9 +236,19 @@ function CalendarioGastos({ gastos, mes, setMes, alElegir }: {
           <button className="boton fantasma" style={{ height: 34, padding: "0 12px" }}
             aria-label="Mes siguiente" onClick={() => mover(1)}>→</button>
         </div>
-        <span style={{ fontSize: 13, color: "var(--tinta-2)" }}>
-          Total del mes: <strong className="num">{pesos(delMes)}</strong>
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12.5, color: "var(--tinta-2)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: "var(--bien-tenue)", border: "1px solid #bfe9d3" }} />
+            Con comprobante
+          </span>
+          <span style={{ fontSize: 12.5, color: "var(--tinta-2)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: "var(--mal-tenue)", border: "1px solid #f7d3d3" }} />
+            Sin comprobante
+          </span>
+          <span style={{ fontSize: 13, color: "var(--tinta-2)" }}>
+            Total del mes: <strong className="num">{pesos(delMes)}</strong>
+          </span>
+        </div>
       </div>
 
       {porDia.size === 0 && (
@@ -253,10 +274,11 @@ function CalendarioGastos({ gastos, mes, setMes, alElegir }: {
                   <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                     {(porDia.get(dia) ?? []).map((g) => (
                       <button key={g.id} type="button" onClick={() => alElegir(g)}
-                        title={`${tituloGasto(g)} · ${pesos(Number(g.monto))}${g.proveedor ? ` · ${g.proveedor}` : ""} · tocá para ver el detalle`}
+                        title={`${tituloGasto(g)} · ${pesos(Number(g.monto))}${g.proveedor ? ` · ${g.proveedor}` : ""}${g.pagado ? " · con comprobante" : " · sin comprobante todavía"} · tocá para ver el detalle`}
                         style={{
                           fontSize: 11, padding: "2px 6px", borderRadius: 6, border: "none", cursor: "pointer",
-                          background: "var(--mal-tenue)", color: "#7d211d", textAlign: "left", fontFamily: "inherit",
+                          background: g.pagado ? "var(--bien-tenue)" : "var(--mal-tenue)",
+                          color: g.pagado ? "#0e3b24" : "#7d211d", textAlign: "left", fontFamily: "inherit",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         }}>
                         <strong>{tituloGasto(g)}</strong> · {pesos(Number(g.monto))}
@@ -273,7 +295,9 @@ function CalendarioGastos({ gastos, mes, setMes, alElegir }: {
   );
 }
 
-function ListaGastos({ gastos, alElegir }: { gastos: Gasto[]; alElegir: (g: Gasto) => void }) {
+function ListaGastos({ gastos, alElegir, alEditar }: {
+  gastos: Gasto[]; alElegir: (g: Gasto) => void; alEditar: (g: Gasto) => void;
+}) {
   return (
     <div style={{ display: "grid", gap: 8 }}>
       {gastos.map((g) => (
@@ -301,6 +325,12 @@ function ListaGastos({ gastos, alElegir }: { gastos: Gasto[]; alElegir: (g: Gast
             </div>
           </div>
           <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>{pesos(Number(g.monto))}</div>
+          {g.origenTipo !== "factura_propiedad" && (
+            <button type="button" className="boton fantasma" style={{ height: 34, fontSize: 13 }}
+              onClick={(e) => { e.stopPropagation(); alEditar(g); }}>
+              Editar
+            </button>
+          )}
           {g.partes.length > 0 && (
             <details style={{ flexBasis: "100%" }} onClick={(e) => e.stopPropagation()}>
               <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--tinta-2)" }}>
@@ -323,7 +353,47 @@ function ListaGastos({ gastos, alElegir }: { gastos: Gasto[]; alElegir: (g: Gast
 }
 
 /** Todo lo que se sabe de un gasto: para cuando la pastilla del calendario, o la fila de la lista, se quedan cortas. */
+type Comprobante = Awaited<ReturnType<typeof api.archivos.comprobantesDeGasto.query>>[number];
+
 function DetalleGasto({ gasto: g }: { gasto: Gasto }) {
+  const [comprobantes, setComprobantes] = useState<Comprobante[] | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cargarComprobantes = () => {
+    void api.archivos.comprobantesDeGasto.query({ movimientoId: g.id })
+      .then(setComprobantes)
+      .catch((e) => setError(mensajeDeError(e)));
+  };
+  useEffect(cargarComprobantes, [g.id]);
+
+  async function subir(archivos: FileList) {
+    setSubiendo(true); setError(null);
+    try {
+      for (const archivo of Array.from(archivos)) {
+        const subida = await api.archivos.solicitarSubidaGasto.mutate({
+          movimientoId: g.id, nombre: archivo.name,
+          mime: archivo.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp" | "image/heic",
+          bytes: archivo.size,
+        });
+        const r = await fetch(subida.url, { method: "PUT", headers: { "content-type": archivo.type }, body: archivo });
+        if (!r.ok) throw new Error(`No se pudo subir ${archivo.name}. Probá de nuevo.`);
+      }
+      cargarComprobantes();
+    } catch (err) {
+      setError(mensajeDeError(err));
+    } finally { setSubiendo(false); }
+  }
+
+  async function quitar(archivoId: number) {
+    try {
+      await api.archivos.eliminarComprobanteGasto.mutate({ archivoId });
+      cargarComprobantes();
+    } catch (err) {
+      setError(mensajeDeError(err));
+    }
+  }
+
   const fila = (etiqueta: string, valor: React.ReactNode) => (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--linea)" }}>
       <span style={{ color: "var(--tinta-2)", fontSize: 13.5 }}>{etiqueta}</span>
@@ -360,6 +430,123 @@ function DetalleGasto({ gasto: g }: { gasto: Gasto }) {
           </div>
         </div>
       )}
+
+      <div style={{ marginTop: 10 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>Comprobantes de pago</div>
+        {comprobantes === null ? (
+          <p style={{ margin: 0, fontSize: 13, color: "var(--tinta-3)" }}>Cargando…</p>
+        ) : comprobantes.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 13, color: "var(--tinta-3)" }}>Todavía no subiste ninguno.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 6 }}>
+            {comprobantes.map((c) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {c.nombre}
+                </span>
+                <button type="button" className="boton fantasma" style={{ height: 30, fontSize: 12.5, padding: "0 10px" }}
+                  onClick={() => abrirArchivo(c.id)}>
+                  Ver
+                </button>
+                <button type="button" className="boton fantasma" style={{ height: 30, fontSize: 12.5, padding: "0 10px" }}
+                  onClick={() => void quitar(c.id)}>
+                  Quitar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <label className="boton fantasma" style={{
+          height: 36, fontSize: 13, marginTop: 8, display: "inline-flex", alignItems: "center",
+          padding: "0 12px", cursor: subiendo ? "default" : "pointer", opacity: subiendo ? 0.6 : 1,
+        }}>
+          {subiendo ? "Subiendo…" : "Subir uno o varios"}
+          <input type="file" accept={ACEPTA} multiple disabled={subiendo} style={{ display: "none" }}
+            onChange={(e) => { if (e.target.files?.length) void subir(e.target.files); e.target.value = ""; }} />
+        </label>
+        {error && <div className="aviso malo" role="alert" style={{ marginTop: 8 }}>{error}</div>}
+      </div>
     </div>
+  );
+}
+
+/** Corrige un gasto anotado a mano: tipo, monto, fecha, proveedor, concepto y, si es de una edificación, el reparto. */
+function FormularioEditarGasto({ gasto, tipos, proveedores, alTerminar }: {
+  gasto: Gasto;
+  tipos: Array<{ id: number; nombre: string }>;
+  proveedores: Array<{ id: number; razonSocial: string }>;
+  alTerminar: () => void;
+}) {
+  const [tipoId, setTipoId] = useState(() => tipos.find((t) => t.nombre === gasto.concepto)?.id ?? "");
+  const [monto, setMonto] = useState(String(Number(gasto.monto)));
+  const [fecha, setFecha] = useState(String(gasto.fecha).slice(0, 10));
+  const [proveedorId, setProveedorId] = useState(() => proveedores.find((p) => p.razonSocial === gasto.proveedor)?.id ?? "");
+  const [prorrateo, setProrrateo] = useState<"partes_iguales" | "por_area" | "por_canon">(
+    gasto.prorrateo === "por_area" || gasto.prorrateo === "por_canon" ? gasto.prorrateo : "partes_iguales",
+  );
+  const [nota, setNota] = useState(gasto.nota ?? "");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true); setError(null);
+    try {
+      await api.rentabilidad.editar.mutate({
+        movimientoId: gasto.id,
+        ...(tipoId !== "" ? { tipoMovimientoId: Number(tipoId) } : {}),
+        monto: Number(monto),
+        fecha,
+        ...(proveedorId !== "" ? { proveedorId: Number(proveedorId) } : {}),
+        ...(gasto.edificacion ? { prorrateo } : {}),
+        nota: nota.trim(),
+      });
+      alTerminar();
+    } catch (err) {
+      setError(mensajeDeError(err));
+    } finally { setEnviando(false); }
+  }
+
+  return (
+    <form onSubmit={enviar} style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12 }}>
+        <Campo etiqueta="Tipo de gasto">
+          <select value={tipoId} onChange={(e) => setTipoId(e.target.value)}>
+            <option value="">Elegí uno…</option>
+            {tipos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+          </select>
+        </Campo>
+        <Campo etiqueta="Monto">
+          <input type="number" min={1} step="any" value={monto} onChange={(e) => setMonto(e.target.value)} />
+        </Campo>
+        <Campo etiqueta="Fecha">
+          <input type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} />
+        </Campo>
+        <Campo etiqueta="Proveedor">
+          <select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
+            <option value="">Elegí uno…</option>
+            {proveedores.map((p) => <option key={p.id} value={p.id}>{p.razonSocial}</option>)}
+          </select>
+        </Campo>
+        {gasto.edificacion && (
+          <Campo etiqueta="Reparto entre las unidades">
+            <select value={prorrateo} onChange={(e) => setProrrateo(e.target.value as typeof prorrateo)}>
+              <option value="partes_iguales">Partes iguales</option>
+              <option value="por_area">Por área</option>
+              <option value="por_canon">Por canon</option>
+            </select>
+          </Campo>
+        )}
+      </div>
+      <Campo etiqueta="Concepto" ayuda="Opcional · qué se pagó">
+        <input value={nota} onChange={(e) => setNota(e.target.value)} />
+      </Campo>
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+      <div>
+        <button type="submit" className="boton" disabled={enviando || tipoId === "" || Number(monto) <= 0 || proveedorId === ""}>
+          {enviando ? "Guardando…" : "Guardar cambios"}
+        </button>
+      </div>
+    </form>
   );
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -10,6 +10,7 @@ import { archivos } from "../db/schema/identidad.js";
 import { tieneRol } from "../auth/roles.js";
 import { esArrendatarioDe } from "../auth/arrendatario.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
+import { movimientos } from "../db/schema/finanzas.js";
 
 const MIME_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -17,6 +18,7 @@ const TIPO = "comprobante_pago";
 const TIPO_UNIDAD = "pago_unidad";
 const TIPO_FACTURA = "factura_propiedad";
 const TIPO_FACTURA_EDIF = "factura_edificacion";
+const TIPO_GASTO = "movimiento_gasto";
 
 let s3: S3Client | undefined;
 const cliente = () => (s3 ??= new S3Client({}));
@@ -25,6 +27,21 @@ const bucket = () => {
   if (!b) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "El almacenamiento de archivos no está configurado" });
   return b;
 };
+
+/** Quien manda sobre un gasto: el propietario de su unidad, o de su
+ *  edificación si es uno repartido entre varias. */
+async function puedeSobreElGasto(
+  ctx: { db: import("../db/index.js").Database; usuario: { roles: import("../auth/roles.js").RolOtorgado[] } },
+  movimientoId: number,
+) {
+  const [m] = await ctx.db
+    .select({ inmuebleId: movimientos.inmuebleId, edificacionId: movimientos.edificacionId })
+    .from(movimientos).where(eq(movimientos.id, movimientoId)).limit(1);
+  if (!m) return false;
+  return m.inmuebleId !== null
+    ? tieneRol(ctx.usuario.roles, "propietario", "inmueble", m.inmuebleId)
+    : m.edificacionId !== null && puedeSobreEdificacion(ctx.usuario.roles, m.edificacionId);
+}
 
 /** El propietario de la unidad y quien la arrienda. */
 async function puedeSobreLaUnidad(
@@ -116,11 +133,57 @@ export const archivosRouter = router({
       return prepararSubida(ctx, TIPO_FACTURA_EDIF, input.edificacionId!, input);
     }),
 
+  /** El comprobante (o varios) de un gasto: la factura del proveedor, el
+   *  recibo, la foto de la transferencia. */
+  solicitarSubidaGasto: privado
+    .input(z.object({
+      movimientoId: z.number().int().positive(),
+      nombre: z.string().trim().min(1).max(255),
+      mime: z.enum(MIME_PERMITIDOS),
+      bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!(await puedeSobreElGasto(ctx, input.movimientoId))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre ese gasto" });
+      }
+      return prepararSubida(ctx, TIPO_GASTO, input.movimientoId, input);
+    }),
+
+  /** Los comprobantes ya subidos de un gasto, el más nuevo primero. */
+  comprobantesDeGasto: privado
+    .input(z.object({ movimientoId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      if (!(await puedeSobreElGasto(ctx, input.movimientoId))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre ese gasto" });
+      }
+      return ctx.db
+        .select({ id: archivos.id, nombre: archivos.nombreOriginal, createdAt: archivos.createdAt })
+        .from(archivos)
+        .where(and(eq(archivos.entidadTipo, TIPO_GASTO), eq(archivos.entidadId, input.movimientoId)))
+        .orderBy(desc(archivos.createdAt));
+    }),
+
+  /** Quita un comprobante subido de más, sin tocar el gasto. */
+  eliminarComprobanteGasto: privado
+    .input(z.object({ archivoId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [a] = await ctx.db.select({ entidadId: archivos.entidadId, entidadTipo: archivos.entidadTipo })
+        .from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
+      if (!a || a.entidadTipo !== TIPO_GASTO || a.entidadId === null) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ese comprobante no existe" });
+      }
+      if (!(await puedeSobreElGasto(ctx, a.entidadId))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre ese gasto" });
+      }
+      await ctx.db.delete(archivos).where(eq(archivos.id, input.archivoId));
+      return { ok: true };
+    }),
+
   urlDescarga: privado
     .input(z.object({ archivoId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const [a] = await ctx.db.select().from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
-      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF)) {
+      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Ese archivo no existe" });
       }
       if (a.entidadTipo === TIPO) {
@@ -132,6 +195,10 @@ export const archivosRouter = router({
       } else if (a.entidadTipo === TIPO_FACTURA) {
         if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", a.entidadId)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+        }
+      } else if (a.entidadTipo === TIPO_GASTO) {
+        if (!(await puedeSobreElGasto(ctx, a.entidadId))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre ese gasto" });
         }
       } else if (!(await puedeSobreLaUnidad(ctx, a.entidadId))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });

@@ -4,11 +4,12 @@ import { TRPCError } from "@trpc/server";
 import { router, privado } from "../trpc/base.js";
 import { ambitosCon, tieneRol } from "../auth/roles.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
-import { repartirEnEdificacion } from "./gastoDeFactura.js";
+import { repartirEnEdificacion, reRepartirEnEdificacion } from "./gastoDeFactura.js";
 import { movimientos } from "../db/schema/finanzas.js";
 import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { tiposMovimiento } from "../db/schema/administracion.js";
 import { proveedores } from "../db/schema/operacion.js";
+import { archivos } from "../db/schema/identidad.js";
 
 const dinero = z.number().min(0).max(999_999_999);
 /** Un mes en formato AAAA-MM, como lo escribe el selector del navegador. */
@@ -92,8 +93,19 @@ export const rentabilidadRouter = router({
       .where(inArray(movimientos.movimientoPadreId, padres))
       .orderBy(inmuebles.direccion, inmuebles.complemento);
 
+    // Con comprobante propio, o nacido ya pagado de una factura: lo que marca
+    // un gasto como respaldado en el calendario.
+    const idsFila = filas.map((f) => f.id);
+    const conComprobante = idsFila.length === 0 ? new Set<number>() : new Set(
+      (await ctx.db.selectDistinct({ id: archivos.entidadId })
+        .from(archivos)
+        .where(and(eq(archivos.entidadTipo, "movimiento_gasto"), inArray(archivos.entidadId, idsFila))))
+        .map((a) => Number(a.id)),
+    );
+
     return filas.map((f) => ({
       ...f,
+      pagado: f.origenTipo === "factura_propiedad" || conComprobante.has(f.id),
       partes: partes.filter((x) => x.padreId === f.id)
         .map((x) => ({ unidad: `${x.direccion}${x.complemento ? `, ${x.complemento}` : ""}`, monto: x.monto })),
     }));
@@ -251,5 +263,96 @@ export const rentabilidadRouter = router({
         ...comunes, ambito: "unidad", inmuebleId: input.inmuebleId!, monto: input.monto.toFixed(2),
       });
       return { movimientoId: Number((res as { insertId: number }).insertId) };
+    }),
+
+  /**
+   * Corrige un movimiento anotado a mano: no se toca el que nace de una
+   * factura pagada —ese se corrige editando la factura— ni la parte de un
+   * reparto, solo el gasto principal. Si cambia el monto o el reparto de uno
+   * de edificación, se rehace entre las unidades.
+   */
+  editar: privado
+    .input(z.object({
+      movimientoId: z.number().int().positive(),
+      tipoMovimientoId: z.number().int().positive().optional(),
+      monto: dinero.optional(),
+      fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usá el formato AAAA-MM-DD").optional(),
+      nota: z.string().trim().max(255).optional(),
+      proveedorId: z.number().int().positive().optional(),
+      prorrateo: z.enum(["partes_iguales", "por_area", "por_canon"]).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [m] = await ctx.db
+        .select({
+          inmuebleId: movimientos.inmuebleId, edificacionId: movimientos.edificacionId,
+          tipo: movimientos.tipo, tipoMovimientoId: movimientos.tipoMovimientoId,
+          monto: movimientos.monto, fecha: movimientos.fecha, nota: movimientos.nota,
+          proveedor: movimientos.proveedor, proveedorId: movimientos.proveedorId,
+          prorrateo: movimientos.prorrateo, origenTipo: movimientos.origenTipo,
+          movimientoPadreId: movimientos.movimientoPadreId,
+        })
+        .from(movimientos).where(eq(movimientos.id, input.movimientoId)).limit(1);
+      if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Ese movimiento no existe" });
+      if (m.movimientoPadreId !== null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Esa es la parte de un reparto: editá el gasto de la edificación, no esta unidad",
+        });
+      }
+      if (m.origenTipo === "factura_propiedad") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Ese gasto nace de una factura pagada: corregilo editando la factura, no el gasto",
+        });
+      }
+      const puede = m.inmuebleId !== null
+        ? tieneRol(ctx.usuario.roles, "propietario", "inmueble", m.inmuebleId)
+        : m.edificacionId !== null && puedeSobreEdificacion(ctx.usuario.roles, m.edificacionId);
+      if (!puede) throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
+
+      const monto = input.monto ?? Number(m.monto);
+      if (monto <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "El monto debe ser mayor a cero" });
+
+      let tipo = m.tipo;
+      if (input.tipoMovimientoId !== undefined) {
+        const [t] = await ctx.db.select({ tipo: tiposMovimiento.tipo, activo: tiposMovimiento.activo })
+          .from(tiposMovimiento).where(eq(tiposMovimiento.id, input.tipoMovimientoId)).limit(1);
+        if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Ese concepto no existe" });
+        if (!t.activo) throw new TRPCError({ code: "CONFLICT", message: "Ese concepto está anulado" });
+        if (t.tipo !== m.tipo) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "No se puede cambiar un ingreso por un egreso, ni al revés" });
+        }
+        tipo = t.tipo;
+      }
+
+      let proveedor = m.proveedor;
+      let proveedorId = m.proveedorId;
+      if (input.proveedorId !== undefined) {
+        const [p] = await ctx.db.select({ razonSocial: proveedores.razonSocial, activo: proveedores.activo })
+          .from(proveedores).where(eq(proveedores.id, input.proveedorId)).limit(1);
+        if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Ese proveedor no existe" });
+        if (!p.activo) throw new TRPCError({ code: "CONFLICT", message: "Ese proveedor está anulado" });
+        proveedor = p.razonSocial;
+        proveedorId = input.proveedorId;
+      }
+
+      const comunes = {
+        tipo, tipoMovimientoId: input.tipoMovimientoId ?? m.tipoMovimientoId,
+        fecha: input.fecha ?? String(m.fecha),
+        origenTipo: "manual" as const,
+        nota: input.nota !== undefined ? (input.nota || null) : m.nota,
+        proveedor, proveedorId,
+      };
+
+      await ctx.db.transaction(async (tx) => {
+        if (m.edificacionId !== null) {
+          const reparto = input.prorrateo ?? (m.prorrateo === "ninguno" ? "partes_iguales" : m.prorrateo);
+          await reRepartirEnEdificacion(tx, m.edificacionId!, reparto, comunes, monto, input.movimientoId);
+        } else {
+          await tx.update(movimientos).set({ ...comunes, monto: monto.toFixed(2) })
+            .where(eq(movimientos.id, input.movimientoId));
+        }
+      });
+      return { ok: true };
     }),
 });
