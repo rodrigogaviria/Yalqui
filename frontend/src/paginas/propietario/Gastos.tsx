@@ -4,6 +4,8 @@ import { pesos } from "../../componentes/Dinero";
 import { Campo } from "../../componentes/Campo";
 import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
 
+type Gasto = Awaited<ReturnType<typeof api.rentabilidad.gastos.query>>[number];
+
 /**
  * Lo que sale de cada unidad: mantenimiento, administración, impuestos.
  *
@@ -11,6 +13,8 @@ import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
  * así que un gasto que se anota acá ya cuenta allá.
  */
 export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: string }> }) {
+  const [vista, setVista] = useState<"calendario" | "lista">("calendario");
+  const [mes, setMes] = useState(() => ({ anio: new Date().getFullYear(), mes: new Date().getMonth() }));
   const [registrando, setRegistrando] = useState(false);
   const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
     const [gastos, tipos] = await Promise.all([
@@ -45,9 +49,24 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
       <Encabezado
         titulo="Mis Gastos"
         nota="Lo que sale de tus propiedades. También cuenta en Mis Rendimientos."
-        accion={unidades.length > 0
-          ? <button className="boton" onClick={() => setRegistrando((v) => !v)}>{registrando ? "Cancelar" : "Registrar gasto"}</button>
-          : undefined}
+        accion={
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              {(["calendario", "lista"] as const).map((v) => (
+                <button key={v} className={vista === v ? "boton" : "boton fantasma"}
+                  style={{ height: 38, fontSize: 13.5, padding: "0 13px" }}
+                  onClick={() => setVista(v)}>
+                  {v === "calendario" ? "Calendario" : "Lista"}
+                </button>
+              ))}
+            </div>
+            {unidades.length > 0 && (
+              <button className="boton" onClick={() => setRegistrando((v) => !v)}>
+                {registrando ? "Cancelar" : "Registrar gasto"}
+              </button>
+            )}
+          </div>
+        }
       />
 
       {aviso && <div className="aviso bueno" role="status">{aviso}</div>}
@@ -120,48 +139,149 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
           Mantenimiento, administración, impuesto predial: anotalos acá y quedan
           descontados en Mis Rendimientos.
         </Vacio>
+      ) : vista === "calendario" ? (
+        <CalendarioGastos gastos={gastos} mes={mes} setMes={setMes} />
       ) : (
-        <div style={{ display: "grid", gap: 8 }}>
-          {gastos.map((g) => (
-            <div key={g.id} className="tarjeta" style={{
-              padding: "13px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+        <ListaGastos gastos={gastos} />
+      )}
+    </div>
+  );
+}
+
+type Mes = { anio: number; mes: number };
+const periodoDe = (m: Mes) => `${m.anio}-${String(m.mes + 1).padStart(2, "0")}`;
+
+function nombreMes(periodo: string): string {
+  const [ano, mes] = periodo.split("-");
+  const fecha = new Date(Number(ano), Number(mes) - 1, 1);
+  const texto = fecha.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/** Cada gasto puesto en el día en que se pagó, con su concepto y su valor a la vista. */
+function CalendarioGastos({ gastos, mes, setMes }: { gastos: Gasto[]; mes: Mes; setMes: (m: Mes) => void }) {
+  const ultimo = new Date(mes.anio, mes.mes + 1, 0).getDate();
+  const primerDiaSemana = (new Date(mes.anio, mes.mes, 1).getDay() + 6) % 7; // lunes = 0
+  const periodo = periodoDe(mes);
+
+  const porDia = new Map<number, Gasto[]>();
+  for (const g of gastos) {
+    if (String(g.fecha).slice(0, 7) !== periodo) continue;
+    const dia = Number(String(g.fecha).slice(8, 10));
+    porDia.set(dia, [...(porDia.get(dia) ?? []), g]);
+  }
+  const delMes = [...porDia.values()].flat().reduce((t, g) => t + Number(g.monto), 0);
+
+  const celdas: Array<number | null> = [
+    ...Array<null>(primerDiaSemana).fill(null),
+    ...Array.from({ length: ultimo }, (_, i) => i + 1),
+  ];
+  const mover = (d: number) => {
+    const f = new Date(mes.anio, mes.mes + d, 1);
+    setMes({ anio: f.getFullYear(), mes: f.getMonth() });
+  };
+
+  return (
+    <section className="tarjeta" style={{ padding: "16px 18px", display: "grid", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button className="boton fantasma" style={{ height: 34, padding: "0 12px" }}
+            aria-label="Mes anterior" onClick={() => mover(-1)}>←</button>
+          <h2 style={{ fontSize: 16.5, fontWeight: 600, margin: 0, minWidth: 150, textAlign: "center" }}>
+            {nombreMes(periodo)}
+          </h2>
+          <button className="boton fantasma" style={{ height: 34, padding: "0 12px" }}
+            aria-label="Mes siguiente" onClick={() => mover(1)}>→</button>
+        </div>
+        <span style={{ fontSize: 13, color: "var(--tinta-2)" }}>
+          Total del mes: <strong className="num">{pesos(delMes)}</strong>
+        </span>
+      </div>
+
+      {porDia.size === 0 && (
+        <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-3)" }}>
+          Sin gastos registrados este mes.
+        </p>
+      )}
+
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(110px, 1fr))", gap: 6, minWidth: 770 }}>
+          {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
+            <div key={d} style={{ fontSize: 12, fontWeight: 600, color: "var(--tinta-3)", textAlign: "center" }}>{d}</div>
+          ))}
+          {celdas.map((dia, i) => (
+            <div key={i} style={{
+              minHeight: 78, borderRadius: 8, padding: 6,
+              border: dia === null ? "none" : "1px solid var(--linea)",
+              display: "flex", flexDirection: "column", gap: 4,
             }}>
-              <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 600 }}>
-                  {g.concepto ?? "Sin clasificar"}
-                  {g.origenTipo === "factura_propiedad" && (
-                    <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>De una factura</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
-                  {g.edificacion
-                    ? `${g.edificacion} · toda la edificación (reparto ${g.prorrateo === "por_area" ? "por área" : g.prorrateo === "por_canon" ? "por canon" : "en partes iguales"})`
-                    : `${g.direccion}${g.complemento ? `, ${g.complemento}` : ""}`}
-                  {" · "}{new Date(g.fecha).toLocaleDateString("es-CO", { timeZone: "UTC" })}
-                  {g.proveedor ? ` · ${g.proveedor}` : ""}
-                  {g.nota ? ` · ${g.nota}` : ""}
-                </div>
-              </div>
-              <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>{pesos(Number(g.monto))}</div>
-              {g.partes.length > 0 && (
-                <details style={{ flexBasis: "100%" }}>
-                  <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--tinta-2)" }}>
-                    Ver el reparto entre {g.partes.length} unidades
-                  </summary>
-                  <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
-                    {g.partes.map((x) => (
-                      <div key={x.unidad} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                        <span>{x.unidad}</span>
-                        <span className="num">{pesos(Number(x.monto))}</span>
+              {dia !== null && (
+                <>
+                  <span className="num" style={{ fontSize: 12, color: "var(--tinta-3)" }}>{dia}</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    {(porDia.get(dia) ?? []).map((g) => (
+                      <div key={g.id}
+                        title={`${g.concepto ?? "Sin clasificar"} · ${pesos(Number(g.monto))}${g.proveedor ? ` · ${g.proveedor}` : ""}`}
+                        style={{
+                          fontSize: 11, padding: "2px 6px", borderRadius: 6,
+                          background: "var(--mal-tenue)", color: "#7d211d",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>
+                        <strong>{g.concepto ?? "Sin clasificar"}</strong> · {pesos(Number(g.monto))}
                       </div>
                     ))}
                   </div>
-                </details>
+                </>
               )}
             </div>
           ))}
         </div>
-      )}
+      </div>
+    </section>
+  );
+}
+
+function ListaGastos({ gastos }: { gastos: Gasto[] }) {
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {gastos.map((g) => (
+        <div key={g.id} className="tarjeta" style={{
+          padding: "13px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+        }}>
+          <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 600 }}>
+              {g.concepto ?? "Sin clasificar"}
+              {g.origenTipo === "factura_propiedad" && (
+                <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>De una factura</span>
+              )}
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
+              {g.edificacion
+                ? `${g.edificacion} · toda la edificación (reparto ${g.prorrateo === "por_area" ? "por área" : g.prorrateo === "por_canon" ? "por canon" : "en partes iguales"})`
+                : `${g.direccion}${g.complemento ? `, ${g.complemento}` : ""}`}
+              {" · "}{new Date(g.fecha).toLocaleDateString("es-CO", { timeZone: "UTC" })}
+              {g.proveedor ? ` · ${g.proveedor}` : ""}
+              {g.nota ? ` · ${g.nota}` : ""}
+            </div>
+          </div>
+          <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>{pesos(Number(g.monto))}</div>
+          {g.partes.length > 0 && (
+            <details style={{ flexBasis: "100%" }}>
+              <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--tinta-2)" }}>
+                Ver el reparto entre {g.partes.length} unidades
+              </summary>
+              <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
+                {g.partes.map((x) => (
+                  <div key={x.unidad} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span>{x.unidad}</span>
+                    <span className="num">{pesos(Number(x.monto))}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
