@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -11,6 +11,7 @@ import { tieneRol } from "../auth/roles.js";
 import { esArrendatarioDe } from "../auth/arrendatario.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { movimientos } from "../db/schema/finanzas.js";
+import { inmuebleFotos } from "../db/schema/inventario.js";
 
 const MIME_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -19,6 +20,7 @@ const TIPO_UNIDAD = "pago_unidad";
 const TIPO_FACTURA = "factura_propiedad";
 const TIPO_FACTURA_EDIF = "factura_edificacion";
 const TIPO_GASTO = "movimiento_gasto";
+const TIPO_FOTO = "inmueble_foto";
 
 let s3: S3Client | undefined;
 const cliente = () => (s3 ??= new S3Client({}));
@@ -179,11 +181,103 @@ export const archivosRouter = router({
       return { ok: true };
     }),
 
+  /** Una foto de la unidad: la factura del archivo va a S3 como siempre, y
+   *  queda anotada en `inmuebleFotos` —con su orden y si es la portada— para
+   *  que la galería de la unidad sepa qué mostrar y en qué orden. */
+  solicitarSubidaFotoUnidad: privado
+    .input(z.object({
+      inmuebleId: z.number().int().positive(),
+      nombre: z.string().trim().min(1).max(255),
+      mime: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic"]),
+      bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
+      descripcion: z.string().trim().max(255).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      const { archivoId, url } = await prepararSubida(ctx, TIPO_FOTO, input.inmuebleId, input);
+
+      const [existe] = await ctx.db.select({ n: sql<number>`COUNT(*)` })
+        .from(inmuebleFotos).where(eq(inmuebleFotos.inmuebleId, input.inmuebleId));
+      const [maxOrden] = await ctx.db.select({ m: sql<number | null>`MAX(${inmuebleFotos.orden})` })
+        .from(inmuebleFotos).where(eq(inmuebleFotos.inmuebleId, input.inmuebleId));
+
+      const [res] = await ctx.db.insert(inmuebleFotos).values({
+        inmuebleId: input.inmuebleId, archivoId, bytes: input.bytes,
+        descripcion: input.descripcion ?? null,
+        orden: (maxOrden?.m ?? -1) + 1,
+        // La primera foto de la unidad nace de portada: así nunca queda una
+        // galería sin ninguna marcada.
+        esPortada: Number(existe?.n ?? 0) === 0,
+        estadoRevision: "apta",
+      });
+      return { archivoId, url, fotoId: Number((res as { insertId: number }).insertId) };
+    }),
+
+  /** Las fotos de una unidad, en su orden, la portada primero. */
+  fotosDeUnidad: privado
+    .input(z.object({ inmuebleId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      return ctx.db
+        .select({
+          id: inmuebleFotos.id, archivoId: inmuebleFotos.archivoId,
+          descripcion: inmuebleFotos.descripcion, esPortada: inmuebleFotos.esPortada,
+          orden: inmuebleFotos.orden,
+        })
+        .from(inmuebleFotos)
+        .where(eq(inmuebleFotos.inmuebleId, input.inmuebleId))
+        .orderBy(desc(inmuebleFotos.esPortada), inmuebleFotos.orden);
+    }),
+
+  /** La marca como portada: la única por unidad, la primera que se ve en la galería. */
+  marcarPortadaUnidad: privado
+    .input(z.object({ fotoId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [f] = await ctx.db.select({ inmuebleId: inmuebleFotos.inmuebleId })
+        .from(inmuebleFotos).where(eq(inmuebleFotos.id, input.fotoId)).limit(1);
+      if (!f) throw new TRPCError({ code: "NOT_FOUND", message: "Esa foto no existe" });
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", f.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(inmuebleFotos).set({ esPortada: false })
+          .where(and(eq(inmuebleFotos.inmuebleId, f.inmuebleId), eq(inmuebleFotos.esPortada, true)));
+        await tx.update(inmuebleFotos).set({ esPortada: true }).where(eq(inmuebleFotos.id, input.fotoId));
+      });
+      return { ok: true };
+    }),
+
+  /** Quita una foto de la unidad. Si era la portada, la siguiente en orden pasa a serlo. */
+  eliminarFotoUnidad: privado
+    .input(z.object({ fotoId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [f] = await ctx.db.select({ inmuebleId: inmuebleFotos.inmuebleId, esPortada: inmuebleFotos.esPortada })
+        .from(inmuebleFotos).where(eq(inmuebleFotos.id, input.fotoId)).limit(1);
+      if (!f) throw new TRPCError({ code: "NOT_FOUND", message: "Esa foto no existe" });
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", f.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      await ctx.db.transaction(async (tx) => {
+        await tx.delete(inmuebleFotos).where(eq(inmuebleFotos.id, input.fotoId));
+        if (f.esPortada) {
+          const [siguiente] = await tx.select({ id: inmuebleFotos.id })
+            .from(inmuebleFotos).where(eq(inmuebleFotos.inmuebleId, f.inmuebleId))
+            .orderBy(inmuebleFotos.orden).limit(1);
+          if (siguiente) await tx.update(inmuebleFotos).set({ esPortada: true }).where(eq(inmuebleFotos.id, siguiente.id));
+        }
+      });
+      return { ok: true };
+    }),
+
   urlDescarga: privado
     .input(z.object({ archivoId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const [a] = await ctx.db.select().from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
-      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO)) {
+      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO && a.entidadTipo !== TIPO_FOTO)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Ese archivo no existe" });
       }
       if (a.entidadTipo === TIPO) {
@@ -199,6 +293,10 @@ export const archivosRouter = router({
       } else if (a.entidadTipo === TIPO_GASTO) {
         if (!(await puedeSobreElGasto(ctx, a.entidadId))) {
           throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre ese gasto" });
+        }
+      } else if (a.entidadTipo === TIPO_FOTO) {
+        if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", a.entidadId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
         }
       } else if (!(await puedeSobreLaUnidad(ctx, a.entidadId))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });

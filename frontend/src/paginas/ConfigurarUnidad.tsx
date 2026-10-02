@@ -3,6 +3,7 @@ import { api, mensajeDeError } from "../lib/api";
 import { etiqueta } from "../lib/etiquetas";
 import { pesos } from "../componentes/Dinero";
 import { AreasYReservas } from "../componentes/AreasYReservas";
+import { FotosUnidad } from "../componentes/FotosUnidad";
 
 type Canon = Awaited<ReturnType<typeof api.configuracion.canon.query>>;
 type Ajuste = Awaited<ReturnType<typeof api.configuracion.ajustes.query>>[number];
@@ -278,6 +279,8 @@ export function ConfigurarUnidad({
           ))}
         </div>
       </section>
+
+      <FotosUnidad inmuebleId={inmuebleId} />
 
       <AreasYReservas inmuebleId={inmuebleId} />
     </div>
