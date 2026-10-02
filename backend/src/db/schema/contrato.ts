@@ -12,7 +12,13 @@ export const plantillasContrato = mysqlTable("plantillas_contrato", {
   nombre: varchar("nombre", { length: 191 }).notNull(),
   marcoLegal: mysqlEnum("marco_legal", MARCOS_LEGALES).notNull(),
   aplicaATipos: json("aplica_a_tipos"),
-  cuerpo: mediumtext("cuerpo").notNull(),
+  /** El texto con {{marcadores}}, o nulo si la plantilla es un archivo —
+   *  tiene que haber uno de los dos. */
+  cuerpo: mediumtext("cuerpo"),
+  /** La minuta anexada como archivo: si está, reemplaza al cuerpo. El
+   *  contrato generado desde acá no sustituye marcadores, anexa este
+   *  archivo tal cual. */
+  archivoId: bigint("archivo_id", { mode: "number", unsigned: true }),
   variables: json("variables"),
   version: smallint("version", { unsigned: true }).notNull().default(1),
   estado: mysqlEnum("estado", ["borrador", "vigente", "archivada"]).notNull().default("borrador"),

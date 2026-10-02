@@ -4,10 +4,10 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { router, privado } from "../trpc/base.js";
+import { router, privado, admin } from "../trpc/base.js";
 import { accesoAlContrato } from "../auth/contratoAcceso.js";
 import { archivos } from "../db/schema/identidad.js";
-import { tieneRol } from "../auth/roles.js";
+import { tieneRol, esAdmin } from "../auth/roles.js";
 import { esArrendatarioDe } from "../auth/arrendatario.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { movimientos } from "../db/schema/finanzas.js";
@@ -21,6 +21,8 @@ const TIPO_FACTURA = "factura_propiedad";
 const TIPO_FACTURA_EDIF = "factura_edificacion";
 const TIPO_GASTO = "movimiento_gasto";
 const TIPO_FOTO = "inmueble_foto";
+const TIPO_PLANTILLA = "plantilla_contrato";
+const MIME_DOCUMENTO = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] as const;
 
 let s3: S3Client | undefined;
 const cliente = () => (s3 ??= new S3Client({}));
@@ -273,11 +275,20 @@ export const archivosRouter = router({
       return { ok: true };
     }),
 
+  /** La minuta de una plantilla de contrato: Word o PDF, la administra Yalqui. */
+  solicitarSubidaPlantillaContrato: admin
+    .input(z.object({
+      nombre: z.string().trim().min(1).max(255),
+      mime: z.enum(MIME_DOCUMENTO),
+      bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
+    }))
+    .mutation(async ({ ctx, input }) => prepararSubida(ctx, TIPO_PLANTILLA, 0, input)),
+
   urlDescarga: privado
     .input(z.object({ archivoId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const [a] = await ctx.db.select().from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
-      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO && a.entidadTipo !== TIPO_FOTO)) {
+      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO && a.entidadTipo !== TIPO_FOTO && a.entidadTipo !== TIPO_PLANTILLA)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Ese archivo no existe" });
       }
       if (a.entidadTipo === TIPO) {
@@ -297,6 +308,10 @@ export const archivosRouter = router({
       } else if (a.entidadTipo === TIPO_FOTO) {
         if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", a.entidadId)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+        }
+      } else if (a.entidadTipo === TIPO_PLANTILLA) {
+        if (!esAdmin(ctx.usuario.roles)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Requiere administración de Yalqui" });
         }
       } else if (!(await puedeSobreLaUnidad(ctx, a.entidadId))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });

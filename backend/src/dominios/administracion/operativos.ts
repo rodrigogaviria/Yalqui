@@ -380,6 +380,7 @@ export const operativosRouter = router({
         estado: plantillasContrato.estado,
         vigenteDesde: plantillasContrato.vigenteDesde,
         cuerpo: plantillasContrato.cuerpo,
+        archivoId: plantillasContrato.archivoId,
       })
       .from(plantillasContrato)
       .orderBy(asc(plantillasContrato.marcoLegal), desc(plantillasContrato.version)),
@@ -404,8 +405,11 @@ export const operativosRouter = router({
       codigo: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{1,39}$/, "Minúsculas, sin espacios ni tildes"),
       nombre: z.string().trim().min(2).max(191),
       marcoLegal: z.enum(MARCOS_LEGALES),
-      cuerpo: z.string().trim().min(50).max(200_000),
-    }))
+      cuerpo: z.string().trim().min(50).max(200_000).optional(),
+      /** La minuta anexada: si viene, reemplaza al cuerpo. */
+      archivoId: z.number().int().positive().optional(),
+    }).refine((v) => (v.cuerpo !== undefined) !== (v.archivoId !== undefined),
+      { message: "Pegá el texto de la plantilla o anexá un archivo con la minuta, no las dos cosas" }))
     .mutation(async ({ ctx, input }) => {
       const [res] = await ctx.db.insert(plantillasContrato).values({
         codigo: input.codigo,
@@ -413,7 +417,8 @@ export const operativosRouter = router({
         marcoLegal: input.marcoLegal,
         version: 1,
         estado: "borrador",
-        cuerpo: input.cuerpo,
+        cuerpo: input.cuerpo ?? null,
+        archivoId: input.archivoId ?? null,
       });
       return { id: Number((res as { insertId: number }).insertId) };
     }),
@@ -423,13 +428,18 @@ export const operativosRouter = router({
       plantillaId: id,
       nombre: nombre.optional(),
       cuerpo: z.string().trim().min(50).max(200_000).optional(),
-    }))
+      /** Anexar un archivo quita el cuerpo; pegar texto quita el archivo —
+       *  son excluyentes, nunca los dos a la vez. */
+      archivoId: z.number().int().positive().optional(),
+    }).refine((v) => !(v.cuerpo !== undefined && v.archivoId !== undefined),
+      { message: "Pegá el texto de la plantilla o anexá un archivo con la minuta, no las dos cosas" }))
     .mutation(async ({ ctx, input }) => {
       const [p] = await ctx.db
         .select({
           estado: plantillasContrato.estado,
           version: plantillasContrato.version,
           cuerpo: plantillasContrato.cuerpo,
+          archivoId: plantillasContrato.archivoId,
         })
         .from(plantillasContrato)
         .where(eq(plantillasContrato.id, input.plantillaId))
@@ -437,18 +447,22 @@ export const operativosRouter = router({
 
       if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Esa plantilla no existe" });
 
-      const cambiaTexto = input.cuerpo !== undefined && input.cuerpo !== p.cuerpo;
+      const cambiaContenido =
+        (input.cuerpo !== undefined && input.cuerpo !== p.cuerpo)
+        || (input.archivoId !== undefined && input.archivoId !== p.archivoId);
       const { plantillaId, ...campos } = input;
 
       await ctx.db
         .update(plantillasContrato)
         .set(cambiosDe({
           ...campos,
-          ...(cambiaTexto && p.estado === "vigente" ? { version: p.version + 1 } : {}),
+          ...(input.cuerpo !== undefined ? { archivoId: null } : {}),
+          ...(input.archivoId !== undefined ? { cuerpo: null } : {}),
+          ...(cambiaContenido && p.estado === "vigente" ? { version: p.version + 1 } : {}),
         }))
         .where(eq(plantillasContrato.id, plantillaId));
 
-      return { ok: true, versionNueva: cambiaTexto && p.estado === "vigente" ? p.version + 1 : p.version };
+      return { ok: true, versionNueva: cambiaContenido && p.estado === "vigente" ? p.version + 1 : p.version };
     }),
 
   /**

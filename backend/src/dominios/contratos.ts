@@ -170,7 +170,11 @@ export const contratosRouter = router({
         + `${codeudor.nombre.toUpperCase()}\nCC ${codeudor.documento ?? "—"}\n`
         + `Celular: ${codeudor.telefono ?? "—"}\nCorreo: ${codeudor.email ?? "—"}\n`;
 
-      const { texto, faltantes } = renderizar(plantilla.cuerpo, {
+      // Una plantilla con archivo anexado no sustituye marcadores: el
+      // contrato generado anexa esa minuta tal cual, sin texto propio.
+      const { texto, faltantes }: { texto: string | null; faltantes: string[] } = plantilla.cuerpo === null
+        ? { texto: null, faltantes: [] }
+        : renderizar(plantilla.cuerpo, {
         inmueble: `${u.tipo} en ${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`,
         matricula: u.matriculaInmobiliaria,
         direccion: u.direccion,
@@ -218,7 +222,7 @@ export const contratosRouter = router({
           ? ""
           : `y el Coarrendatario, correo electrónico ${codeudor.email ?? "—"}.`,
         firma_coarrendatario: firmaCoarrendatario,
-      });
+        });
 
       const uuid = randomUUID();
       const numero = `YQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
@@ -235,6 +239,9 @@ export const contratosRouter = router({
           // El texto queda congelado. Recalcularlo después daría un documento
           // distinto del que se firmó cada vez que alguien corrigiera un dato.
           texto,
+          // Si la plantilla es un archivo, el contrato anexa el mismo: no hay
+          // texto que sustituir, así que no hay nada que congelar aparte.
+          archivoId: plantilla.archivoId ?? undefined,
           estado: "borrador",
           fechaInicio: input.fechaInicio,
           fechaFin: fin,
