@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { randomUUID, createHash } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { enLetras, enPesos, fechaLarga, renderizar } from "./plantilla.js";
 import { garantes } from "../db/schema/score.js";
 import { TRPCError } from "@trpc/server";
 import { router, publico, privado, exigirRol } from "../trpc/base.js";
 import { contratos, contratoAjustes, contratoFirmas, plantillasContrato } from "../db/schema/contrato.js";
 import { aplicaciones, aplicacionAjustes } from "../db/schema/demanda.js";
-import { inmuebles, inmueblePropietarios } from "../db/schema/inventario.js";
+import { inmuebles, inmueblePropietarios, edificaciones } from "../db/schema/inventario.js";
 import { usuarios } from "../db/schema/identidad.js";
 import { nuevoToken, hashToken, expiraEn } from "../auth/tokens-enlace.js";
 import { otorgarRol } from "../auth/roles.js";
@@ -86,14 +86,36 @@ export const contratosRouter = router({
         }
       }
 
-      // Ordenado por versión: si por lo que sea quedaran dos vigentes para el
-      // mismo marco, gana la más nueva en vez de la que devuelva primero la
-      // base. Un contrato no debería depender del orden de un SELECT.
-      const [plantilla] = await ctx.db.select().from(plantillasContrato)
-        .where(and(eq(plantillasContrato.marcoLegal, marco),
-                   eq(plantillasContrato.estado, "vigente")))
-        .orderBy(desc(plantillasContrato.version))
-        .limit(1);
+      /**
+       * Qué plantilla usar: la propia de la unidad, si tiene una; si no, la
+       * de su edificación; si tampoco, la vigente del marco legal como
+       * siempre. Una asignada a mano que ya se archivó no cuenta — mejor
+       * caer al siguiente nivel que generar con algo que se dejó de usar.
+       */
+      let plantilla: typeof plantillasContrato.$inferSelect | undefined;
+      if (u.plantillaContratoId !== null) {
+        [plantilla] = await ctx.db.select().from(plantillasContrato)
+          .where(and(eq(plantillasContrato.id, u.plantillaContratoId), ne(plantillasContrato.estado, "archivada")))
+          .limit(1);
+      }
+      if (!plantilla && u.edificacionId !== null) {
+        const [ed] = await ctx.db.select({ plantillaContratoId: edificaciones.plantillaContratoId })
+          .from(edificaciones).where(eq(edificaciones.id, u.edificacionId)).limit(1);
+        if (ed?.plantillaContratoId) {
+          [plantilla] = await ctx.db.select().from(plantillasContrato)
+            .where(and(eq(plantillasContrato.id, ed.plantillaContratoId), ne(plantillasContrato.estado, "archivada")))
+            .limit(1);
+        }
+      }
+      if (!plantilla) {
+        // Ordenado por versión: si por lo que sea quedaran dos vigentes para
+        // el mismo marco, gana la más nueva en vez de la que devuelva primero
+        // la base. Un contrato no debería depender del orden de un SELECT.
+        [plantilla] = await ctx.db.select().from(plantillasContrato)
+          .where(and(eq(plantillasContrato.marcoLegal, marco), eq(plantillasContrato.estado, "vigente")))
+          .orderBy(desc(plantillasContrato.version))
+          .limit(1);
+      }
       if (!plantilla) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",

@@ -88,6 +88,8 @@ import m041 from "./041_movimiento_proveedor.sql";
 import m042 from "./042_movimiento_proveedor_catalogo.sql";
 // @ts-ignore
 import m043 from "./043_plantilla_archivo.sql";
+// @ts-ignore
+import m044 from "./044_plantilla_por_edificacion.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -139,4 +141,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "041", nombre: "movimiento_proveedor", sql: m041 as string },
   { version: "042", nombre: "movimiento_proveedor_catalogo", sql: m042 as string },
   { version: "043", nombre: "plantilla_archivo", sql: m043 as string },
+  { version: "044", nombre: "plantilla_por_edificacion", sql: m044 as string },
 ];

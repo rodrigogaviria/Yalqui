@@ -6,6 +6,7 @@ import { AreasYReservas } from "./AreasYReservas";
 
 type Edificacion = Awaited<ReturnType<typeof api.inmuebles.misEdificaciones.query>>[number];
 type UnidadBasica = { id: number; direccion: string; complemento: string | null; edificacionId: number | null };
+type Plantilla = Awaited<ReturnType<typeof api.inmuebles.plantillasDisponibles.query>>[number];
 
 const nombre = (u: { direccion: string; complemento: string | null }) =>
   `${u.direccion}${u.complemento ? `, ${u.complemento}` : ""}`;
@@ -22,7 +23,9 @@ export function Edificaciones({ unidades, alCambiar }: {
   unidades: UnidadBasica[]; alCambiar: () => void;
 }) {
   const [lista, setLista] = useState<Edificacion[] | null>(null);
+  const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [creando, setCreando] = useState(false);
+  const [editando, setEditando] = useState<Edificacion | null>(null);
   const [asignando, setAsignando] = useState<Edificacion | null>(null);
   const [areas, setAreas] = useState<Edificacion | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -31,6 +34,7 @@ export function Edificaciones({ unidades, alCambiar }: {
     try { setLista(await api.inmuebles.misEdificaciones.query()); } catch { setLista([]); }
   }, []);
   useEffect(() => { void cargar(); }, [cargar]);
+  useEffect(() => { void api.inmuebles.plantillasDisponibles.query().then(setPlantillas).catch(() => setPlantillas([])); }, []);
 
   if (lista === null) return null;
   if (lista.length === 0 && !creando && unidades.length === 0) return null;
@@ -76,6 +80,10 @@ export function Edificaciones({ unidades, alCambiar }: {
                     Áreas y reservas
                   </button>
                 )}
+                <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
+                  onClick={() => setEditando(e)}>
+                  Editar
+                </button>
                 <button className="boton" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
                   onClick={() => setAsignando(e)}>
                   Asignar unidades
@@ -90,9 +98,22 @@ export function Edificaciones({ unidades, alCambiar }: {
         <Ventana titulo="Crear edificación" alCerrar={() => setCreando(false)}>
           <FormularioEdificacion
             direccionInicial={unidades[0]?.direccion ?? ""}
+            plantillas={plantillas}
             alTerminar={(nombreNuevo) => {
               setCreando(false);
               setAviso(`«${nombreNuevo}» creada. Ahora asignale sus unidades.`);
+              void cargar();
+            }} />
+        </Ventana>
+      )}
+
+      {editando && (
+        <Ventana titulo={`Editar ${editando.nombre}`} alCerrar={() => setEditando(null)}>
+          <FormularioEditarEdificacion
+            edificacion={editando} plantillas={plantillas}
+            alTerminar={() => {
+              setEditando(null);
+              setAviso(`«${editando.nombre}» actualizada.`);
               void cargar();
             }} />
         </Ventana>
@@ -121,14 +142,33 @@ export function Edificaciones({ unidades, alCambiar }: {
   );
 }
 
-function FormularioEdificacion({ direccionInicial, alTerminar }: {
-  direccionInicial: string; alTerminar: (nombre: string) => void;
+/** El selector de plantilla, compartido entre crear y editar. */
+function SelectorPlantilla({ plantillas, value, onChange }: {
+  plantillas: Plantilla[]; value: string; onChange: (v: string) => void;
+}) {
+  return (
+    <Campo etiqueta="Plantilla de contrato" ayuda="Con la que se generan los contratos de sus unidades. Sin elegir una, se usa la vigente del marco legal de cada unidad.">
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">La vigente del marco legal</option>
+        {plantillas.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.nombre} · {p.marcoLegal.replace("_", " ")}{p.estado === "borrador" ? " (borrador)" : ""}
+          </option>
+        ))}
+      </select>
+    </Campo>
+  );
+}
+
+function FormularioEdificacion({ direccionInicial, plantillas, alTerminar }: {
+  direccionInicial: string; plantillas: Plantilla[]; alTerminar: (nombre: string) => void;
 }) {
   const [nombreE, setNombreE] = useState("");
   const [direccion, setDireccion] = useState(direccionInicial);
   const [ciudad, setCiudad] = useState("");
   const [tipo, setTipo] = useState<"edificio" | "conjunto" | "casa_dividida" | "zona">("edificio");
   const [regimen, setRegimen] = useState<"copropiedad" | "propiedad_unica" | "informal">("propiedad_unica");
+  const [plantillaId, setPlantillaId] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,7 +176,10 @@ function FormularioEdificacion({ direccionInicial, alTerminar }: {
     e.preventDefault();
     setEnviando(true); setError(null);
     try {
-      await api.inmuebles.crearEdificacion.mutate({ nombre: nombreE, tipo, regimen, direccion, ciudad });
+      await api.inmuebles.crearEdificacion.mutate({
+        nombre: nombreE, tipo, regimen, direccion, ciudad,
+        ...(plantillaId ? { plantillaContratoId: Number(plantillaId) } : {}),
+      });
       alTerminar(nombreE);
     } catch (err) { setError(mensajeDeError(err)); } finally { setEnviando(false); }
   }
@@ -163,8 +206,66 @@ function FormularioEdificacion({ direccionInicial, alTerminar }: {
           </select>
         </Campo>
       </div>
+      <SelectorPlantilla plantillas={plantillas} value={plantillaId} onChange={setPlantillaId} />
       {error && <div className="aviso malo" role="alert">{error}</div>}
       <div><button type="submit" className="boton" disabled={enviando}>{enviando ? "Creando…" : "Crear edificación"}</button></div>
+    </form>
+  );
+}
+
+function FormularioEditarEdificacion({ edificacion, plantillas, alTerminar }: {
+  edificacion: Edificacion; plantillas: Plantilla[]; alTerminar: () => void;
+}) {
+  const [nombreE, setNombreE] = useState(edificacion.nombre);
+  const [direccion, setDireccion] = useState(edificacion.direccion);
+  const [barrio, setBarrio] = useState(edificacion.barrio ?? "");
+  const [ciudad, setCiudad] = useState(edificacion.ciudad);
+  const [areaComun, setAreaComun] = useState(edificacion.areaComunM2 !== null ? String(Number(edificacion.areaComunM2)) : "");
+  const [adminNombre, setAdminNombre] = useState(edificacion.administracionNombre ?? "");
+  const [adminTelefono, setAdminTelefono] = useState(edificacion.administracionTelefono ?? "");
+  const [plantillaId, setPlantillaId] = useState(edificacion.plantillaContratoId !== null ? String(edificacion.plantillaContratoId) : "");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true); setError(null);
+    try {
+      await api.inmuebles.editarEdificacion.mutate({
+        edificacionId: edificacion.id,
+        nombre: nombreE.trim(), direccion: direccion.trim(), ciudad: ciudad.trim(),
+        barrio: barrio.trim() || undefined,
+        ...(areaComun.trim() ? { areaComunM2: Number(areaComun) } : {}),
+        administracionNombre: adminNombre.trim() || undefined,
+        administracionTelefono: adminTelefono.trim() || undefined,
+        plantillaContratoId: plantillaId ? Number(plantillaId) : null,
+      });
+      alTerminar();
+    } catch (err) { setError(mensajeDeError(err)); } finally { setEnviando(false); }
+  }
+
+  return (
+    <form onSubmit={enviar} style={{ display: "grid", gap: 12 }}>
+      <Campo etiqueta="Nombre"><input required value={nombreE} onChange={(e) => setNombreE(e.target.value)} /></Campo>
+      <Campo etiqueta="Dirección"><input required minLength={5} value={direccion} onChange={(e) => setDireccion(e.target.value)} /></Campo>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Campo etiqueta="Barrio" ayuda="Opcional"><input value={barrio} onChange={(e) => setBarrio(e.target.value)} /></Campo>
+        <Campo etiqueta="Ciudad"><input required value={ciudad} onChange={(e) => setCiudad(e.target.value)} /></Campo>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Campo etiqueta="Administración (nombre)" ayuda="Opcional">
+          <input value={adminNombre} onChange={(e) => setAdminNombre(e.target.value)} />
+        </Campo>
+        <Campo etiqueta="Administración (teléfono)" ayuda="Opcional">
+          <input value={adminTelefono} onChange={(e) => setAdminTelefono(e.target.value)} />
+        </Campo>
+      </div>
+      <Campo etiqueta="Área común (m²)" ayuda="Opcional">
+        <input type="number" min={0} step="any" value={areaComun} onChange={(e) => setAreaComun(e.target.value)} />
+      </Campo>
+      <SelectorPlantilla plantillas={plantillas} value={plantillaId} onChange={setPlantillaId} />
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+      <div><button type="submit" className="boton" disabled={enviando}>{enviando ? "Guardando…" : "Guardar cambios"}</button></div>
     </form>
   );
 }

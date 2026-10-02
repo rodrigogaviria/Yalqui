@@ -10,6 +10,10 @@ export const edificaciones = mysqlTable("edificaciones", {
   nombre: varchar("nombre", { length: 191 }).notNull(),
   tipo: mysqlEnum("tipo", ["edificio", "conjunto", "casa_dividida", "zona"]).notNull(),
   regimen: mysqlEnum("regimen", ["copropiedad", "propiedad_unica", "informal"]).notNull(),
+  /** La plantilla con la que se generan los contratos de sus unidades, salvo
+   *  que una tenga la suya propia. Sin esta puesta, se usa la vigente del
+   *  marco legal, como antes. */
+  plantillaContratoId: int("plantilla_contrato_id", { unsigned: true }),
   propietarioId: int("propietario_id", { unsigned: true }),
   direccion: varchar("direccion", { length: 255 }).notNull(),
   barrio: varchar("barrio", { length: 120 }),
@@ -41,6 +45,9 @@ export const inmuebles = mysqlTable("inmuebles", {
   codigoPublico: varchar("codigo_publico", { length: 20 }).notNull(),
   propietarioId: int("propietario_id", { unsigned: true }).notNull(),
   edificacionId: int("edificacion_id", { unsigned: true }),
+  /** La plantilla propia de esta unidad, si no usa la de su edificación (o la
+   *  vigente del marco legal, si ninguna de las dos está puesta). */
+  plantillaContratoId: int("plantilla_contrato_id", { unsigned: true }),
   tipo: mysqlEnum("tipo", TIPOS_UNIDAD).notNull(),
   estado: mysqlEnum("estado", ESTADOS_UNIDAD).notNull().default("borrador"),
   direccion: varchar("direccion", { length: 255 }).notNull(),

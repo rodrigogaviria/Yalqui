@@ -52,6 +52,8 @@ export function FormularioUnidad({
   const [diasGracia, setDiasGracia] = useState("5");
   const [contratoFechaInicio, setContratoFechaInicio] = useState("");
   const [contratoFechaFin, setContratoFechaFin] = useState("");
+  const [plantillas, setPlantillas] = useState<Array<{ id: number; nombre: string; marcoLegal: string; estado: string }>>([]);
+  const [plantillaId, setPlantillaId] = useState("");
   const [administracionIncluida, setAdministracionIncluida] = useState(false);
   const [habitaciones, setHabitaciones] = useState("");
   const [banos, setBanos] = useState("");
@@ -86,6 +88,7 @@ export function FormularioUnidad({
         setDiasGracia(texto(unidad.diasGracia) || "0");
         setContratoFechaInicio(unidad.contratoFechaInicio ? String(unidad.contratoFechaInicio).slice(0, 10) : "");
         setContratoFechaFin(unidad.contratoFechaFin ? String(unidad.contratoFechaFin).slice(0, 10) : "");
+        setPlantillaId(unidad.plantillaContratoId === null ? "" : String(unidad.plantillaContratoId));
         setAdministracionIncluida(unidad.administracionIncluida);
         setHabitaciones(texto(unidad.habitaciones));
         setBanos(texto(unidad.banos));
@@ -108,6 +111,11 @@ export function FormularioUnidad({
   useEffect(() => {
     void api.inmuebles.misEdificaciones.query().then(setEdificaciones).catch(() => setEdificaciones([]));
   }, []);
+
+  useEffect(() => {
+    if (!editando) return;
+    void api.inmuebles.plantillasDisponibles.query().then(setPlantillas).catch(() => setPlantillas([]));
+  }, [editando]);
 
   useEffect(() => {
     let vigente = true;
@@ -195,7 +203,10 @@ export function FormularioUnidad({
       if (inmuebleId === undefined) {
         await api.inmuebles.crear.mutate({ ...datos, ...(edificacionId ? { edificacionId: Number(edificacionId) } : {}) });
       } else {
-        await api.inmuebles.editar.mutate({ inmuebleId, cambios: datos });
+        await api.inmuebles.editar.mutate({
+          inmuebleId,
+          cambios: { ...datos, plantillaContratoId: plantillaId ? Number(plantillaId) : null },
+        });
         if (edificacionId !== edificacionInicial) {
           await api.inmuebles.asignarEdificacion.mutate({
             inmuebleIds: [inmuebleId], edificacionId: edificacionId ? Number(edificacionId) : null,
@@ -304,6 +315,20 @@ export function FormularioUnidad({
             <input type="number" min={0} max={30} value={diasGracia}
               onChange={(e) => setDiasGracia(e.target.value)} required />
           </Campo>
+          {editando && (
+            <Campo etiqueta="Plantilla de contrato" ayuda={edificacionId
+              ? "Por defecto usa la de la edificación. Elegí una para que esta unidad use otra."
+              : "Por defecto usa la vigente del marco legal."}>
+              <select value={plantillaId} onChange={(e) => setPlantillaId(e.target.value)}>
+                <option value="">{edificacionId ? "La de la edificación" : "La vigente del marco legal"}</option>
+                {plantillas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} · {p.marcoLegal.replace("_", " ")}{p.estado === "borrador" ? " (borrador)" : ""}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+          )}
         </div>
 
         <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14.5 }}>

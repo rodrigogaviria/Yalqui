@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, publico, privado, exigirRol } from "../trpc/base.js";
 import {
@@ -12,7 +12,7 @@ import { cifrarContrasena } from "../auth/password.js";
 import { usuarios } from "../db/schema/identidad.js";
 import { aplicaciones } from "../db/schema/demanda.js";
 import { garantes } from "../db/schema/score.js";
-import { contratos } from "../db/schema/contrato.js";
+import { contratos, plantillasContrato } from "../db/schema/contrato.js";
 import { pagosArriendo, pagosUnidad } from "../db/schema/dinero.js";
 import { incidencias } from "../db/schema/operacion.js";
 
@@ -70,7 +70,12 @@ export const cambiosUnidad = nuevo
     ocupantesBase: nuevo.shape.ocupantesBase.removeDefault(),
     mascotasMaximo: nuevo.shape.mascotasMaximo.removeDefault(),
   })
-  .partial();
+  .partial()
+  .extend({
+    /** La plantilla propia de esta unidad. `null` para volver a heredar la
+     *  de su edificación (o la vigente del marco legal, si no tiene). */
+    plantillaContratoId: z.number().int().positive().nullable().optional(),
+  });
 
 // Un UPDATE sin columnas es SQL inválido, así que el objeto vacío no pasa.
 const cambios = cambiosUnidad.refine(
@@ -195,14 +200,35 @@ export const inmueblesRouter = router({
       .select({
         id: edificaciones.id,
         nombre: edificaciones.nombre,
+        tipo: edificaciones.tipo,
+        regimen: edificaciones.regimen,
         direccion: edificaciones.direccion,
+        barrio: edificaciones.barrio,
         ciudad: edificaciones.ciudad,
         numUnidades: edificaciones.numUnidades,
+        areaComunM2: edificaciones.areaComunM2,
+        administracionNombre: edificaciones.administracionNombre,
+        administracionTelefono: edificaciones.administracionTelefono,
+        plantillaContratoId: edificaciones.plantillaContratoId,
       })
       .from(edificaciones)
       .where(inArray(edificaciones.id, ids))
       .orderBy(asc(edificaciones.nombre));
   }),
+
+  /** Las plantillas de contrato que se le pueden asignar a una edificación o
+   *  a una unidad, para usarla en vez de la vigente del marco legal. Las
+   *  archivadas no entran: son las que ya se dejaron de usar. */
+  plantillasDisponibles: privado.query(({ ctx }) =>
+    ctx.db
+      .select({
+        id: plantillasContrato.id, nombre: plantillasContrato.nombre,
+        marcoLegal: plantillasContrato.marcoLegal, estado: plantillasContrato.estado,
+      })
+      .from(plantillasContrato)
+      .where(ne(plantillasContrato.estado, "archivada"))
+      .orderBy(asc(plantillasContrato.marcoLegal), asc(plantillasContrato.nombre)),
+  ),
 
   /**
    * Crea una edificación y le da al propietario el permiso sobre ella.
@@ -221,16 +247,61 @@ export const inmueblesRouter = router({
       direccion: z.string().trim().min(5).max(255),
       barrio: z.string().trim().max(120).optional(),
       ciudad: z.string().trim().min(2).max(120),
+      /** La plantilla con la que se generan los contratos de sus unidades, salvo que una tenga la suya. */
+      plantillaContratoId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const [res] = await ctx.db.insert(edificaciones).values({
         nombre: input.nombre, tipo: input.tipo, regimen: input.regimen,
         propietarioId: ctx.usuario.id, direccion: input.direccion,
         barrio: input.barrio ?? null, ciudad: input.ciudad, numUnidades: 0,
+        plantillaContratoId: input.plantillaContratoId ?? null,
       });
       const edificacionId = Number((res as { insertId: number }).insertId);
       await otorgarRol(ctx.db, ctx.usuario.id, "propietario", "edificacion", edificacionId, ctx.usuario.id);
       return { edificacionId };
+    }),
+
+  /**
+   * Corrige los datos de una edificación ya creada: su nombre, su dirección,
+   * de quién es la administración y qué plantilla usan sus unidades.
+   *
+   * No cambia su tipo ni su régimen: eso define qué cláusulas legales le
+   * aplican, y cambiarlo a mitad de camino dejaría contratos ya firmados
+   * bajo un marco que ya no es el suyo.
+   */
+  editarEdificacion: privado
+    .input(z.object({
+      edificacionId: z.number().int().positive(),
+      nombre: z.string().trim().min(2).max(191).optional(),
+      direccion: z.string().trim().min(5).max(255).optional(),
+      barrio: z.string().trim().max(120).optional(),
+      ciudad: z.string().trim().min(2).max(120).optional(),
+      areaComunM2: z.number().positive().max(999_999).optional(),
+      administracionNombre: z.string().trim().max(191).optional(),
+      administracionTelefono: z.string().trim().max(30).optional(),
+      /** `null` para volver a la vigente del marco legal de cada unidad. */
+      plantillaContratoId: z.number().int().positive().nullable().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!puedeSobreEdificacion(ctx.usuario.roles, input.edificacionId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa edificación" });
+      }
+      const { edificacionId, ...campos } = input;
+      const set: Record<string, unknown> = {};
+      if (campos.nombre !== undefined) set["nombre"] = campos.nombre;
+      if (campos.direccion !== undefined) set["direccion"] = campos.direccion;
+      if (campos.barrio !== undefined) set["barrio"] = campos.barrio || null;
+      if (campos.ciudad !== undefined) set["ciudad"] = campos.ciudad;
+      if (campos.areaComunM2 !== undefined) set["areaComunM2"] = campos.areaComunM2.toFixed(2);
+      if (campos.administracionNombre !== undefined) set["administracionNombre"] = campos.administracionNombre || null;
+      if (campos.administracionTelefono !== undefined) set["administracionTelefono"] = campos.administracionTelefono || null;
+      if (campos.plantillaContratoId !== undefined) set["plantillaContratoId"] = campos.plantillaContratoId;
+      if (Object.keys(set).length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No hay nada que cambiar" });
+      }
+      await ctx.db.update(edificaciones).set(set).where(eq(edificaciones.id, edificacionId));
+      return { ok: true };
     }),
 
   /**
@@ -301,6 +372,7 @@ export const inmueblesRouter = router({
         diasGracia: inmuebles.diasGracia,
         contratoFechaInicio: inmuebles.contratoFechaInicio,
         contratoFechaFin: inmuebles.contratoFechaFin,
+        plantillaContratoId: inmuebles.plantillaContratoId,
       })
       .from(inmuebles)
       .leftJoin(edificaciones, eq(edificaciones.id, inmuebles.edificacionId))
@@ -462,6 +534,7 @@ export const inmueblesRouter = router({
       if (c.canonBase !== undefined) set["canonBase"] = c.canonBase.toFixed(2);
       if (c.descripcion !== undefined) set["descripcion"] = c.descripcion || null;
       if (c.matriculaInmobiliaria !== undefined) set["matriculaInmobiliaria"] = c.matriculaInmobiliaria || null;
+      if (c.plantillaContratoId !== undefined) set["plantillaContratoId"] = c.plantillaContratoId;
 
       await ctx.db.update(inmuebles).set(set).where(eq(inmuebles.id, input.inmuebleId));
       return { ok: true };
