@@ -4,6 +4,7 @@ import { etiqueta } from "../lib/etiquetas";
 import { pesos } from "../componentes/Dinero";
 import { AreasYReservas } from "../componentes/AreasYReservas";
 import { FotosUnidad } from "../componentes/FotosUnidad";
+import { MemoriasUnidad } from "../componentes/MemoriasUnidad";
 
 type Canon = Awaited<ReturnType<typeof api.configuracion.canon.query>>;
 type Ajuste = Awaited<ReturnType<typeof api.configuracion.ajustes.query>>[number];
@@ -281,6 +282,8 @@ export function ConfigurarUnidad({
       </section>
 
       <FotosUnidad inmuebleId={inmuebleId} />
+
+      <MemoriasUnidad inmuebleId={inmuebleId} />
 
       <AreasYReservas inmuebleId={inmuebleId} />
     </div>

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -11,7 +11,7 @@ import { tieneRol, esAdmin } from "../auth/roles.js";
 import { esArrendatarioDe } from "../auth/arrendatario.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { movimientos } from "../db/schema/finanzas.js";
-import { inmuebleFotos } from "../db/schema/inventario.js";
+import { inmuebleFotos, inmuebleMemorias, TIPOS_MEMORIA } from "../db/schema/inventario.js";
 
 const MIME_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -23,6 +23,12 @@ const TIPO_GASTO = "movimiento_gasto";
 const TIPO_FOTO = "inmueble_foto";
 const TIPO_PLANTILLA = "plantilla_contrato";
 const MIME_DOCUMENTO = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] as const;
+const TIPO_MEMORIA = "inmueble_memoria";
+const MIME_MEMORIA = [
+  "application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic",
+  "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+] as const;
 
 let s3: S3Client | undefined;
 const cliente = () => (s3 ??= new S3Client({}));
@@ -284,11 +290,68 @@ export const archivosRouter = router({
     }))
     .mutation(async ({ ctx, input }) => prepararSubida(ctx, TIPO_PLANTILLA, 0, input)),
 
+  /**
+   * Las memorias de una unidad: planos, fichas técnicas, licencias,
+   * documentos contables. Cada una lleva su tipo; puede haber varias del
+   * mismo tipo, a diferencia de la portada de las fotos.
+   */
+  solicitarSubidaMemoriaUnidad: privado
+    .input(z.object({
+      inmuebleId: z.number().int().positive(),
+      tipo: z.enum(TIPOS_MEMORIA),
+      nombre: z.string().trim().min(1).max(255),
+      mime: z.enum(MIME_MEMORIA),
+      bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
+      descripcion: z.string().trim().max(255).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      const { archivoId, url } = await prepararSubida(ctx, TIPO_MEMORIA, input.inmuebleId, input);
+      const [res] = await ctx.db.insert(inmuebleMemorias).values({
+        inmuebleId: input.inmuebleId, archivoId, tipo: input.tipo,
+        descripcion: input.descripcion ?? null, subidaPorId: ctx.usuario.id,
+      });
+      return { archivoId, url, memoriaId: Number((res as { insertId: number }).insertId) };
+    }),
+
+  /** Las memorias de una unidad, en el orden alfabético de su tipo y, dentro de cada uno, la más nueva primero. */
+  memoriasDeUnidad: privado
+    .input(z.object({ inmuebleId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", input.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      return ctx.db
+        .select({
+          id: inmuebleMemorias.id, archivoId: inmuebleMemorias.archivoId, tipo: inmuebleMemorias.tipo,
+          descripcion: inmuebleMemorias.descripcion, createdAt: inmuebleMemorias.createdAt,
+        })
+        .from(inmuebleMemorias)
+        .where(eq(inmuebleMemorias.inmuebleId, input.inmuebleId))
+        .orderBy(asc(inmuebleMemorias.tipo), desc(inmuebleMemorias.createdAt));
+    }),
+
+  /** Quita una memoria de la unidad. */
+  eliminarMemoriaUnidad: privado
+    .input(z.object({ memoriaId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [m] = await ctx.db.select({ inmuebleId: inmuebleMemorias.inmuebleId })
+        .from(inmuebleMemorias).where(eq(inmuebleMemorias.id, input.memoriaId)).limit(1);
+      if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Esa memoria no existe" });
+      if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", m.inmuebleId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
+      }
+      await ctx.db.delete(inmuebleMemorias).where(eq(inmuebleMemorias.id, input.memoriaId));
+      return { ok: true };
+    }),
+
   urlDescarga: privado
     .input(z.object({ archivoId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const [a] = await ctx.db.select().from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
-      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO && a.entidadTipo !== TIPO_FOTO && a.entidadTipo !== TIPO_PLANTILLA)) {
+      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO && a.entidadTipo !== TIPO_FOTO && a.entidadTipo !== TIPO_PLANTILLA && a.entidadTipo !== TIPO_MEMORIA)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Ese archivo no existe" });
       }
       if (a.entidadTipo === TIPO) {
@@ -305,7 +368,7 @@ export const archivosRouter = router({
         if (!(await puedeSobreElGasto(ctx, a.entidadId))) {
           throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre ese gasto" });
         }
-      } else if (a.entidadTipo === TIPO_FOTO) {
+      } else if (a.entidadTipo === TIPO_FOTO || a.entidadTipo === TIPO_MEMORIA) {
         if (!tieneRol(ctx.usuario.roles, "propietario", "inmueble", a.entidadId)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
         }

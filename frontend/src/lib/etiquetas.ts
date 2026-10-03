@@ -146,6 +146,20 @@ const PERIODO_FACTURA: Record<string, string> = {
   anual: "Anual",
 };
 
+// En orden alfabético por el texto, no por el código: es el orden en el que
+// se ofrecen al elegir y en el que se listan ya guardados.
+const TIPO_MEMORIA: Record<string, string> = {
+  descripcion_visual: "Descripción Visual",
+  documentos_contables: "Documentos Contables",
+  fichas_tecnicas: "Fichas Técnicas",
+  licencias: "Licencias",
+  otros: "Otros",
+  planos_arquitectonicos: "Planos Arquitectónicos",
+  planos_electricos: "Planos Eléctricos",
+  planos_estructurales: "Planos Estructurales",
+  planos_hidraulicos: "Planos Hidráulicos",
+};
+
 const DICCIONARIOS = {
   categoriaAjuste: CATEGORIA_AJUSTE,
   tipoCalculo: TIPO_CALCULO,
@@ -167,6 +181,7 @@ const DICCIONARIOS = {
   estadoReserva: ESTADO_RESERVA,
   categoriaFactura: CATEGORIA_FACTURA,
   periodoFactura: PERIODO_FACTURA,
+  tipoMemoria: TIPO_MEMORIA,
 } as const;
 
 export type Diccionario = keyof typeof DICCIONARIOS;

@@ -160,6 +160,27 @@ export const inmuebleFotos = mysqlTable("inmueble_fotos", {
   index("ix_fotos_revision").on(t.inmuebleId, t.estadoRevision),
 ]);
 
+/** En orden alfabético por su nombre, no por como se nos ocurrió escribirlos:
+ *  es el orden en el que se ofrecen y se listan. */
+export const TIPOS_MEMORIA = [
+  "descripcion_visual", "documentos_contables", "fichas_tecnicas", "licencias", "otros",
+  "planos_arquitectonicos", "planos_electricos", "planos_estructurales", "planos_hidraulicos",
+] as const;
+
+/** Los documentos técnicos y legales de la unidad: planos, licencias, fichas
+ *  técnicas. No son fotos —no se muestran como galería— y cada uno lleva un
+ *  tipo, así que una unidad puede tener varios planos eléctricos sin que se
+ *  confundan con los hidráulicos. */
+export const inmuebleMemorias = mysqlTable("inmueble_memorias", {
+  id: int("id", { unsigned: true }).autoincrement().primaryKey(),
+  inmuebleId: int("inmueble_id", { unsigned: true }).notNull(),
+  archivoId: bigint("archivo_id", { mode: "number", unsigned: true }).notNull(),
+  tipo: mysqlEnum("tipo", TIPOS_MEMORIA).notNull(),
+  descripcion: varchar("descripcion", { length: 255 }),
+  subidaPorId: int("subida_por_id", { unsigned: true }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("ix_memorias_inmueble_tipo").on(t.inmuebleId, t.tipo)]);
+
 /** Catálogo de Yalqui, para que los avisos sean comparables entre sí. */
 export const catalogoAjustes = mysqlTable("catalogo_ajustes", {
   id: int("id", { unsigned: true }).autoincrement().primaryKey(),
