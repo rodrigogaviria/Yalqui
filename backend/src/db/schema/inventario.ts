@@ -171,15 +171,22 @@ export const TIPOS_MEMORIA = [
  *  técnicas. No son fotos —no se muestran como galería— y cada uno lleva un
  *  tipo, así que una unidad puede tener varios planos eléctricos sin que se
  *  confundan con los hidráulicos. */
+/** De una unidad, o de la edificación entera —el plano del edificio, su
+ *  licencia de construcción— sin que cada unidad tenga que repetirlo. Una
+ *  de las dos, nunca las dos ni ninguna. */
 export const inmuebleMemorias = mysqlTable("inmueble_memorias", {
   id: int("id", { unsigned: true }).autoincrement().primaryKey(),
-  inmuebleId: int("inmueble_id", { unsigned: true }).notNull(),
+  inmuebleId: int("inmueble_id", { unsigned: true }),
+  edificacionId: int("edificacion_id", { unsigned: true }),
   archivoId: bigint("archivo_id", { mode: "number", unsigned: true }).notNull(),
   tipo: mysqlEnum("tipo", TIPOS_MEMORIA).notNull(),
   descripcion: varchar("descripcion", { length: 255 }),
   subidaPorId: int("subida_por_id", { unsigned: true }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (t) => [index("ix_memorias_inmueble_tipo").on(t.inmuebleId, t.tipo)]);
+}, (t) => [
+  index("ix_memorias_inmueble_tipo").on(t.inmuebleId, t.tipo),
+  index("ix_memorias_edificacion_tipo").on(t.edificacionId, t.tipo),
+]);
 
 /** Catálogo de Yalqui, para que los avisos sean comparables entre sí. */
 export const catalogoAjustes = mysqlTable("catalogo_ajustes", {

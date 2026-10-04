@@ -92,6 +92,10 @@ import m043 from "./043_plantilla_archivo.sql";
 import m044 from "./044_plantilla_por_edificacion.sql";
 // @ts-ignore
 import m045 from "./045_memorias_unidad.sql";
+// @ts-ignore
+import m046 from "./046_incidencia_calificacion.sql";
+// @ts-ignore
+import m047 from "./047_memorias_edificacion.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -145,4 +149,6 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "043", nombre: "plantilla_archivo", sql: m043 as string },
   { version: "044", nombre: "plantilla_por_edificacion", sql: m044 as string },
   { version: "045", nombre: "memorias_unidad", sql: m045 as string },
+  { version: "046", nombre: "incidencia_calificacion", sql: m046 as string },
+  { version: "047", nombre: "memorias_edificacion", sql: m047 as string },
 ];

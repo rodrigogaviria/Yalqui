@@ -12,6 +12,9 @@ import { catalogoAjustes } from "../../db/schema/inventario.js";
 import { proveedores } from "../../db/schema/operacion.js";
 import { plantillasContrato, MARCOS_LEGALES } from "../../db/schema/contrato.js";
 import { tiposFactura, PERIODICIDADES_FACTURA } from "../../db/schema/facturasPropiedad.js";
+import { usuarios } from "../../db/schema/identidad.js";
+import { otorgarRol } from "../../auth/roles.js";
+import { cifrarContrasena } from "../../auth/password.js";
 
 const id = z.number().int().positive();
 const codigo = z.string().transform(normalizarCodigo)
@@ -566,6 +569,65 @@ export const operativosRouter = router({
       const { proveedorId, ...campos } = input;
       await ctx.db.update(proveedores).set(cambiosDe(campos)).where(eq(proveedores.id, proveedorId));
       return { ok: true };
+    }),
+
+  /**
+   * Le da acceso a la aplicación a un proveedor: crea su cuenta (o la
+   * vincula si ya existe una con ese correo) y le otorga el rol. Desde ahí
+   * entra a Mis Incidencias y ve lo que se le reenvía.
+   *
+   * Contraseña temporal y no un enlace, igual que con un inquilino: se la
+   * decís de palabra y queda inválida en el primer ingreso.
+   */
+  darAccesoProveedor: admin
+    .input(z.object({ proveedorId: id }))
+    .mutation(async ({ ctx, input }) => {
+      const [p] = await ctx.db.select({
+        razonSocial: proveedores.razonSocial, email: proveedores.email,
+        telefono: proveedores.telefono, nit: proveedores.nit, usuarioId: proveedores.usuarioId,
+      }).from(proveedores).where(eq(proveedores.id, input.proveedorId)).limit(1);
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Ese proveedor no existe" });
+      if (p.usuarioId !== null) {
+        throw new TRPCError({ code: "CONFLICT", message: "Ese proveedor ya tiene acceso" });
+      }
+      if (!p.email) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Ese proveedor necesita un correo para tener acceso" });
+      }
+
+      const CONTRASENA_TEMPORAL = "123456";
+      const { usuarioId, cuentaNueva } = await ctx.db.transaction(async (tx) => {
+        const [existente] = await tx.select({ id: usuarios.id })
+          .from(usuarios).where(eq(usuarios.email, p.email!)).limit(1);
+
+        let uid: number;
+        let nueva = false;
+        if (existente) {
+          uid = existente.id;
+        } else {
+          const [nombre, ...resto] = p.razonSocial.split(" ");
+          const [res] = await tx.insert(usuarios).values({
+            email: p.email!,
+            passwordHash: await cifrarContrasena(CONTRASENA_TEMPORAL),
+            debeCambiarContrasena: true,
+            nombre: nombre ?? p.razonSocial,
+            apellido: resto.join(" ") || p.razonSocial,
+            telefono: p.telefono ?? null,
+            // El NIT no siempre está, y acá hace falta un documento único: con
+            // uno de a mentiras basado en su id, nunca choca con otra cuenta.
+            tipoDocumento: "NIT",
+            numeroDocumento: p.nit ?? `PROV-${input.proveedorId}`,
+            estado: "activo",
+          });
+          uid = Number((res as { insertId: number }).insertId);
+          nueva = true;
+        }
+
+        await tx.update(proveedores).set({ usuarioId: uid }).where(eq(proveedores.id, input.proveedorId));
+        return { usuarioId: uid, cuentaNueva: nueva };
+      });
+      await otorgarRol(ctx.db, usuarioId, "proveedor", "global", 0, ctx.usuario.id);
+
+      return { usuarioId, cuentaNueva, contrasenaTemporal: cuentaNueva ? CONTRASENA_TEMPORAL : null };
     }),
 
   /**

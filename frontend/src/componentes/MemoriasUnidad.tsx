@@ -7,33 +7,42 @@ import { abrirArchivo } from "../lib/archivos";
 const ACEPTA = "application/pdf,image/jpeg,image/png,image/webp,image/heic,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const TIPOS = opciones("tipoMemoria");
 
-type Memoria = Awaited<ReturnType<typeof api.archivos.memoriasDeUnidad.query>>[number];
+type MemoriaUnidad = Awaited<ReturnType<typeof api.archivos.memoriasDeUnidad.query>>[number];
+type MemoriaEdificacion = Awaited<ReturnType<typeof api.archivos.memoriasDeEdificacion.query>>[number];
 
 /**
- * Las memorias de la unidad: planos, fichas técnicas, licencias, documentos
- * contables. Cada una lleva un tipo del catálogo fijo, ofrecido y listado en
- * orden alfabético — no es una galería, es un archivador.
+ * Las memorias de una unidad o de una edificación entera: planos, fichas
+ * técnicas, licencias, documentos contables. Cada una lleva un tipo del
+ * catálogo fijo, ofrecido y listado en orden alfabético — no es una
+ * galería, es un archivador. En una unidad que pertenece a una edificación,
+ * se ven también las memorias de toda la edificación, marcadas aparte.
  */
-export function MemoriasUnidad({ inmuebleId }: { inmuebleId: number }) {
-  const [memorias, setMemorias] = useState<Memoria[] | null>(null);
+export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: number }) {
+  const inmuebleId = "inmuebleId" in props ? props.inmuebleId : undefined;
+  const edificacionId = "edificacionId" in props ? props.edificacionId : undefined;
+  const esEdificacion = edificacionId !== undefined;
+  const sitio = esEdificacion ? { edificacionId } : { inmuebleId: inmuebleId! };
+
+  const [memorias, setMemorias] = useState<Array<MemoriaUnidad | MemoriaEdificacion> | null>(null);
   const [tipo, setTipo] = useState(TIPOS[0]![0]);
   const [subiendo, setSubiendo] = useState(false);
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const cargar = () => {
-    void api.archivos.memoriasDeUnidad.query({ inmuebleId })
-      .then(setMemorias)
-      .catch((e) => setError(mensajeDeError(e)));
+    const pedido = edificacionId !== undefined
+      ? api.archivos.memoriasDeEdificacion.query({ edificacionId })
+      : api.archivos.memoriasDeUnidad.query({ inmuebleId: inmuebleId! });
+    void pedido.then(setMemorias).catch((e) => setError(mensajeDeError(e)));
   };
-  useEffect(cargar, [inmuebleId]);
+  useEffect(cargar, [inmuebleId, edificacionId]);
 
   async function subir(archivos: FileList) {
     setSubiendo(true); setError(null);
     try {
       for (const archivo of Array.from(archivos)) {
         const subida = await api.archivos.solicitarSubidaMemoriaUnidad.mutate({
-          inmuebleId, tipo: tipo as never, nombre: archivo.name,
+          ...sitio, tipo: tipo as never, nombre: archivo.name,
           mime: archivo.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp" | "image/heic"
             | "application/msword" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             | "application/vnd.ms-excel" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -61,9 +70,13 @@ export function MemoriasUnidad({ inmuebleId }: { inmuebleId: number }) {
   return (
     <section className="tarjeta" style={{ padding: 22, display: "grid", gap: 14 }}>
       <div>
-        <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Memorias de la unidad</h2>
+        <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>
+          {esEdificacion ? "Memorias de la edificación" : "Memorias de la unidad"}
+        </h2>
         <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "var(--tinta-2)" }}>
-          Planos, fichas técnicas, licencias, documentos contables: elegí el tipo y subí el archivo.
+          {esEdificacion
+            ? "Planos del edificio, licencia de construcción: lo que es de toda la edificación y no de una sola unidad."
+            : "Planos, fichas técnicas, licencias, documentos contables: elegí el tipo y subí el archivo."}
         </p>
       </div>
 
@@ -97,7 +110,12 @@ export function MemoriasUnidad({ inmuebleId }: { inmuebleId: number }) {
               padding: "10px 12px", borderRadius: 10, border: "1px solid var(--linea)",
             }}>
               <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{etiqueta("tipoMemoria", m.tipo)}</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {etiqueta("tipoMemoria", m.tipo)}
+                  {!esEdificacion && "deLaEdificacion" in m && m.deLaEdificacion ? (
+                    <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>De la edificación</span>
+                  ) : null}
+                </div>
                 <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
                   {new Date(m.createdAt).toLocaleDateString("es-CO")}{m.descripcion ? ` · ${m.descripcion}` : ""}
                 </div>

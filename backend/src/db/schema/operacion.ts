@@ -92,6 +92,10 @@ export const incidencias = mysqlTable("incidencias", {
 	slaVenceAt: timestamp("sla_vence_at", { mode: 'string' }),
 	resueltaAt: timestamp("resuelta_at", { mode: 'string' }),
 	cerradaAt: timestamp("cerrada_at", { mode: 'string' }),
+	/** La carita que puso el inquilino, de 1 a 5, una vez resuelta. */
+	calificacion: tinyint("calificacion", { unsigned: true }),
+	calificacionComentario: varchar("calificacion_comentario", { length: 500 }),
+	calificadaAt: timestamp("calificada_at", { mode: 'string' }),
 },
 (table) => [
 	index("ix_incid_estado_sla").on(table.estado, table.slaVenceAt),

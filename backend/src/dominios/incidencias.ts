@@ -3,16 +3,49 @@ import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, privado } from "../trpc/base.js";
 import type { Contexto } from "../context.js";
+import type { Database } from "../db/index.js";
 import { ambitosCon } from "../auth/roles.js";
-import { unidadesDelInquilino } from "../auth/arrendatario.js";
+import { unidadesDelInquilino, esArrendatarioDe } from "../auth/arrendatario.js";
 import { incidencias, incidenciaEventos, proveedores } from "../db/schema/operacion.js";
 import { contratos } from "../db/schema/contrato.js";
 import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { usuarios } from "../db/schema/identidad.js";
+import { comunicados, comunicadoUnidades } from "../db/schema/comunicacion.js";
 import { tiposIncidencia } from "../db/schema/administracion.js";
 
 const ESTADOS = ["abierta", "asignada", "en_progreso", "espera_aprobacion", "resuelta", "cerrada", "rechazada"] as const;
 const dinero = z.number().min(0).max(999_999_999);
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/**
+ * Le avisa al inquilino que su incidencia quedó resuelta, con un comunicado
+ * que nace ya enviado —no hay nadie redactándolo, lo manda el sistema—. Si
+ * es de área común, le llega a toda la edificación: un ascensor arreglado
+ * importa a todos, no solo a quien lo reportó.
+ */
+export async function avisarIncidenciaResuelta(
+  tx: Tx, autorId: number,
+  i: { incidenciaId: number; titulo: string; ambito: "unidad" | "area_comun"; inmuebleId: number | null; edificacionId: number | null },
+): Promise<void> {
+  const cuerpo = `Buenas noticias: ya resolvimos «${i.titulo}». Gracias por avisarnos — contanos cómo te fue.`;
+  const [res] = await tx.insert(comunicados).values({
+    autorId,
+    ambito: i.ambito === "unidad" ? "unidad" : "edificacion",
+    inmuebleId: i.ambito === "unidad" ? i.inmuebleId : null,
+    edificacionId: i.ambito === "area_comun" ? i.edificacionId : null,
+    tipo: "mantenimiento",
+    titulo: "Incidencia resuelta",
+    cuerpo,
+    prioridad: "normal",
+    canales: ["app"],
+    estado: "enviado",
+    enviadoAt: new Date().toISOString().slice(0, 19).replace("T", " "),
+  });
+  if (i.ambito === "unidad" && i.inmuebleId !== null) {
+    const comunicadoId = Number((res as { insertId: number }).insertId);
+    await tx.insert(comunicadoUnidades).values({ comunicadoId, inmuebleId: i.inmuebleId });
+  }
+}
 
 /**
  * Sobre qué unidades y edificaciones alcanza este usuario, y por qué.
@@ -94,6 +127,8 @@ export const incidenciasRouter = router({
           reportadaAt: incidencias.reportadaAt,
           slaVenceAt: incidencias.slaVenceAt,
           resueltaAt: incidencias.resueltaAt,
+          calificacion: incidencias.calificacion,
+          calificacionComentario: incidencias.calificacionComentario,
           ambito: incidencias.ambito,
           celularReporta: incidencias.celularReporta,
           reportadaPorNombre: incidencias.reportadaPorNombre,
@@ -103,6 +138,7 @@ export const incidenciasRouter = router({
           edificacionId: edificaciones.id,
           edificacion: edificaciones.nombre,
           tipo: tiposIncidencia.nombre,
+          proveedorId: incidencias.proveedorId,
           proveedor: proveedores.razonSocial,
         })
         .from(incidencias)
@@ -276,6 +312,8 @@ export const incidenciasRouter = router({
           inmuebleId: incidencias.inmuebleId,
           edificacionId: incidencias.edificacionId,
           estado: incidencias.estado,
+          titulo: incidencias.titulo,
+          ambito: incidencias.ambito,
         })
         .from(incidencias)
         .where(eq(incidencias.id, input.incidenciaId))
@@ -296,6 +334,10 @@ export const incidenciasRouter = router({
       }
 
       const ahora = new Date().toISOString().slice(0, 19).replace("T", " ");
+      // Recién resuelta: antes era otra cosa, ahora pasa a «resuelta». Es lo
+      // que dispara el aviso, y solo una vez — repetirlo cada vez que se
+      // vuelve a guardar «resuelta» sería spam.
+      const recienResuelta = input.estado === "resuelta" && i.estado !== "resuelta";
       await ctx.db.transaction(async (tx) => {
         await tx.update(incidencias).set({
           estado: input.estado,
@@ -310,8 +352,102 @@ export const incidenciasRouter = router({
           tipo: input.estado === "cerrada" ? "cierre" : "cambio_estado",
           contenido: input.nota ?? `Pasa a ${input.estado}`,
         });
+
+        if (recienResuelta) {
+          await avisarIncidenciaResuelta(tx, ctx.usuario.id, { incidenciaId: input.incidenciaId, ...i });
+        }
       });
 
       return { estado: input.estado };
+    }),
+
+  /** El catálogo de proveedores, para elegir a quién reenviarle una incidencia. */
+  proveedoresDisponibles: privado.query(({ ctx }) =>
+    ctx.db
+      .select({ id: proveedores.id, razonSocial: proveedores.razonSocial, especialidades: proveedores.especialidades })
+      .from(proveedores)
+      .where(eq(proveedores.activo, true))
+      .orderBy(proveedores.razonSocial),
+  ),
+
+  /**
+   * Reenvía la incidencia a un proveedor: pasa a «asignada» y le queda
+   * visible en sus incidencias. Sirve tanto para asignar la primera vez como
+   * para cambiar de proveedor a mitad de camino.
+   */
+  reasignarProveedor: privado
+    .input(z.object({ incidenciaId: z.number().int().positive(), proveedorId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [i] = await ctx.db
+        .select({ inmuebleId: incidencias.inmuebleId, edificacionId: incidencias.edificacionId, estado: incidencias.estado })
+        .from(incidencias).where(eq(incidencias.id, input.incidenciaId)).limit(1);
+      if (!i) throw new TRPCError({ code: "NOT_FOUND", message: "Esa incidencia no existe" });
+
+      const alcance = await alcanceDe(ctx);
+      const puede = i.inmuebleId !== null
+        ? alcance.unidades.includes(i.inmuebleId)
+        : i.edificacionId !== null && alcance.edificaciones.includes(i.edificacionId);
+      if (!puede) throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
+      if (i.estado === "cerrada" || i.estado === "rechazada") {
+        throw new TRPCError({ code: "CONFLICT", message: "Esa incidencia ya no está activa" });
+      }
+
+      const [p] = await ctx.db.select({ razonSocial: proveedores.razonSocial, activo: proveedores.activo })
+        .from(proveedores).where(eq(proveedores.id, input.proveedorId)).limit(1);
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Ese proveedor no existe" });
+      if (!p.activo) throw new TRPCError({ code: "CONFLICT", message: "Ese proveedor está anulado" });
+
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(incidencias).set({
+          proveedorId: input.proveedorId,
+          ...(i.estado === "abierta" ? { estado: "asignada" as const } : {}),
+        }).where(eq(incidencias.id, input.incidenciaId));
+        await tx.insert(incidenciaEventos).values({
+          incidenciaId: input.incidenciaId, autorId: ctx.usuario.id, tipo: "asignacion",
+          contenido: `Reenviada a ${p.razonSocial}`,
+        });
+      });
+      return { ok: true };
+    }),
+
+  /**
+   * El inquilino califica cómo le fue con la solución, de 1 a 5. Solo una
+   * vez, y solo sobre una incidencia ya resuelta: no tiene sentido calificar
+   * algo que todavía está en curso. La deja cerrada — es la última palabra.
+   */
+  calificar: privado
+    .input(z.object({
+      incidenciaId: z.number().int().positive(),
+      calificacion: z.number().int().min(1).max(5),
+      comentario: z.string().trim().max(500).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [i] = await ctx.db
+        .select({
+          inmuebleId: incidencias.inmuebleId, estado: incidencias.estado,
+          calificacion: incidencias.calificacion,
+        })
+        .from(incidencias).where(eq(incidencias.id, input.incidenciaId)).limit(1);
+      if (!i) throw new TRPCError({ code: "NOT_FOUND", message: "Esa incidencia no existe" });
+      if (i.inmuebleId === null || !(await esArrendatarioDe(ctx.db, ctx.usuario.id, i.inmuebleId))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Esa incidencia no es de tu unidad" });
+      }
+      if (i.estado !== "resuelta" && i.estado !== "cerrada") {
+        throw new TRPCError({ code: "CONFLICT", message: "Todavía no está resuelta" });
+      }
+      if (i.calificacion !== null) {
+        throw new TRPCError({ code: "CONFLICT", message: "Ya la calificaste" });
+      }
+
+      const ahora = new Date().toISOString().slice(0, 19).replace("T", " ");
+      await ctx.db.update(incidencias).set({
+        calificacion: input.calificacion,
+        calificacionComentario: input.comentario ?? null,
+        calificadaAt: ahora,
+        estado: "cerrada",
+        cerradaAt: i.estado === "cerrada" ? undefined : ahora,
+      }).where(eq(incidencias.id, input.incidenciaId));
+
+      return { ok: true };
     }),
 });

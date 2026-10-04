@@ -3,6 +3,7 @@ import { api, mensajeDeError } from "../lib/api";
 import { Campo } from "./Campo";
 import { Ventana } from "./Ventana";
 import { AreasYReservas } from "./AreasYReservas";
+import { MemoriasUnidad } from "./MemoriasUnidad";
 
 type Edificacion = Awaited<ReturnType<typeof api.inmuebles.misEdificaciones.query>>[number];
 type UnidadBasica = { id: number; direccion: string; complemento: string | null; edificacionId: number | null };
@@ -28,6 +29,7 @@ export function Edificaciones({ unidades, alCambiar }: {
   const [editando, setEditando] = useState<Edificacion | null>(null);
   const [asignando, setAsignando] = useState<Edificacion | null>(null);
   const [areas, setAreas] = useState<Edificacion | null>(null);
+  const [memorias, setMemorias] = useState<Edificacion | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -81,6 +83,10 @@ export function Edificaciones({ unidades, alCambiar }: {
                   </button>
                 )}
                 <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
+                  onClick={() => setMemorias(e)}>
+                  Memorias
+                </button>
+                <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
                   onClick={() => setEditando(e)}>
                   Editar
                 </button>
@@ -124,6 +130,12 @@ export function Edificaciones({ unidades, alCambiar }: {
           {/* Cualquier unidad de la edificación sirve de llave: el servidor
               resuelve a las áreas de la edificación. */}
           <AreasYReservas inmuebleId={unidades.find((u) => u.edificacionId === areas.id)!.id} />
+        </Ventana>
+      )}
+
+      {memorias && (
+        <Ventana titulo={`Memorias · ${memorias.nombre}`} alCerrar={() => setMemorias(null)}>
+          <MemoriasUnidad edificacionId={memorias.id} />
         </Ventana>
       )}
 
