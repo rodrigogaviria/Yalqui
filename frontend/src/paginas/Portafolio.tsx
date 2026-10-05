@@ -123,6 +123,23 @@ export function Portafolio({
     }
   }
 
+  /** Para cuando el estado quedó mal por error —se pasó a publicado o
+   *  borrador teniendo todavía un inquilino— y hay que volverla a arrendada
+   *  sin pasar de nuevo por «Marcar alquilado». */
+  async function reactivar(id: number) {
+    setOcupada(id);
+    setError(null);
+    try {
+      await api.inmuebles.reactivarArrendado.mutate({ inmuebleId: id });
+      alActuar();
+      await cargar();
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setOcupada(null);
+    }
+  }
+
   if (error && unidades === null) {
     return <div className="aviso malo" role="alert">{error}</div>;
   }
@@ -322,6 +339,14 @@ export function Portafolio({
                     onClick={() => alVerInquilinos(u.id, titulo(u))}>
                     Inquilinos
                   </button>
+                  {u.estado !== "arrendado" && u.inquilino !== null && (
+                    <button className="boton fantasma" style={BOTON}
+                      disabled={ocupada === u.id}
+                      title="Ya tiene inquilino asignado: volvé a marcarla arrendada sin pasar por Marcar alquilado"
+                      onClick={() => void reactivar(u.id)}>
+                      {ocupada === u.id ? "…" : "Reactivar"}
+                    </button>
+                  )}
                   <button className="boton" style={BOTON}
                     onClick={() => setPagando(pagando === u.id ? null : u.id)}>
                     {pagando === u.id ? "Cerrar" : "Subir pago"}

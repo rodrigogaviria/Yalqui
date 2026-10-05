@@ -1061,6 +1061,29 @@ export const inmueblesRouter = router({
     return { estado: "pausado" as const };
   }),
 
+  /**
+   * Corrige un cambio de estado por error: vuelve a poner la unidad como
+   * arrendada. No es un alta —no toca inquilino, aplicación ni contrato—,
+   * solo lo exige: sin una aplicación aprobada o un contrato vigente detrás,
+   * no hay de dónde sacar que de verdad hay alguien viviendo ahí.
+   */
+  reactivarArrendado: delPropietario.input(soloId).mutation(async ({ ctx, input }) => {
+    const [ap] = await ctx.db.select({ id: aplicaciones.id }).from(aplicaciones)
+      .where(and(eq(aplicaciones.inmuebleId, input.inmuebleId), eq(aplicaciones.estado, "aprobada")))
+      .limit(1);
+    const [co] = await ctx.db.select({ id: contratos.id }).from(contratos)
+      .where(and(eq(contratos.inmuebleId, input.inmuebleId), inArray(contratos.estado, ["vigente", "en_mora"])))
+      .limit(1);
+    if (!ap && !co) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Esa unidad no tiene un inquilino asignado. Para darla de alta usá «Marcar alquilado».",
+      });
+    }
+    await ctx.db.update(inmuebles).set({ estado: "arrendado" }).where(eq(inmuebles.id, input.inmuebleId));
+    return { estado: "arrendado" as const };
+  }),
+
   /** Búsqueda pública: solo lo publicado, y sin datos del dueño. */
   buscar: publico
     .input(z.object({
