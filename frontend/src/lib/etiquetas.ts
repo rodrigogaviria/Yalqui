@@ -149,6 +149,7 @@ const PERIODO_FACTURA: Record<string, string> = {
 // En orden alfabético por el texto, no por el código: es el orden en el que
 // se ofrecen al elegir y en el que se listan ya guardados.
 const TIPO_MEMORIA: Record<string, string> = {
+  certificaciones: "Certificaciones",
   descripcion_visual: "Descripción Visual",
   documentos_contables: "Documentos Contables",
   fichas_tecnicas: "Fichas Técnicas",

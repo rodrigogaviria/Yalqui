@@ -25,6 +25,7 @@ export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: 
 
   const [memorias, setMemorias] = useState<Array<MemoriaUnidad | MemoriaEdificacion> | null>(null);
   const [tipo, setTipo] = useState(TIPOS[0]![0]);
+  const [descripcion, setDescripcion] = useState("");
   const [subiendo, setSubiendo] = useState(false);
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +48,12 @@ export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: 
             | "application/msword" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             | "application/vnd.ms-excel" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           bytes: archivo.size,
+          ...(descripcion.trim() ? { descripcion: descripcion.trim() } : {}),
         });
         const r = await fetch(subida.url, { method: "PUT", headers: { "content-type": archivo.type }, body: archivo });
         if (!r.ok) throw new Error(`No se pudo subir ${archivo.name}. Probá de nuevo.`);
       }
+      setDescripcion("");
       cargar();
     } catch (err) {
       setError(mensajeDeError(err));
@@ -87,6 +90,10 @@ export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: 
           <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={{ minWidth: 220 }}>
             {TIPOS.map(([codigo, texto]) => <option key={codigo} value={codigo}>{texto}</option>)}
           </select>
+        </Campo>
+        <Campo etiqueta="Descripción" ayuda="Opcional">
+          <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
+            placeholder="Certificado de gas 2026, piso 3…" style={{ minWidth: 220 }} />
         </Campo>
         <label className="boton fantasma" style={{
           height: 38, fontSize: 13.5, display: "inline-flex", alignItems: "center", padding: "0 14px",

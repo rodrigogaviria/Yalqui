@@ -163,7 +163,7 @@ export const inmuebleFotos = mysqlTable("inmueble_fotos", {
 /** En orden alfabético por su nombre, no por como se nos ocurrió escribirlos:
  *  es el orden en el que se ofrecen y se listan. */
 export const TIPOS_MEMORIA = [
-  "descripcion_visual", "documentos_contables", "fichas_tecnicas", "licencias", "otros",
+  "certificaciones", "descripcion_visual", "documentos_contables", "fichas_tecnicas", "licencias", "otros",
   "planos_arquitectonicos", "planos_electricos", "planos_estructurales", "planos_hidraulicos",
 ] as const;
 

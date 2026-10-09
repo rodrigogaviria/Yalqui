@@ -96,6 +96,8 @@ import m045 from "./045_memorias_unidad.sql";
 import m046 from "./046_incidencia_calificacion.sql";
 // @ts-ignore
 import m047 from "./047_memorias_edificacion.sql";
+// @ts-ignore
+import m048 from "./048_memoria_certificaciones.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -151,4 +153,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "045", nombre: "memorias_unidad", sql: m045 as string },
   { version: "046", nombre: "incidencia_calificacion", sql: m046 as string },
   { version: "047", nombre: "memorias_edificacion", sql: m047 as string },
+  { version: "048", nombre: "memoria_certificaciones", sql: m048 as string },
 ];
