@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { randomUUID, createHash } from "node:crypto";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { enLetras, enPesos, fechaLarga, renderizar } from "./plantilla.js";
 import { garantes } from "../db/schema/score.js";
 import { TRPCError } from "@trpc/server";
@@ -338,9 +338,13 @@ export const contratosRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: "Ese contrato ya no admite firmas" });
       }
 
+      // No solo «pendiente»: si ya se mandó pero el enlace se perdió —el
+      // propietario no lo copió, o no sabe a quién se lo compartió—, este
+      // mismo botón sirve para generarlo de nuevo. El viejo queda inválido:
+      // el hash que guarda la firma se reemplaza por el del token nuevo.
       const pendientes = await ctx.db.select().from(contratoFirmas)
         .where(and(eq(contratoFirmas.contratoId, input.contratoId),
-                   eq(contratoFirmas.estado, "pendiente")));
+                   inArray(contratoFirmas.estado, ["pendiente", "enviado", "visto"])));
 
       const enlaces: { nombre: string; enlace: string }[] = [];
       for (const f of pendientes) {
@@ -452,6 +456,33 @@ export const contratosRouter = router({
       }
 
       return { firmado: true, faltanFirmas: faltan, contratoVigente: faltan === 0, restantes: restantes.length };
+    }),
+
+  /**
+   * El contenido de un contrato: el texto ya redactado, o el archivo anexado
+   * si nació de una plantilla con minuta. Y quién falta por firmar, con el
+   * estado de cada uno — para saber a quién le falta avisar.
+   */
+  ver: privado
+    .input(z.object({ contratoId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const [c] = await ctx.db.select({
+        texto: contratos.texto, archivoId: contratos.archivoId, numero: contratos.numero,
+        estado: contratos.estado, propietarioId: contratos.propietarioId, inquilinoId: contratos.inquilinoId,
+        inmuebleId: contratos.inmuebleId,
+      }).from(contratos).where(eq(contratos.id, input.contratoId)).limit(1);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Ese contrato no existe" });
+      if (c.propietarioId !== ctx.usuario.id && c.inquilinoId !== ctx.usuario.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Ese contrato no es tuyo" });
+      }
+
+      const firmantes = await ctx.db.select({
+        nombre: contratoFirmas.nombre, rolFirma: contratoFirmas.rolFirma,
+        estado: contratoFirmas.estado, firmadoAt: contratoFirmas.firmadoAt,
+      }).from(contratoFirmas).where(eq(contratoFirmas.contratoId, input.contratoId))
+        .orderBy(contratoFirmas.orden);
+
+      return { texto: c.texto, archivoId: c.archivoId, numero: c.numero, estado: c.estado, firmantes };
     }),
 
   /** Los contratos del usuario, sea dueño o inquilino. */
