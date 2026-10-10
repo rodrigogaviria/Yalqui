@@ -72,42 +72,46 @@ export function Contratos() {
           {datos.contratos.map((c) => {
             const e = ESTADO[c.estado] ?? { texto: c.estado, clase: "borrador" };
             return (
-              <article key={c.id} className="tarjeta" style={{
-                padding: "15px 18px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
-              }}>
-                <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+              <article key={c.id} className="tarjeta" style={{ padding: 0, overflow: "hidden" }}>
+                <div style={{ background: "var(--violeta)", color: "#fff", padding: "12px 18px" }}>
                   <div style={{ fontSize: 15.5, fontWeight: 600 }}>{c.direccion}</div>
-                  <div style={{ fontSize: 13, color: "var(--tinta-2)", marginTop: 2 }}>
+                  <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.82)", marginTop: 2 }}>
                     <span className="num">{c.numero}</span> · {c.ciudad} · paga el día{" "}
                     <span className="num">{c.diaPago}</span>
                   </div>
-                  <div style={{ fontSize: 12.5, color: "var(--tinta-3)", marginTop: 2 }}>
-                    {new Date(c.fechaInicio).toLocaleDateString("es-CO")} —{" "}
-                    {new Date(c.fechaFin).toLocaleDateString("es-CO")}
-                  </div>
                 </div>
-
-                <span className={`pastilla ${e.clase}`}>{e.texto}</span>
-
-                <div style={{ width: 150, textAlign: "right" }}>
-                  <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>
-                    {pesos(Number(c.canonMensual))}
+                <div style={{
+                  padding: "15px 18px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+                }}>
+                  <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, color: "var(--tinta-3)" }}>
+                      {new Date(c.fechaInicio).toLocaleDateString("es-CO")} —{" "}
+                      {new Date(c.fechaFin).toLocaleDateString("es-CO")}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--tinta-3)" }}>al mes</div>
-                </div>
 
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
-                    onClick={() => setViendo(c)}>
-                    Ver contrato
-                  </button>
-                  {(c.estado === "borrador" || c.estado === "pendiente_firma") && (
-                    <button className="boton" style={{ height: 38, fontSize: 13.5 }}
-                      disabled={ocupado === c.id}
-                      onClick={() => void enviar(c)}>
-                      {ocupado === c.id ? "…" : c.estado === "borrador" ? "Enviar a firmar" : "Ver enlaces"}
+                  <span className={`pastilla ${e.clase}`}>{e.texto}</span>
+
+                  <div style={{ width: 150, textAlign: "right" }}>
+                    <div className="num" style={{ fontSize: 15.5, fontWeight: 600 }}>
+                      {pesos(Number(c.canonMensual))}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--tinta-3)" }}>al mes</div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button className="boton fantasma" style={{ height: 38, fontSize: 13.5 }}
+                      onClick={() => setViendo(c)}>
+                      Ver contrato
                     </button>
-                  )}
+                    {(c.estado === "borrador" || c.estado === "pendiente_firma") && (
+                      <button className="boton" style={{ height: 38, fontSize: 13.5 }}
+                        disabled={ocupado === c.id}
+                        onClick={() => void enviar(c)}>
+                        {ocupado === c.id ? "…" : c.estado === "borrador" ? "Enviar a firmar" : "Ver enlaces"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </article>
             );
