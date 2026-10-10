@@ -29,36 +29,40 @@ export function MisPagos() {
       {datos.length === 0 && <Vacio titulo="Sin pagos todavía">No tenés una unidad registrada.</Vacio>}
 
       {datos.map((u) => (
-        <section key={u.id} className="tarjeta" style={{ padding: "18px 20px", display: "grid", gap: 12 }}>
-          <h2 style={{ fontSize: 16.5, fontWeight: 600, margin: 0 }}>{nombreUnidad(u)}</h2>
-          {u.pagos.length === 0 && (
-            <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-3)" }}>Todavía no subiste ningún pago.</p>
-          )}
-          {u.pagos.map((p) => {
-            const pastilla = PASTILLA_PAGO[p.estado];
-            return (
-              <div key={p.id} style={{
-                display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-                padding: "11px 13px", borderRadius: 10, border: "1px solid var(--linea)",
-              }}>
-                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 600 }}>Pago del {fechaCorta(p.fechaPago)}</div>
-                  <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
-                    {p.medio === "efectivo" ? "Efectivo" : "Transferencia"}
-                    {p.monto !== null && ` · ${pesos(Number(p.monto))}`}
-                    {p.estado === "rechazado" && p.motivoRechazo ? ` · Motivo: ${p.motivoRechazo}` : ""}
+        <section key={u.id} className="tarjeta" style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ background: "var(--violeta)", color: "#fff", padding: "14px 18px" }}>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{nombreUnidad(u)}</div>
+          </div>
+          <div style={{ padding: "18px 20px", display: "grid", gap: 12 }}>
+            {u.pagos.length === 0 && (
+              <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-3)" }}>Todavía no subiste ningún pago.</p>
+            )}
+            {u.pagos.map((p) => {
+              const pastilla = PASTILLA_PAGO[p.estado];
+              return (
+                <div key={p.id} style={{
+                  display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                  padding: "11px 13px", borderRadius: 10, border: "1px solid var(--linea)",
+                }}>
+                  <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 600 }}>Pago del {fechaCorta(p.fechaPago)}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
+                      {p.medio === "efectivo" ? "Efectivo" : "Transferencia"}
+                      {p.monto !== null && ` · ${pesos(Number(p.monto))}`}
+                      {p.estado === "rechazado" && p.motivoRechazo ? ` · Motivo: ${p.motivoRechazo}` : ""}
+                    </div>
                   </div>
+                  <span className={`pastilla ${pastilla.clase}`}>{pastilla.texto}</span>
+                  {p.comprobanteArchivoId !== null && (
+                    <button className="boton fantasma" style={{ height: 34, fontSize: 13 }}
+                      onClick={() => verComprobante(p.comprobanteArchivoId!)}>
+                      Ver comprobante
+                    </button>
+                  )}
                 </div>
-                <span className={`pastilla ${pastilla.clase}`}>{pastilla.texto}</span>
-                {p.comprobanteArchivoId !== null && (
-                  <button className="boton fantasma" style={{ height: 34, fontSize: 13 }}
-                    onClick={() => verComprobante(p.comprobanteArchivoId!)}>
-                    Ver comprobante
-                  </button>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </section>
       ))}
 
