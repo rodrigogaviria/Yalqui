@@ -10,7 +10,7 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
   cancelada: { texto: "Cancelada", clase: "borrador" },
 };
 
-/** Reservar el salón social, el BBQ o lo que haya disponible, y ver en qué quedó cada pedido. */
+/** Reservar lo que haya disponible en tu propiedad, y ver en qué quedó cada pedido. */
 export function Reservas() {
   const [abierto, setAbierto] = useState(false);
   const { datos, error, aviso, ocupado, accion } = usePantalla(async () => {
@@ -35,7 +35,7 @@ export function Reservas() {
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
         titulo="Mis Reservas"
-        nota="El salón social, el BBQ, la cancha: lo que tu propiedad tenga para reservar. Tu arrendador aprueba el turno."
+        nota="Lo que tu propiedad tenga para reservar. Tu arrendador aprueba el turno."
         accion={areas.length > 0
           ? <button className="boton" onClick={() => setAbierto((v) => !v)}>{abierto ? "Cancelar" : "Reservar"}</button>
           : undefined}

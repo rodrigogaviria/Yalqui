@@ -19,8 +19,7 @@ const sitioDe = (r: { edificacion: string | null; direccion: string | null; comp
   r.edificacion ?? `${r.direccion}${r.complemento ? `, ${r.complemento}` : ""}`;
 
 /**
- * Lo que se puede reservar en las propiedades —salón social, BBQ, cancha— y
- * quién pidió qué. Áreas comunes se configuran acá mismo: no hay catálogo de
+ * Lo que se puede reservar en las propiedades y quién pidió qué. Áreas comunes se configuran acá mismo: no hay catálogo de
  * Yalqui de por medio, cada propietario arma el suyo.
  */
 export function Reservas() {
@@ -48,7 +47,7 @@ export function Reservas() {
     <div style={{ display: "grid", gap: 20 }}>
       <Encabezado
         titulo="Mis Reservas"
-        nota="Salón social, BBQ, cancha: lo que se puede reservar en tus propiedades. Un inquilino también puede pedir turno."
+        nota="Lo que se puede reservar en tus propiedades. Un inquilino también puede pedir turno."
         accion={
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: 6 }}>
@@ -98,7 +97,7 @@ export function Reservas() {
 
       {areas.length === 0 ? (
         <Vacio titulo="Todavía no configuraste ningún área">
-          Entrá a «Configurar áreas» y dale de alta al salón social, la cancha o lo que tengas para reservar.
+          Entrá a «Configurar áreas» y dale de alta a lo que tengas para reservar.
         </Vacio>
       ) : reservas.length === 0 ? (
         <Vacio titulo="Todavía no hay reservas">Cuando alguien reserve, aparece acá.</Vacio>
@@ -385,7 +384,7 @@ function ConfigurarAreas({ areas, alCambiar }: { areas: Area[]; alCambiar: () =>
             </select>
           </Campo>
           <Campo etiqueta="Nombre">
-            <input value={nombre} placeholder="Salón social" onChange={(e) => setNombre(e.target.value)} />
+            <input value={nombre} placeholder="Nombre del área" onChange={(e) => setNombre(e.target.value)} />
           </Campo>
           <Campo etiqueta="Capacidad" ayuda="Opcional">
             <input type="number" min={1} value={capacidad} onChange={(e) => setCapacidad(e.target.value)} />

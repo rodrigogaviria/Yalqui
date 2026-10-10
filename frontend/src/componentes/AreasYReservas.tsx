@@ -74,7 +74,7 @@ export function AreasYReservas({ inmuebleId }: { inmuebleId: number }) {
           <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "var(--tinta-2)" }}>
             {sitio.edificacion
               ? `Lo que se puede reservar en ${sitio.edificacion}: es el mismo para todas sus unidades.`
-              : "Lo que se puede reservar en tu edificio: salón social, BBQ, cancha."}
+              : "Lo que se puede reservar en tu edificio."}
             {" "}Sin ninguna acá, la opción de Reservas de abajo no tiene qué ofrecer.
           </p>
         </div>
@@ -132,7 +132,7 @@ export function AreasYReservas({ inmuebleId }: { inmuebleId: number }) {
           }}
         >
           <Campo etiqueta="Nueva área">
-            <input required placeholder="Salón social" value={nuevaArea.nombre}
+            <input required placeholder="Nombre del área" value={nuevaArea.nombre}
               onChange={(e) => setNuevaArea((v) => ({ ...v, nombre: e.target.value }))} />
           </Campo>
           <Campo etiqueta="Descripción (opcional)">
