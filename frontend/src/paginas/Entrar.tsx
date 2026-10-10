@@ -53,7 +53,7 @@ export function Entrar({ alEntrar }: { alEntrar: () => void }) {
 
         <form onSubmit={enviar} className="tarjeta" style={{ padding: 26, display: "grid", gap: 16 }}>
           <h1 style={{ fontSize: 23, fontWeight: 600 }}>
-            {registrando ? "Creá tu cuenta" : "Entrá a tu cuenta"}
+            {registrando ? "Creá tu cuenta" : "Ingresa a tu cuenta"}
           </h1>
 
           {error && <div className="aviso malo" role="alert">{error}</div>}
