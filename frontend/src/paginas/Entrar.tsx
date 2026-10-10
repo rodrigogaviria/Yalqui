@@ -47,7 +47,7 @@ export function Entrar({ alEntrar }: { alEntrar: () => void }) {
         <div style={{ textAlign: "center", marginBottom: 26 }}>
           <div style={{ display: "flex", justifyContent: "center" }}><Marca tamano={34} /></div>
           <p style={{ color: "var(--tinta-2)", margin: "10px 0 0", fontSize: 15 }}>
-            Arrendá directo, sin comisión sobre tu canon.
+            Arrienda Directo, Simple, Flexible, Transparente a un bajísimo costo
           </p>
         </div>
 
