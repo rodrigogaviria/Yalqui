@@ -161,6 +161,14 @@ const TIPO_MEMORIA: Record<string, string> = {
   planos_hidraulicos: "Planos Hidráulicos",
 };
 
+const GENERO: Record<string, string> = {
+  femenino: "Femenino",
+  masculino: "Masculino",
+  no_binario: "No binario",
+  otro: "Otro",
+  prefiere_no_decir: "Prefiere no decir",
+};
+
 const DICCIONARIOS = {
   categoriaAjuste: CATEGORIA_AJUSTE,
   tipoCalculo: TIPO_CALCULO,
@@ -183,6 +191,7 @@ const DICCIONARIOS = {
   categoriaFactura: CATEGORIA_FACTURA,
   periodoFactura: PERIODO_FACTURA,
   tipoMemoria: TIPO_MEMORIA,
+  genero: GENERO,
 } as const;
 
 export type Diccionario = keyof typeof DICCIONARIOS;

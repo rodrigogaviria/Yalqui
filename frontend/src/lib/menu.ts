@@ -92,7 +92,7 @@ const INQUILINO: Perspectiva = {
     { clave: "reservas-inquilino", titulo: "Mis Reservas", icono: "calendario" },
     { clave: "avisos", titulo: "Novedades ⚡️", icono: "globo" },
     { clave: "mi-score", titulo: "Mi score", icono: "grafico", pendiente: true },
-    { clave: "vecinos", titulo: "Vecinos que Ayudan", icono: "globo", pendiente: true },
+    { clave: "vecinos", titulo: "Vecinos que Ayudan", icono: "globo" },
   ],
 };
 

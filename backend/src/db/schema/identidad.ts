@@ -72,6 +72,10 @@ export const perfilesPropietario = mysqlTable("perfiles_propietario", {
 /** Caracteriza y empareja. Nunca alimenta el historial de cumplimiento. */
 export const perfilesInquilino = mysqlTable("perfiles_inquilino", {
   usuarioId: int("usuario_id", { unsigned: true }).primaryKey(),
+  compartirDatosVecinos: boolean("compartir_datos_vecinos").notNull().default(false),
+  alcanceVecinos: mysqlEnum("alcance_vecinos", ["edificacion", "sector", "yalqui"]).notNull().default("edificacion"),
+  emprendimientoNombre: varchar("emprendimiento_nombre", { length: 191 }),
+  emprendimientoDescripcion: text("emprendimiento_descripcion"),
   fechaNacimiento: date("fecha_nacimiento"),
   genero: mysqlEnum("genero", ["femenino", "masculino", "no_binario", "otro", "prefiere_no_decir"]),
   tipoVinculacion: mysqlEnum("tipo_vinculacion",

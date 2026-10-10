@@ -19,6 +19,7 @@ import { archivosRouter } from "./dominios/archivos.js";
 import { inquilinoRouter } from "./dominios/inquilino.js";
 import { facturasPropiedadRouter } from "./dominios/facturasPropiedad.js";
 import { proveedorRouter } from "./dominios/proveedor.js";
+import { vecinosRouter } from "./dominios/vecinos.js";
 
 /**
  * Un router por dominio, con procedimientos explícitos.
@@ -49,6 +50,7 @@ export const appRouter = router({
   inquilino: inquilinoRouter,
   facturasPropiedad: facturasPropiedadRouter,
   proveedor: proveedorRouter,
+  vecinos: vecinosRouter,
 });
 
 export type AppRouter = typeof appRouter;
