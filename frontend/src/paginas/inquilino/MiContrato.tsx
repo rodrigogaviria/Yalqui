@@ -21,7 +21,7 @@ export function MiContrato() {
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
-      <Encabezado titulo="Mi contrato" />
+      <Encabezado titulo="Mis Contratos" />
       {datos.length === 0 && <Vacio titulo="No tenés una unidad registrada" />}
 
       {datos.map((u) => (

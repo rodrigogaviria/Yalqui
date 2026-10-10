@@ -63,7 +63,7 @@ export function Inicio({ alIr }: { alIr: (clave: string) => void }) {
                   <button className="boton" onClick={() => setSubiendo(u.id)}>Subir mi pago</button>
                 )}
                 <button className="boton fantasma" onClick={() => alIr("reportar")}>¿Todo bien?</button>
-                <button className="boton fantasma" onClick={() => alIr("mi-contrato")}>Mi contrato</button>
+                <button className="boton fantasma" onClick={() => alIr("mi-contrato")}>Mis Contratos</button>
               </div>
             </div>
           </section>

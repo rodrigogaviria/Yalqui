@@ -87,7 +87,7 @@ const INQUILINO: Perspectiva = {
   opciones: [
     { clave: "inicio", titulo: "Inicio", icono: "casa" },
     { clave: "mis-pagos", titulo: "Mis pagos", icono: "tarjeta" },
-    { clave: "mi-contrato", titulo: "Mi contrato", icono: "hoja" },
+    { clave: "mi-contrato", titulo: "Mis Contratos", icono: "hoja" },
     { clave: "reportar", titulo: "¿Todo bien?", icono: "triangulo" },
     { clave: "reservas-inquilino", titulo: "Mis Reservas", icono: "calendario" },
     { clave: "avisos", titulo: "Novedades ⚡️", icono: "globo" },
