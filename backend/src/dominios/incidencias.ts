@@ -55,7 +55,7 @@ export async function avisarIncidenciaResuelta(
  * llegan por caminos distintos —rol sobre el inmueble, sobre la edificación, o
  * sobre un contrato— y por eso no alcanza con `ambitosCon` de un solo rol.
  */
-async function alcanceDe(ctx: Contexto & { usuario: NonNullable<Contexto["usuario"]> }) {
+export async function alcanceDe(ctx: Contexto & { usuario: NonNullable<Contexto["usuario"]> }) {
   const propias = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
   const idsEdificacion = ambitosCon(ctx.usuario.roles, "administrador_inmueble", "edificacion");
   const contratosMios = ambitosCon(ctx.usuario.roles, "inquilino", "contrato");

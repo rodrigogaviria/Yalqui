@@ -12,6 +12,9 @@ import { esArrendatarioDe } from "../auth/arrendatario.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { movimientos } from "../db/schema/finanzas.js";
 import { inmuebleFotos, inmuebleMemorias, TIPOS_MEMORIA, inmuebles } from "../db/schema/inventario.js";
+import { incidencias, incidenciaEventos } from "../db/schema/operacion.js";
+import { alcanceDe } from "./incidencias.js";
+import type { Contexto } from "../context.js";
 
 const MIME_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -30,6 +33,14 @@ const MIME_MEMORIA = [
   "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ] as const;
+const TIPO_INCIDENCIA = "incidencia";
+const MIME_MEDIA = [
+  "image/jpeg", "image/png", "image/webp", "image/heic",
+  "video/mp4", "video/quicktime", "video/webm",
+] as const;
+// Un video pesa bastante más que una foto; el resto de los adjuntos se
+// quedan en 10 MB porque son documentos, no grabaciones.
+const MAX_BYTES_MEDIA = 80 * 1024 * 1024;
 
 let s3: S3Client | undefined;
 const cliente = () => (s3 ??= new S3Client({}));
@@ -83,6 +94,22 @@ async function prepararSubida(
     { expiresIn: 300 },
   );
   return { archivoId, url };
+}
+
+/** Quien puede ver la incidencia —su propietario, quien administra la
+ *  edificación, o el inquilino de la unidad— puede adjuntarle una foto o
+ *  un video, o verlos. Es el mismo alcance que usa Mis Incidencias. */
+async function puedeSobreIncidencia(
+  ctx: Contexto & { usuario: NonNullable<Contexto["usuario"]> },
+  incidenciaId: number,
+): Promise<boolean> {
+  const [i] = await ctx.db.select({ inmuebleId: incidencias.inmuebleId, edificacionId: incidencias.edificacionId })
+    .from(incidencias).where(eq(incidencias.id, incidenciaId)).limit(1);
+  if (!i) return false;
+  const alcance = await alcanceDe(ctx);
+  return i.inmuebleId !== null
+    ? alcance.unidades.includes(i.inmuebleId)
+    : i.edificacionId !== null && alcance.edificaciones.includes(i.edificacionId);
 }
 
 /**
@@ -386,11 +413,52 @@ export const archivosRouter = router({
       return { ok: true };
     }),
 
+  /**
+   * Una foto o un video de una incidencia: la prueba de lo que pasó, o de
+   * cómo quedó. Queda como un evento más de la incidencia —se ve mezclado
+   * con los comentarios, en el orden en que pasó todo—.
+   */
+  solicitarSubidaIncidencia: privado
+    .input(z.object({
+      incidenciaId: z.number().int().positive(),
+      nombre: z.string().trim().min(1).max(255),
+      mime: z.enum(MIME_MEDIA),
+      bytes: z.number().int().positive().max(MAX_BYTES_MEDIA, "El archivo pesa más de 80 MB"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!(await puedeSobreIncidencia(ctx, input.incidenciaId))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa incidencia" });
+      }
+      const { archivoId, url } = await prepararSubida(ctx, TIPO_INCIDENCIA, input.incidenciaId, input);
+      await ctx.db.insert(incidenciaEventos).values({
+        incidenciaId: input.incidenciaId, autorId: ctx.usuario.id, tipo: "foto", archivoId,
+      });
+      return { archivoId, url };
+    }),
+
+  /** Las fotos y videos de una incidencia, el más nuevo primero. */
+  mediaDeIncidencia: privado
+    .input(z.object({ incidenciaId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      if (!(await puedeSobreIncidencia(ctx, input.incidenciaId))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa incidencia" });
+      }
+      return ctx.db
+        .select({
+          id: incidenciaEventos.id, archivoId: incidenciaEventos.archivoId,
+          mime: archivos.mime, nombre: archivos.nombreOriginal, createdAt: incidenciaEventos.createdAt,
+        })
+        .from(incidenciaEventos)
+        .innerJoin(archivos, eq(archivos.id, incidenciaEventos.archivoId))
+        .where(and(eq(incidenciaEventos.incidenciaId, input.incidenciaId), eq(incidenciaEventos.tipo, "foto")))
+        .orderBy(desc(incidenciaEventos.createdAt));
+    }),
+
   urlDescarga: privado
     .input(z.object({ archivoId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const [a] = await ctx.db.select().from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
-      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO && a.entidadTipo !== TIPO_FOTO && a.entidadTipo !== TIPO_PLANTILLA && a.entidadTipo !== TIPO_MEMORIA && a.entidadTipo !== TIPO_MEMORIA_EDIF)) {
+      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO && a.entidadTipo !== TIPO_FOTO && a.entidadTipo !== TIPO_PLANTILLA && a.entidadTipo !== TIPO_MEMORIA && a.entidadTipo !== TIPO_MEMORIA_EDIF && a.entidadTipo !== TIPO_INCIDENCIA)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Ese archivo no existe" });
       }
       if (a.entidadTipo === TIPO) {
@@ -418,6 +486,10 @@ export const archivosRouter = router({
       } else if (a.entidadTipo === TIPO_PLANTILLA) {
         if (!esAdmin(ctx.usuario.roles)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Requiere administración de Yalqui" });
+        }
+      } else if (a.entidadTipo === TIPO_INCIDENCIA) {
+        if (!(await puedeSobreIncidencia(ctx, a.entidadId))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa incidencia" });
         }
       } else if (!(await puedeSobreLaUnidad(ctx, a.entidadId))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });

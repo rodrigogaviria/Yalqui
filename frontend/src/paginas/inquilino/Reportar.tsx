@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { Campo } from "../../componentes/Campo";
+import { abrirArchivo } from "../../lib/archivos";
 import { usePantalla, Encabezado, Vacio } from "../propietario/comun";
 import { nombreUnidad } from "./comun";
 
@@ -13,6 +14,8 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
   cerrada: { texto: "Cerrada", clase: "borrador" },
   rechazada: { texto: "Rechazada", clase: "mora" },
 };
+
+const ACEPTA_MEDIA = "image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm";
 
 /** Reportar un daño o un problema de tu unidad, y ver cómo va. */
 export function Reportar() {
@@ -29,6 +32,8 @@ export function Reportar() {
   const [tipoId, setTipoId] = useState("");
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [archivos, setArchivos] = useState<File[]>([]);
+  const [verMedia, setVerMedia] = useState<number | null>(null);
 
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
   if (datos === null) return <p style={{ color: "var(--tinta-2)" }}>Cargando…</p>;
@@ -36,6 +41,25 @@ export function Reportar() {
   const { unidades, tipos, lista } = datos;
   const unidad = unidadId || String(unidades[0]?.id ?? "");
   const tipo = tipoId || String(tipos[0]?.id ?? "");
+
+  async function enviarReporte() {
+    const { incidenciaId } = await api.incidencias.reportar.mutate({
+      ambito: "unidad",
+      inmuebleId: Number(unidad),
+      tipoIncidenciaId: Number(tipo),
+      titulo: titulo.trim(),
+      descripcion: descripcion.trim(),
+    });
+    for (const archivo of archivos) {
+      const subida = await api.archivos.solicitarSubidaIncidencia.mutate({
+        incidenciaId, nombre: archivo.name,
+        mime: archivo.type as "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "video/mp4" | "video/quicktime" | "video/webm",
+        bytes: archivo.size,
+      });
+      const r = await fetch(subida.url, { method: "PUT", headers: { "content-type": archivo.type }, body: archivo });
+      if (!r.ok) throw new Error(`No se pudo subir ${archivo.name}. El reporte ya quedó registrado; probá subirlo de nuevo.`);
+    }
+  }
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -65,22 +89,25 @@ export function Reportar() {
           <Campo etiqueta="Resumen">
             <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Fuga en el lavamanos del baño" />
           </Campo>
-          <Campo etiqueta="Detalle (opcional)">
-            <textarea rows={4} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+          <Campo etiqueta="Detalle">
+            <textarea rows={4} value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Contá qué pasó, desde cuándo y qué tan grave es" />
+          </Campo>
+          <Campo etiqueta="Fotos o videos" ayuda="Opcional · una o varias">
+            <input type="file" accept={ACEPTA_MEDIA} multiple
+              onChange={(e) => setArchivos(e.target.files ? Array.from(e.target.files) : [])} />
+            {archivos.length > 0 && (
+              <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "var(--tinta-2)" }}>
+                {archivos.length} {archivos.length === 1 ? "archivo elegido" : "archivos elegidos"}
+              </p>
+            )}
           </Campo>
           <div>
             <button className="boton"
-              disabled={ocupado === "nuevo" || titulo.trim().length < 4}
-              onClick={() => void accion("nuevo",
-                () => api.incidencias.reportar.mutate({
-                  ambito: "unidad",
-                  inmuebleId: Number(unidad),
-                  tipoIncidenciaId: Number(tipo),
-                  titulo: titulo.trim(),
-                  ...(descripcion.trim() ? { descripcion: descripcion.trim() } : {}),
-                }),
+              disabled={ocupado === "nuevo" || titulo.trim().length < 4 || descripcion.trim().length < 4}
+              onClick={() => void accion("nuevo", enviarReporte,
                 "Reporte enviado. Tu arrendador ya lo puede ver.",
-              ).then(() => { setAbierto(false); setTitulo(""); setDescripcion(""); })}>
+              ).then(() => { setAbierto(false); setTitulo(""); setDescripcion(""); setArchivos([]); })}>
               {ocupado === "nuevo" ? "Enviando…" : "Enviar reporte"}
             </button>
           </div>
@@ -104,11 +131,39 @@ export function Reportar() {
                   </div>
                 </div>
                 <span className={`pastilla ${e.clase}`}>{e.texto}</span>
+                <button type="button" className="boton fantasma" style={{ height: 34, fontSize: 13 }}
+                  onClick={() => setVerMedia(verMedia === i.id ? null : i.id)}>
+                  {verMedia === i.id ? "Cerrar" : "Fotos y videos"}
+                </button>
+                {verMedia === i.id && <MediaIncidencia incidenciaId={i.id} />}
               </article>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Las fotos y videos que se adjuntaron a esta incidencia. */
+function MediaIncidencia({ incidenciaId }: { incidenciaId: number }) {
+  const { datos, error } = usePantalla(() => api.archivos.mediaDeIncidencia.query({ incidenciaId }));
+
+  if (error) return <div className="aviso malo" role="alert" style={{ flexBasis: "100%" }}>{error}</div>;
+  if (datos === null) return <p style={{ flexBasis: "100%", margin: 0, fontSize: 13, color: "var(--tinta-3)" }}>Cargando…</p>;
+  if (datos.length === 0) {
+    return <p style={{ flexBasis: "100%", margin: 0, fontSize: 13, color: "var(--tinta-3)" }}>No se adjuntó nada.</p>;
+  }
+
+  return (
+    <div style={{ flexBasis: "100%", display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {datos.map((m) => (
+        <button key={m.id} type="button" className="boton fantasma" style={{ height: 34, fontSize: 13 }}
+          disabled={m.archivoId === null}
+          onClick={() => m.archivoId !== null && abrirArchivo(m.archivoId)}>
+          {m.mime.startsWith("video/") ? "▶ " : "🖼 "}{m.nombre}
+        </button>
+      ))}
     </div>
   );
 }
