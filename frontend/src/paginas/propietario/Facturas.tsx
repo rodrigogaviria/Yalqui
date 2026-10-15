@@ -187,8 +187,8 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
       </Cifras>
 
       {mias.total > 0 && (
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <select aria-label="Propiedad" value={filtroUnidad} onChange={(e) => setFiltroUnidad(e.target.value)} style={{ maxWidth: 260 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "nowrap", overflowX: "auto", paddingBottom: 2 }}>
+          <select aria-label="Propiedad" value={filtroUnidad} onChange={(e) => setFiltroUnidad(e.target.value)} style={{ flex: "1 1 0", minWidth: 150 }}>
             <option value="">Todas las propiedades</option>
             {edificaciones.length > 0 && (
               <optgroup label="Edificaciones">
@@ -199,19 +199,19 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
               {unidades.map((u) => <option key={u.id} value={u.id}>{u.titulo}</option>)}
             </optgroup>
           </select>
-          <select aria-label="Tipo de factura" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} style={{ maxWidth: 200 }}>
+          <select aria-label="Tipo de factura" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} style={{ flex: "1 1 0", minWidth: 130 }}>
             <option value="">Todos los tipos</option>
             {tiposUsados.map((t) => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
           </select>
-          <select aria-label="Año" value={filtroAnio} onChange={(e) => setFiltroAnio(e.target.value)} style={{ minWidth: 150 }}>
+          <select aria-label="Año" value={filtroAnio} onChange={(e) => setFiltroAnio(e.target.value)} style={{ flex: "1 1 0", minWidth: 110 }}>
             <option value="">Todos los años</option>
             {anios.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
-          <select aria-label="Mes" value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} style={{ minWidth: 175 }}>
+          <select aria-label="Mes" value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} style={{ flex: "1 1 0", minWidth: 130 }}>
             <option value="">Todos los meses</option>
             {MESES.map((m, i) => <option key={m} value={String(i + 1).padStart(2, "0")}>{m}</option>)}
           </select>
-          <select aria-label="Estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ maxWidth: 200 }}>
+          <select aria-label="Estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} style={{ flex: "1 1 0", minWidth: 130 }}>
             <option value="">Todos los estados</option>
             <option value="pendiente">Pendientes</option>
             <option value="vencida">Vencidas</option>
