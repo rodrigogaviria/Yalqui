@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { SECCIONES_ADMIN } from "../lib/menu";
 import { Geografia } from "./admin/Geografia";
-import { TiposDeInmuebles, Comercial, Parametros } from "./admin/Catalogos";
+import { TiposDeInmuebles, TiposDeMemoria, Comercial, Parametros } from "./admin/Catalogos";
 import { ServiciosAdicionales, IngresosEgresos, TiposIncidencia, TiposFactura, Proveedores } from "./admin/Operativos";
 import { Requisitos } from "./admin/Requisitos";
 import { Plantillas } from "./admin/Plantillas";
@@ -39,6 +39,7 @@ export function Administracion({ seccion }: { seccion: string }) {
       {seccion === "incidencias" && <TiposIncidencia avisar={setAviso} />}
       {seccion === "facturas" && <TiposFactura avisar={setAviso} />}
       {seccion === "requisitos" && <Requisitos avisar={setAviso} />}
+      {seccion === "tipos_memoria" && <TiposDeMemoria avisar={setAviso} />}
       {seccion === "plantillas" && <Plantillas avisar={setAviso} />}
       {seccion === "proveedores" && <Proveedores avisar={setAviso} />}
       {seccion === "comercial" && <Comercial avisar={setAviso} />}

@@ -1,15 +1,16 @@
 import { z } from "zod";
 import { asc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { router, publico, admin } from "../../trpc/base.js";
+import { router, publico, privado, admin } from "../../trpc/base.js";
 import { tiposInmueble, parametros, TIPOS_PARAMETRO } from "../../db/schema/administracion.js";
 import { MARCOS_LEGALES } from "../../db/schema/contrato.js";
 import { servicios } from "../../db/schema/negocio.js";
 import { planes } from "../../db/schema/dinero.js";
 import { amenidades } from "../../db/schema/vecindad.js";
+import { tiposMemoria } from "../../db/schema/inventario.js";
 import { canalesPublicacion } from "../../db/schema/publicacion.js";
 import { permisosRol } from "../../db/schema/operacion.js";
-import { cambiosDe, comoConflicto } from "./comun.js";
+import { cambiosDe, comoConflicto, normalizarCodigo } from "./comun.js";
 
 const id = z.number().int().positive();
 
@@ -260,6 +261,45 @@ export const catalogosRouter = router({
   planes: admin.query(({ ctx }) => ctx.db.select().from(planes).orderBy(asc(planes.orden))),
 
   amenidades: admin.query(({ ctx }) => ctx.db.select().from(amenidades).orderBy(asc(amenidades.nombre))),
+
+  /** Los tipos de memoria: planos, licencias, fichas técnicas. A diferencia
+   *  de los tipos de inmueble, acá sí se puede crear uno nuevo — no hay un
+   *  ENUM de por medio que lo impida. */
+  tiposMemoria: admin.query(({ ctx }) =>
+    ctx.db.select().from(tiposMemoria).orderBy(asc(tiposMemoria.orden), asc(tiposMemoria.nombre)),
+  ),
+
+  /** Los tipos de memoria activos, para el formulario de quien sube una. */
+  tiposMemoriaActivos: privado.query(({ ctx }) =>
+    ctx.db.select({ id: tiposMemoria.id, nombre: tiposMemoria.nombre })
+      .from(tiposMemoria).where(eq(tiposMemoria.activo, true))
+      .orderBy(asc(tiposMemoria.orden), asc(tiposMemoria.nombre)),
+  ),
+
+  crearTipoMemoria: admin
+    .input(z.object({ nombre: z.string().trim().min(2).max(120), orden: z.number().int().min(0).max(999).default(0) }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const [res] = await ctx.db.insert(tiposMemoria)
+          .values({ codigo: normalizarCodigo(input.nombre), nombre: input.nombre, orden: input.orden });
+        return { id: Number((res as { insertId: number }).insertId) };
+      } catch (e) {
+        comoConflicto(e, "Ya existe un tipo de memoria con ese nombre");
+      }
+    }),
+
+  editarTipoMemoria: admin
+    .input(z.object({
+      tipoMemoriaId: id,
+      nombre: z.string().trim().min(2).max(120).optional(),
+      orden: z.number().int().min(0).max(999).optional(),
+      activo: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { tipoMemoriaId, ...campos } = input;
+      await ctx.db.update(tiposMemoria).set(cambiosDe(campos)).where(eq(tiposMemoria.id, tipoMemoriaId));
+      return { ok: true };
+    }),
 
   canales: admin.query(({ ctx }) =>
     ctx.db.select().from(canalesPublicacion).orderBy(asc(canalesPublicacion.nombre)),

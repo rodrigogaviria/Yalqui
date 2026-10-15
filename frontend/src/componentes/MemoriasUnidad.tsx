@@ -1,21 +1,20 @@
 import { useEffect, useState } from "react";
 import { api, mensajeDeError } from "../lib/api";
 import { Campo } from "./Campo";
-import { etiqueta, opciones } from "../lib/etiquetas";
 import { abrirArchivo } from "../lib/archivos";
 
 const ACEPTA = "application/pdf,image/jpeg,image/png,image/webp,image/heic,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-const TIPOS = opciones("tipoMemoria");
 
 type MemoriaUnidad = Awaited<ReturnType<typeof api.archivos.memoriasDeUnidad.query>>[number];
 type MemoriaEdificacion = Awaited<ReturnType<typeof api.archivos.memoriasDeEdificacion.query>>[number];
+type TipoMemoria = Awaited<ReturnType<typeof api.admin.catalogos.tiposMemoriaActivos.query>>[number];
 
 /**
  * Las memorias de una unidad o de una edificación entera: planos, fichas
- * técnicas, licencias, documentos contables. Cada una lleva un tipo del
- * catálogo fijo, ofrecido y listado en orden alfabético — no es una
- * galería, es un archivador. En una unidad que pertenece a una edificación,
- * se ven también las memorias de toda la edificación, marcadas aparte.
+ * técnicas, licencias, documentos contables. Cada una lleva un tipo de un
+ * catálogo administrable (Configuración › Tipos de memoria), ofrecido y
+ * listado en su orden. En una unidad que pertenece a una edificación, se ven
+ * también las memorias de toda la edificación, marcadas aparte.
  */
 export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: number }) {
   const inmuebleId = "inmuebleId" in props ? props.inmuebleId : undefined;
@@ -24,7 +23,8 @@ export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: 
   const sitio = esEdificacion ? { edificacionId } : { inmuebleId: inmuebleId! };
 
   const [memorias, setMemorias] = useState<Array<MemoriaUnidad | MemoriaEdificacion> | null>(null);
-  const [tipo, setTipo] = useState(TIPOS[0]![0]);
+  const [tipos, setTipos] = useState<TipoMemoria[] | null>(null);
+  const [tipoMemoriaId, setTipoMemoriaId] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [subiendo, setSubiendo] = useState(false);
   const [ocupado, setOcupado] = useState<number | null>(null);
@@ -37,13 +37,19 @@ export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: 
     void pedido.then(setMemorias).catch((e) => setError(mensajeDeError(e)));
   };
   useEffect(cargar, [inmuebleId, edificacionId]);
+  useEffect(() => {
+    void api.admin.catalogos.tiposMemoriaActivos.query().then((t) => {
+      setTipos(t);
+      setTipoMemoriaId((actual) => actual || String(t[0]?.id ?? ""));
+    }).catch((e) => setError(mensajeDeError(e)));
+  }, []);
 
   async function subir(archivos: FileList) {
     setSubiendo(true); setError(null);
     try {
       for (const archivo of Array.from(archivos)) {
         const subida = await api.archivos.solicitarSubidaMemoriaUnidad.mutate({
-          ...sitio, tipo: tipo as never, nombre: archivo.name,
+          ...sitio, tipoMemoriaId: Number(tipoMemoriaId), nombre: archivo.name,
           mime: archivo.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp" | "image/heic"
             | "application/msword" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             | "application/vnd.ms-excel" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -87,8 +93,8 @@ export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: 
 
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
         <Campo etiqueta="Tipo">
-          <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={{ minWidth: 220 }}>
-            {TIPOS.map(([codigo, texto]) => <option key={codigo} value={codigo}>{texto}</option>)}
+          <select value={tipoMemoriaId} onChange={(e) => setTipoMemoriaId(e.target.value)} style={{ minWidth: 220 }}>
+            {(tipos ?? []).map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
           </select>
         </Campo>
         <Campo etiqueta="Descripción" ayuda="Opcional">
@@ -100,7 +106,7 @@ export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: 
           cursor: subiendo ? "default" : "pointer", opacity: subiendo ? 0.6 : 1,
         }}>
           {subiendo ? "Subiendo…" : "Subir uno o varios"}
-          <input type="file" accept={ACEPTA} multiple disabled={subiendo} style={{ display: "none" }}
+          <input type="file" accept={ACEPTA} multiple disabled={subiendo || !tipoMemoriaId} style={{ display: "none" }}
             onChange={(e) => { if (e.target.files?.length) void subir(e.target.files); e.target.value = ""; }} />
         </label>
       </div>
@@ -118,7 +124,7 @@ export function MemoriasUnidad(props: { inmuebleId: number } | { edificacionId: 
             }}>
               <div style={{ flex: "1 1 220px", minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>
-                  {etiqueta("tipoMemoria", m.tipo)}
+                  {m.tipo}
                   {!esEdificacion && "deLaEdificacion" in m && m.deLaEdificacion ? (
                     <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>De la edificación</span>
                   ) : null}

@@ -45,6 +45,7 @@ export const SECCIONES_ADMIN: SubOpcion[] = [
   { clave: "incidencias", titulo: "Incidencias" },
   { clave: "facturas", titulo: "Tipos de factura" },
   { clave: "requisitos", titulo: "Requisitos y documentos" },
+  { clave: "tipos_memoria", titulo: "Tipos de memoria" },
   { clave: "plantillas", titulo: "Plantillas de contrato" },
   { clave: "proveedores", titulo: "Proveedores" },
   { clave: "comercial", titulo: "Planes y servicios" },

@@ -8,6 +8,7 @@ type Tipo = Awaited<ReturnType<typeof api.admin.catalogos.tipos.query>>[number];
 type Parametro = Awaited<ReturnType<typeof api.admin.catalogos.parametros.query>>[number];
 type Servicio = Awaited<ReturnType<typeof api.admin.catalogos.servicios.query>>[number];
 type Plan = Awaited<ReturnType<typeof api.admin.catalogos.planes.query>>[number];
+type TipoMemoria = Awaited<ReturnType<typeof api.admin.catalogos.tiposMemoria.query>>[number];
 
 export function TiposDeInmuebles({ avisar }: { avisar: (m: string) => void }) {
   const [tipos, setTipos] = useState<Tipo[] | null>(null);
@@ -65,6 +66,71 @@ export function TiposDeInmuebles({ avisar }: { avisar: (m: string) => void }) {
           alAnular={(id, activo) => accion(
             () => api.admin.catalogos.activar.mutate({ catalogo: "tipo", id, activo }),
             activo ? "Tipo reactivado" : "Tipo anulado",
+          )}
+        />
+      )}
+    </Seccion>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/** Los tipos de memoria: planos, licencias, fichas técnicas. A diferencia de
+ *  los tipos de inmueble, acá sí se puede crear uno nuevo. */
+export function TiposDeMemoria({ avisar }: { avisar: (m: string) => void }) {
+  const [tipos, setTipos] = useState<TipoMemoria[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  const cargar = useCallback(async () => {
+    try { setTipos(await api.admin.catalogos.tiposMemoria.query()); setError(null); }
+    catch (e) { setError(mensajeDeError(e)); }
+  }, []);
+
+  useEffect(() => { void cargar(); }, [cargar]);
+
+  async function accion(fn: () => Promise<unknown>, mensaje: string) {
+    setOcupado(true);
+    setError(null);
+    try { await fn(); avisar(mensaje); await cargar(); }
+    catch (e) { setError(mensajeDeError(e)); }
+    finally { setOcupado(false); }
+  }
+
+  const campos: CampoCatalogo[] = [
+    { clave: "nombre", titulo: "Tipo de memoria", tipo: "texto" },
+    { clave: "orden", titulo: "Orden", tipo: "numero", ancho: 100 },
+  ];
+
+  return (
+    <Seccion
+      titulo="Tipos de memoria"
+      nota="Planos, licencias, fichas técnicas, certificaciones: lo que se puede subir como memoria de una unidad o de una edificación. A diferencia de los tipos de inmueble, acá no hace falta una migración: crear uno nuevo lo deja disponible de inmediato."
+    >
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+
+      <FormularioRegistro
+        titulo="Registrar tipo de memoria"
+        ocupado={ocupado}
+        campos={campos}
+        alRegistrar={(v) => accion(
+          () => api.admin.catalogos.crearTipoMemoria.mutate(v as never),
+          "Tipo de memoria registrado",
+        )}
+      />
+
+      {tipos && (
+        <CatalogoEditable
+          filas={tipos}
+          campos={campos}
+          ocupado={ocupado}
+          alGuardar={(id, cambios) => accion(
+            () => api.admin.catalogos.editarTipoMemoria.mutate({ tipoMemoriaId: id, ...cambios }),
+            "Tipo de memoria actualizado",
+          )}
+          alAnular={(id, activo) => accion(
+            () => api.admin.catalogos.editarTipoMemoria.mutate({ tipoMemoriaId: id, activo }),
+            activo ? "Tipo de memoria reactivado" : "Tipo de memoria anulado",
           )}
         />
       )}

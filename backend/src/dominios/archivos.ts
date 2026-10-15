@@ -11,7 +11,7 @@ import { tieneRol, esAdmin } from "../auth/roles.js";
 import { esArrendatarioDe } from "../auth/arrendatario.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { movimientos } from "../db/schema/finanzas.js";
-import { inmuebleFotos, inmuebleMemorias, TIPOS_MEMORIA, inmuebles } from "../db/schema/inventario.js";
+import { inmuebleFotos, inmuebleMemorias, tiposMemoria, inmuebles } from "../db/schema/inventario.js";
 import { incidencias, incidenciaEventos } from "../db/schema/operacion.js";
 import { actasEntrega, contratos } from "../db/schema/contrato.js";
 import { alcanceDe } from "./incidencias.js";
@@ -345,7 +345,7 @@ export const archivosRouter = router({
     .input(z.object({
       inmuebleId: z.number().int().positive().optional(),
       edificacionId: z.number().int().positive().optional(),
-      tipo: z.enum(TIPOS_MEMORIA),
+      tipoMemoriaId: z.number().int().positive(),
       nombre: z.string().trim().min(1).max(255),
       mime: z.enum(MIME_MEMORIA),
       bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
@@ -360,12 +360,17 @@ export const archivosRouter = router({
       } else if (!puedeSobreEdificacion(ctx.usuario.roles, input.edificacionId!)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa edificación" });
       }
+      const [tipo] = await ctx.db.select({ activo: tiposMemoria.activo })
+        .from(tiposMemoria).where(eq(tiposMemoria.id, input.tipoMemoriaId)).limit(1);
+      if (!tipo) throw new TRPCError({ code: "NOT_FOUND", message: "Ese tipo de memoria no existe" });
+      if (!tipo.activo) throw new TRPCError({ code: "CONFLICT", message: "Ese tipo de memoria está anulado" });
+
       const entidadTipo = input.inmuebleId !== undefined ? TIPO_MEMORIA : TIPO_MEMORIA_EDIF;
       const entidadId = input.inmuebleId ?? input.edificacionId!;
       const { archivoId, url } = await prepararSubida(ctx, entidadTipo, entidadId, input);
       const [res] = await ctx.db.insert(inmuebleMemorias).values({
         inmuebleId: input.inmuebleId ?? null, edificacionId: input.edificacionId ?? null,
-        archivoId, tipo: input.tipo, descripcion: input.descripcion ?? null, subidaPorId: ctx.usuario.id,
+        archivoId, tipoMemoriaId: input.tipoMemoriaId, descripcion: input.descripcion ?? null, subidaPorId: ctx.usuario.id,
       });
       return { archivoId, url, memoriaId: Number((res as { insertId: number }).insertId) };
     }),
@@ -386,16 +391,17 @@ export const archivosRouter = router({
         .from(inmuebles).where(eq(inmuebles.id, input.inmuebleId)).limit(1);
       return ctx.db
         .select({
-          id: inmuebleMemorias.id, archivoId: inmuebleMemorias.archivoId, tipo: inmuebleMemorias.tipo,
+          id: inmuebleMemorias.id, archivoId: inmuebleMemorias.archivoId, tipo: tiposMemoria.nombre,
           descripcion: inmuebleMemorias.descripcion, createdAt: inmuebleMemorias.createdAt,
           deLaEdificacion: sql<number>`${inmuebleMemorias.edificacionId} is not null`,
         })
         .from(inmuebleMemorias)
+        .innerJoin(tiposMemoria, eq(tiposMemoria.id, inmuebleMemorias.tipoMemoriaId))
         .where(or(
           eq(inmuebleMemorias.inmuebleId, input.inmuebleId),
           u?.edificacionId ? eq(inmuebleMemorias.edificacionId, u.edificacionId) : sql`false`,
         ))
-        .orderBy(asc(inmuebleMemorias.tipo), desc(inmuebleMemorias.createdAt));
+        .orderBy(asc(tiposMemoria.orden), desc(inmuebleMemorias.createdAt));
     }),
 
   /** Las memorias propias de una edificación —no las de sus unidades—, para configurarla desde ahí. */
@@ -407,12 +413,13 @@ export const archivosRouter = router({
       }
       return ctx.db
         .select({
-          id: inmuebleMemorias.id, archivoId: inmuebleMemorias.archivoId, tipo: inmuebleMemorias.tipo,
+          id: inmuebleMemorias.id, archivoId: inmuebleMemorias.archivoId, tipo: tiposMemoria.nombre,
           descripcion: inmuebleMemorias.descripcion, createdAt: inmuebleMemorias.createdAt,
         })
         .from(inmuebleMemorias)
+        .innerJoin(tiposMemoria, eq(tiposMemoria.id, inmuebleMemorias.tipoMemoriaId))
         .where(eq(inmuebleMemorias.edificacionId, input.edificacionId))
-        .orderBy(asc(inmuebleMemorias.tipo), desc(inmuebleMemorias.createdAt));
+        .orderBy(asc(tiposMemoria.orden), desc(inmuebleMemorias.createdAt));
     }),
 
   /** Quita una memoria, de una unidad o de una edificación. */

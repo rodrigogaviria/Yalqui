@@ -172,12 +172,16 @@ export const inmuebleFotos = mysqlTable("inmueble_fotos", {
   index("ix_fotos_revision").on(t.inmuebleId, t.estadoRevision),
 ]);
 
-/** En orden alfabético por su nombre, no por como se nos ocurrió escribirlos:
- *  es el orden en el que se ofrecen y se listan. */
-export const TIPOS_MEMORIA = [
-  "certificaciones", "descripcion_visual", "documentos_contables", "fichas_tecnicas", "licencias", "otros",
-  "planos_arquitectonicos", "planos_electricos", "planos_estructurales", "planos_hidraulicos",
-] as const;
+/** El catálogo de tipos de memoria —planos, licencias, fichas técnicas—, que
+ *  la administración de Yalqui puede ampliar sin que haga falta una
+ *  migración por cada tipo nuevo. `orden` es el que se ofrece y se lista. */
+export const tiposMemoria = mysqlTable("tipos_memoria", {
+  id: int("id", { unsigned: true }).autoincrement().primaryKey(),
+  codigo: varchar("codigo", { length: 40 }).notNull(),
+  nombre: varchar("nombre", { length: 120 }).notNull(),
+  activo: boolean("activo").notNull().default(true),
+  orden: smallint("orden", { unsigned: true }).notNull().default(0),
+}, (t) => [uniqueIndex("uk_tipomemoria_codigo").on(t.codigo)]);
 
 /** Los documentos técnicos y legales de la unidad: planos, licencias, fichas
  *  técnicas. No son fotos —no se muestran como galería— y cada uno lleva un
@@ -191,13 +195,13 @@ export const inmuebleMemorias = mysqlTable("inmueble_memorias", {
   inmuebleId: int("inmueble_id", { unsigned: true }),
   edificacionId: int("edificacion_id", { unsigned: true }),
   archivoId: bigint("archivo_id", { mode: "number", unsigned: true }).notNull(),
-  tipo: mysqlEnum("tipo", TIPOS_MEMORIA).notNull(),
+  tipoMemoriaId: int("tipo_memoria_id", { unsigned: true }).notNull().references(() => tiposMemoria.id),
   descripcion: varchar("descripcion", { length: 255 }),
   subidaPorId: int("subida_por_id", { unsigned: true }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [
-  index("ix_memorias_inmueble_tipo").on(t.inmuebleId, t.tipo),
-  index("ix_memorias_edificacion_tipo").on(t.edificacionId, t.tipo),
+  index("ix_memorias_inmueble_tipo").on(t.inmuebleId, t.tipoMemoriaId),
+  index("ix_memorias_edificacion_tipo").on(t.edificacionId, t.tipoMemoriaId),
 ]);
 
 /** Catálogo de Yalqui, para que los avisos sean comparables entre sí. */
