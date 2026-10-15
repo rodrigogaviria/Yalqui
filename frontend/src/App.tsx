@@ -31,6 +31,7 @@ import { Reportar } from "./paginas/inquilino/Reportar";
 import { Reservas as ReservasInquilino } from "./paginas/inquilino/Reservas";
 import { Avisos } from "./paginas/inquilino/Avisos";
 import { Vecinos } from "./paginas/inquilino/Vecinos";
+import { Disponibles } from "./paginas/inquilino/Disponibles";
 
 type Sesion = Awaited<ReturnType<typeof api.auth.sesion.query>>;
 
@@ -253,6 +254,7 @@ export default function App() {
           {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "reservas-inquilino" && <ReservasInquilino />}
           {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "avisos" && <Avisos />}
           {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "vecinos" && <Vecinos />}
+          {vista.tipo === "menu" && perspectiva.rol === "inquilino" && vista.clave === "disponibles" && <Disponibles />}
 
           {vista.tipo === "menu" && vista.clave === "admin" && (
             // Remonta al cambiar de sección: si no, un «Barrio agregado» se

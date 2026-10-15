@@ -58,6 +58,8 @@ export function FormularioUnidad({
   const [permiteTraslado, setPermiteTraslado] = useState(false);
   const [requiereCodeudor, setRequiereCodeudor] = useState(false);
   const [frecuenciaPagoFlexible, setFrecuenciaPagoFlexible] = useState(false);
+  const [comisionActiva, setComisionActiva] = useState(false);
+  const [comisionPct, setComisionPct] = useState("10");
   const [habitaciones, setHabitaciones] = useState("");
   const [banos, setBanos] = useState("");
   const [ocupantesBase, setOcupantesBase] = useState("1");
@@ -96,6 +98,8 @@ export function FormularioUnidad({
         setPermiteTraslado(unidad.permiteTraslado);
         setRequiereCodeudor(unidad.requiereCodeudor);
         setFrecuenciaPagoFlexible(unidad.frecuenciaPagoFlexible);
+        setComisionActiva(unidad.comisionPromotorPct !== null);
+        if (unidad.comisionPromotorPct !== null) setComisionPct(texto(unidad.comisionPromotorPct));
         setHabitaciones(texto(unidad.habitaciones));
         setBanos(texto(unidad.banos));
         setOcupantesBase(texto(unidad.ocupantesBase) || "1");
@@ -196,6 +200,7 @@ export function FormularioUnidad({
       permiteTraslado,
       requiereCodeudor,
       frecuenciaPagoFlexible,
+      comisionPromotorPct: comisionActiva ? (Number(comisionPct) || 0) : null,
       habitaciones: numero(habitaciones),
       banos: numero(banos),
       ocupantesBase: Number(ocupantesBase) || 1,
@@ -369,6 +374,19 @@ export function FormularioUnidad({
             style={{ width: 18, height: 18, flexShrink: 0 }} />
           La frecuencia de pago es flexible (no solo mensual)
         </label>
+
+        <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14.5 }}>
+          <input type="checkbox" checked={comisionActiva}
+            onChange={(e) => setComisionActiva(e.target.checked)}
+            style={{ width: 18, height: 18, flexShrink: 0 }} />
+          Programa de promotores: pagar comisión a quien la promocione y logre arrendarla
+        </label>
+        {comisionActiva && (
+          <Campo etiqueta="Comisión del promotor" ayuda="% del canon, se liquida si se arrienda por su intermedio">
+            <input type="number" min={0} max={100} step="0.5" value={comisionPct}
+              onChange={(e) => setComisionPct(e.target.value)} style={{ width: 120 }} />
+          </Campo>
+        )}
 
         {canon > 0 && (
           <div className="aviso bueno">

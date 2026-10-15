@@ -45,6 +45,9 @@ const nuevo = z.object({
   permiteTraslado: z.boolean().default(false),
   requiereCodeudor: z.boolean().default(false),
   frecuenciaPagoFlexible: z.boolean().default(false),
+  /** El % que recibe quien promocione esta unidad y logre que se arriende.
+   *  Sin valor, el programa de promotores está apagado para ella. */
+  comisionPromotorPct: z.number().min(0).max(100).nullable().optional(),
   descripcion: z.string().trim().max(4000).optional(),
   /** Va en la cláusula de objeto del contrato. Sin ella el contrato sale con
    *  el marcador a la vista, que es preferible a un espacio en blanco. */
@@ -150,6 +153,7 @@ export const inmueblesRouter = router({
         permiteTraslado: input.permiteTraslado,
         requiereCodeudor: input.requiereCodeudor,
         frecuenciaPagoFlexible: input.frecuenciaPagoFlexible,
+        comisionPromotorPct: input.comisionPromotorPct?.toFixed(2) ?? null,
         tipo: input.tipo,
         estado: "borrador",
         direccion: input.direccion,
@@ -549,6 +553,7 @@ export const inmueblesRouter = router({
       if (c.permiteTraslado !== undefined) set["permiteTraslado"] = c.permiteTraslado;
       if (c.requiereCodeudor !== undefined) set["requiereCodeudor"] = c.requiereCodeudor;
       if (c.frecuenciaPagoFlexible !== undefined) set["frecuenciaPagoFlexible"] = c.frecuenciaPagoFlexible;
+      if (c.comisionPromotorPct !== undefined) set["comisionPromotorPct"] = c.comisionPromotorPct?.toFixed(2) ?? null;
 
       await ctx.db.update(inmuebles).set(set).where(eq(inmuebles.id, input.inmuebleId));
       return { ok: true };

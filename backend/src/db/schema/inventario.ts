@@ -54,6 +54,9 @@ export const inmuebles = mysqlTable("inmuebles", {
   /** Si el inquilino puede pactar una frecuencia de pago distinta a la
    *  mensual (quincenal, semanal) en vez de la fija de la unidad. */
   frecuenciaPagoFlexible: boolean("frecuencia_pago_flexible").notNull().default(false),
+  /** El % que recibe quien promociona esta unidad y logra que se arriende.
+   *  Nulo o en cero: el programa de promotores está apagado para ella. */
+  comisionPromotorPct: decimal("comision_promotor_pct", { precision: 5, scale: 2 }),
   /** La plantilla propia de esta unidad, si no usa la de su edificación (o la
    *  vigente del marco legal, si ninguna de las dos está puesta). */
   plantillaContratoId: int("plantilla_contrato_id", { unsigned: true }),

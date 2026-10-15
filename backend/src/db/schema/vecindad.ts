@@ -137,3 +137,26 @@ export const inmuebleAmenidades = mysqlTable("inmueble_amenidades", {
 	index("ix_inmamen_amenidad").on(table.amenidadCodigo),
 	primaryKey({ columns: [table.inmuebleId, table.amenidadCodigo], name: "inmueble_amenidades_inmueble_id_amenidad_codigo"}),
 ]);
+
+/**
+ * El «vecino embajador»: alguien pide promocionar una unidad disponible, el
+ * propietario lo aprueba o lo rechaza, y si esa unidad termina arrendada por
+ * su intermedio, queda registrada la comisión que le corresponde.
+ */
+export const promocionesUnidad = mysqlTable("promociones_unidad", {
+	id: int({ unsigned: true }).autoincrement().notNull(),
+	inmuebleId: int("inmueble_id", { unsigned: true }).notNull().references(() => inmuebles.id, { onDelete: "cascade" } ),
+	promotorId: int("promotor_id", { unsigned: true }).notNull().references(() => usuarios.id, { onDelete: "cascade" } ),
+	estado: mysqlEnum(['pendiente', 'aprobada', 'rechazada']).default('pendiente').notNull(),
+	creadaAt: timestamp("creada_at", { mode: 'string' }).defaultNow().notNull(),
+	decididaAt: timestamp("decidida_at", { mode: 'string' }),
+	decididaPorId: int("decidida_por_id", { unsigned: true }),
+	contratoId: int("contrato_id", { unsigned: true }).references(() => contratos.id, { onDelete: "set null" } ),
+	comisionMonto: decimal("comision_monto", { precision: 14, scale: 2 }),
+	comisionEstado: mysqlEnum("comision_estado", ['pendiente', 'pagada']),
+},
+(table) => [
+	primaryKey({ columns: [table.id], name: "promociones_unidad_id"}),
+	unique("uk_promocion_unidad_promotor").on(table.inmuebleId, table.promotorId),
+	index("ix_promocion_promotor").on(table.promotorId, table.estado),
+]);

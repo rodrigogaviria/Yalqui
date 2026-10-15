@@ -3,6 +3,7 @@ import { api, mensajeDeError } from "../lib/api";
 import { pesos } from "../componentes/Dinero";
 import { SubirPago } from "../componentes/SubirPago";
 import { Edificaciones } from "../componentes/Edificaciones";
+import { PromocionesPendientes } from "../componentes/PromocionesPendientes";
 
 type Unidad = Awaited<ReturnType<typeof api.inmuebles.mias.query>>["unidades"][number];
 type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
@@ -186,6 +187,8 @@ export function Portafolio({
       </header>
 
       {avisoPago && <div className="aviso bueno" role="status">{avisoPago}</div>}
+
+      <PromocionesPendientes />
 
       {unidades && unidades.length > 0 && <Edificaciones unidades={unidades} alCambiar={() => void cargar()} />}
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { randomUUID, createHash } from "node:crypto";
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { enLetras, enPesos, fechaLarga, renderizar } from "./plantilla.js";
 import { garantes } from "../db/schema/score.js";
 import { TRPCError } from "@trpc/server";
@@ -9,6 +9,7 @@ import { contratos, contratoAjustes, contratoFirmas, plantillasContrato, actasEn
 import { aplicaciones, aplicacionAjustes } from "../db/schema/demanda.js";
 import { inmuebles, inmueblePropietarios, edificaciones } from "../db/schema/inventario.js";
 import { usuarios, archivos } from "../db/schema/identidad.js";
+import { promocionesUnidad } from "../db/schema/vecindad.js";
 import { nuevoToken, hashToken, expiraEn } from "../auth/tokens-enlace.js";
 import { otorgarRol } from "../auth/roles.js";
 
@@ -351,6 +352,25 @@ export const contratosRouter = router({
         await tx.insert(contratoFirmas).values(firmantes);
 
         await tx.update(aplicaciones).set({ contratoId: id }).where(eq(aplicaciones.id, ap.id));
+
+        // El «vecino embajador»: si alguien tenía aprobada la promoción de
+        // esta unidad, este es el contrato por el que se le paga.
+        if (u.comisionPromotorPct !== null && Number(u.comisionPromotorPct) > 0) {
+          const [promo] = await tx.select({ id: promocionesUnidad.id })
+            .from(promocionesUnidad)
+            .where(and(
+              eq(promocionesUnidad.inmuebleId, input.inmuebleId),
+              eq(promocionesUnidad.estado, "aprobada"),
+              isNull(promocionesUnidad.contratoId),
+            )).limit(1);
+          if (promo) {
+            const comision = (Number(u.canonBase) * Number(u.comisionPromotorPct) / 100).toFixed(2);
+            await tx.update(promocionesUnidad)
+              .set({ contratoId: id, comisionMonto: comision, comisionEstado: "pendiente" })
+              .where(eq(promocionesUnidad.id, promo.id));
+          }
+        }
+
         return id;
       });
 
