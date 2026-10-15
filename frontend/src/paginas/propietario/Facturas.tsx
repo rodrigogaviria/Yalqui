@@ -219,6 +219,10 @@ export function Facturas({ unidades }: { unidades: Array<{ id: number; titulo: s
                     <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 10px" }}
                       onClick={() => abrirArchivo(f.comprobanteArchivoId!)}>Ver comprobante</button>
                   )}
+                  {f.situacion === "pagada" && f.comprobanteArchivoId === null && (
+                    <button className="boton" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
+                      onClick={() => setEditando(f)}>Registrar comprobante</button>
+                  )}
                   {f.situacion !== "anulada" && (
                     <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 10px" }}
                       onClick={() => setEditando(f)}>
@@ -542,6 +546,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
   const [fechaPago, setFechaPago] = useState(hoyISO());
   const [valorPagado, setValorPagado] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
+  const [comprobante, setComprobante] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -573,6 +578,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
     try {
       const donde: Donde = unidad.startsWith("e") ? { edificacionId: Number(unidad.slice(1)) } : { inmuebleId: Number(unidad) };
       const archivoId = archivo ? await subir(donde, archivo) : undefined;
+      const comprobanteArchivoId = estado === "pagado" && comprobante ? await subir(donde, comprobante) : undefined;
       await api.facturasPropiedad.registrar.mutate({
         ...donde, tipoFacturaId: tipo.id, periodo,
         fechaVencimiento: vence, valor: Number(valor), estado, responsable,
@@ -581,6 +587,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
         ...(donde && "edificacionId" in donde ? { prorrateo } : {}),
         ...(estado === "pagado" ? { fechaPago, valorPagado: Number(valorPagado || valor) } : {}),
         ...(archivoId !== undefined ? { archivoId } : {}),
+        ...(comprobanteArchivoId !== undefined ? { comprobanteArchivoId } : {}),
       });
       alTerminar();
     } catch (err) {
@@ -695,6 +702,9 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
           <Campo etiqueta="Fecha del pago"><input type="date" required value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} /></Campo>
           <Campo etiqueta="Valor pagado" ayuda="Si lo dejás vacío, el de la factura">
             <input type="number" min={1} step="any" value={valorPagado} placeholder={valor} onChange={(e) => setValorPagado(e.target.value)} />
+          </Campo>
+          <Campo etiqueta="Comprobante" ayuda="Opcional · foto o PDF, hasta 10 MB">
+            <input type="file" accept={ACEPTA} onChange={(e) => setComprobante(e.target.files?.[0] ?? null)} />
           </Campo>
         </div>
       )}

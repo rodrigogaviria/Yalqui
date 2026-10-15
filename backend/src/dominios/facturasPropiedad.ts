@@ -141,6 +141,7 @@ export const facturasPropiedadRouter = router({
       /** Solo si se registra ya pagada: el pago. */
       fechaPago: dia.optional(),
       valorPagado: valor.optional(),
+      comprobanteArchivoId: z.number().int().positive().optional(),
       archivoId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -172,6 +173,7 @@ export const facturasPropiedadRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `La factura de ${tipo.nombre.toLowerCase()} necesita la referencia de pago` });
       }
       await validarArchivo(ctx, input.archivoId, donde);
+      await validarArchivo(ctx, input.comprobanteArchivoId, donde);
 
       if (donde.edificacionId !== null && !input.prorrateo) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Elegí cómo se reparte entre las unidades" });
@@ -187,7 +189,9 @@ export const facturasPropiedadRouter = router({
         valorPagado: pagada ? (input.valorPagado ?? input.valor).toFixed(2) : null,
         numeroMedidor: tipo.requiereMedidor ? input.numeroMedidor! : null,
         referenciaPago: tipo.requiereReferencia ? input.referenciaPago! : null,
-        archivoId: input.archivoId ?? null, registradaPorId: ctx.usuario.id,
+        archivoId: input.archivoId ?? null,
+        comprobanteArchivoId: pagada ? (input.comprobanteArchivoId ?? null) : null,
+        registradaPorId: ctx.usuario.id,
       }).$returningId();
       await sincronizarGasto(tx, nueva!.id);
       });
