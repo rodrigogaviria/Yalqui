@@ -20,6 +20,9 @@ export const movimientos = mysqlTable("movimientos", {
 	contratoId: int("contrato_id", { unsigned: true }).references(() => contratos.id, { onDelete: "set null" } ),
 	movimientoPadreId: bigint("movimiento_padre_id", { mode: "number", unsigned: true }),
 	tipo: mysqlEnum(['ingreso','egreso']).notNull(),
+	/** Pendiente no cuenta en Mis Rendimientos todavía: es lo que se sabe que
+	 *  hay que pagar (o cobrar), no lo que ya salió (o entró) de la cuenta. */
+	estado: mysqlEnum(['pendiente', 'finalizado']).default('finalizado').notNull(),
 	/** El tipo sale del catálogo administrable. La `categoria` de abajo es el
 	 *  ENUM anterior: se conserva por los índices y ya no se escribe. */
 	tipoMovimientoId: int("tipo_movimiento_id", { unsigned: true }),

@@ -18,6 +18,7 @@ type Gasto = Awaited<ReturnType<typeof api.rentabilidad.gastos.query>>[number];
  */
 export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: string }> }) {
   const [vista, setVista] = useState<"calendario" | "lista">("calendario");
+  const [filtroEstado, setFiltroEstado] = useState<"" | "pendiente" | "finalizado">("");
   const [mes, setMes] = useState(() => ({ anio: new Date().getFullYear(), mes: new Date().getMonth() }));
   const [registrando, setRegistrando] = useState(false);
   const [detalle, setDetalle] = useState<Gasto | null>(null);
@@ -39,15 +40,20 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [proveedorId, setProveedorId] = useState("");
   const [nota, setNota] = useState("");
+  const [estado, setEstado] = useState<"pendiente" | "finalizado">("finalizado");
 
   if (error) return <div className="aviso malo" role="alert">{error}</div>;
   if (datos === null) return <p style={{ color: "var(--tinta-2)" }}>Cargando…</p>;
 
   const gastos = datos.gastos;
-  const total = gastos.reduce((t, g) => t + Number(g.monto), 0);
+  // Lo que falta por pagar no es plata que ya salió: no suma en los totales.
+  const registrados = gastos.filter((g) => !g.pendiente);
+  const total = registrados.reduce((t, g) => t + Number(g.monto), 0);
   const mesActual = new Date().toISOString().slice(0, 7);
-  const delMes = gastos.filter((g) => String(g.fecha).slice(0, 7) === mesActual)
+  const delMes = registrados.filter((g) => String(g.fecha).slice(0, 7) === mesActual)
     .reduce((t, g) => t + Number(g.monto), 0);
+  const porPagar = gastos.filter((g) => g.pendiente).reduce((t, g) => t + Number(g.monto), 0);
+  const visibles = filtroEstado === "" ? gastos : gastos.filter((g) => (filtroEstado === "pendiente") === g.pendiente);
   const unidad = inmuebleId || (edificaciones[0] ? `e${edificaciones[0].id}` : String(unidades[0]?.id ?? ""));
   const esEdificacion = unidad.startsWith("e");
 
@@ -58,6 +64,12 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
         nota="Lo que sale de tus propiedades. También cuenta en Mis Rendimientos."
         accion={
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)}
+              style={{ height: 38 }}>
+              <option value="">Todos los estados</option>
+              <option value="finalizado">Finalizado</option>
+              <option value="pendiente">Pendiente</option>
+            </select>
             <div style={{ display: "flex", gap: 6 }}>
               {(["calendario", "lista"] as const).map((v) => (
                 <button key={v} className={vista === v ? "boton" : "boton fantasma"}
@@ -116,6 +128,12 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
                 {datos.proveedores.map((p) => <option key={p.id} value={p.id}>{p.razonSocial}</option>)}
               </select>
             </Campo>
+            <Campo etiqueta="Estado" ayuda={estado === "pendiente" ? "Todavía no cuenta en Mis Rendimientos" : "Ya salió de la cuenta"}>
+              <select value={estado} onChange={(e) => setEstado(e.target.value as typeof estado)}>
+                <option value="finalizado">Finalizado</option>
+                <option value="pendiente">Pendiente</option>
+              </select>
+            </Campo>
           </div>
           <Campo etiqueta="Concepto" ayuda="Opcional · qué se pagó">
             <input value={nota} onChange={(e) => setNota(e.target.value)} />
@@ -127,11 +145,11 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
                 () => api.rentabilidad.registrar.mutate({
                   ...(esEdificacion ? { edificacionId: Number(unidad.slice(1)), prorrateo } : { inmuebleId: Number(unidad) }),
                   tipoMovimientoId: Number(tipoId),
-                  monto: Number(monto), fecha, proveedorId: Number(proveedorId),
+                  monto: Number(monto), fecha, proveedorId: Number(proveedorId), estado,
                   ...(nota.trim() ? { nota: nota.trim() } : {}),
                 }),
-                "Gasto registrado.",
-              ).then(() => { setRegistrando(false); setMonto(""); setNota(""); setProveedorId(""); setTipoId(""); })}>
+                estado === "pendiente" ? "Gasto pendiente registrado." : "Gasto registrado.",
+              ).then(() => { setRegistrando(false); setMonto(""); setNota(""); setProveedorId(""); setTipoId(""); setEstado("finalizado"); })}>
               {ocupado === "nuevo" ? "Guardando…" : "Guardar gasto"}
             </button>
           </div>
@@ -141,7 +159,8 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
       <Cifras>
         <Cifra titulo="Este mes" valor={pesos(delMes)} tono={delMes > 0 ? "mal" : "normal"} />
         <Cifra titulo="Total registrado" valor={pesos(total)} />
-        <Cifra titulo="Gastos" valor={String(gastos.length)} />
+        <Cifra titulo="Gastos" valor={String(registrados.length)} />
+        <Cifra titulo="Por pagar" valor={pesos(porPagar)} tono={porPagar > 0 ? "mal" : "normal"} />
       </Cifras>
 
       {gastos.length === 0 ? (
@@ -149,10 +168,12 @@ export function Gastos({ unidades }: { unidades: Array<{ id: number; titulo: str
           Mantenimiento, administración, impuesto predial: anotalos acá y quedan
           descontados en Mis Rendimientos.
         </Vacio>
+      ) : visibles.length === 0 ? (
+        <Vacio titulo="Ninguno con ese estado" />
       ) : vista === "calendario" ? (
-        <CalendarioGastos gastos={gastos} mes={mes} setMes={setMes} alElegir={setDetalle} />
+        <CalendarioGastos gastos={visibles} mes={mes} setMes={setMes} alElegir={setDetalle} />
       ) : (
-        <ListaGastos gastos={gastos} alElegir={setDetalle} alEditar={setEditandoGasto} />
+        <ListaGastos gastos={visibles} alElegir={setDetalle} alEditar={setEditandoGasto} />
       )}
 
       {detalle && (
@@ -213,7 +234,7 @@ function CalendarioGastos({ gastos, mes, setMes, alElegir }: {
     const dia = Number(String(g.fecha).slice(8, 10));
     porDia.set(dia, [...(porDia.get(dia) ?? []), g]);
   }
-  const delMes = [...porDia.values()].flat().reduce((t, g) => t + Number(g.monto), 0);
+  const delMes = [...porDia.values()].flat().filter((g) => !g.pendiente).reduce((t, g) => t + Number(g.monto), 0);
 
   const celdas: Array<number | null> = [
     ...Array<null>(primerDiaSemana).fill(null),
@@ -245,6 +266,10 @@ function CalendarioGastos({ gastos, mes, setMes, alElegir }: {
             <span style={{ width: 12, height: 12, borderRadius: 3, background: "var(--mal-tenue)", border: "1px solid #f7d3d3" }} />
             Sin comprobante
           </span>
+          <span style={{ fontSize: 12.5, color: "var(--tinta-2)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: "var(--mal)" }} />
+            Factura sin pagar
+          </span>
           <span style={{ fontSize: 13, color: "var(--tinta-2)" }}>
             Total del mes: <strong className="num">{pesos(delMes)}</strong>
           </span>
@@ -274,11 +299,11 @@ function CalendarioGastos({ gastos, mes, setMes, alElegir }: {
                   <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                     {(porDia.get(dia) ?? []).map((g) => (
                       <button key={g.id} type="button" onClick={() => alElegir(g)}
-                        title={`${tituloGasto(g)} · ${pesos(Number(g.monto))}${g.proveedor ? ` · ${g.proveedor}` : ""}${g.pagado ? " · con comprobante" : " · sin comprobante todavía"} · tocá para ver el detalle`}
+                        title={`${tituloGasto(g)} · ${pesos(Number(g.monto))}${g.proveedor ? ` · ${g.proveedor}` : ""}${g.pendiente ? " · factura sin pagar" : g.pagado ? " · con comprobante" : " · sin comprobante todavía"} · tocá para ver el detalle`}
                         style={{
                           fontSize: 11, padding: "2px 6px", borderRadius: 6, border: "none", cursor: "pointer",
-                          background: g.pagado ? "var(--bien-tenue)" : "var(--mal-tenue)",
-                          color: g.pagado ? "#0e3b24" : "#7d211d", textAlign: "left", fontFamily: "inherit",
+                          background: g.pendiente ? "var(--mal)" : g.pagado ? "var(--bien-tenue)" : "var(--mal-tenue)",
+                          color: g.pendiente ? "#fff" : g.pagado ? "#0e3b24" : "#7d211d", textAlign: "left", fontFamily: "inherit",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         }}>
                         <strong>{tituloGasto(g)}</strong> · {pesos(Number(g.monto))}
@@ -307,11 +332,14 @@ function ListaGastos({ gastos, alElegir, alEditar }: {
           style={{
             padding: "13px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
             cursor: "pointer",
+            ...(g.pendiente ? { background: "var(--mal-tenue)", border: "1px solid #f7d3d3" } : {}),
           }}>
           <div style={{ flex: "1 1 260px", minWidth: 0 }}>
             <div style={{ fontSize: 14.5, fontWeight: 600 }}>
               {tituloGasto(g)}
-              {g.origenTipo === "factura_propiedad" && (
+              {g.pendiente ? (
+                <span className="pastilla mora" style={{ marginLeft: 8, fontSize: 11 }}>Sin pagar</span>
+              ) : g.origenTipo === "factura_propiedad" && (
                 <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>De una factura</span>
               )}
             </div>
@@ -361,6 +389,7 @@ function DetalleGasto({ gasto: g }: { gasto: Gasto }) {
   const [error, setError] = useState<string | null>(null);
 
   const cargarComprobantes = () => {
+    if (g.pendiente) return;
     void api.archivos.comprobantesDeGasto.query({ movimientoId: g.id })
       .then(setComprobantes)
       .catch((e) => setError(mensajeDeError(e)));
@@ -402,7 +431,9 @@ function DetalleGasto({ gasto: g }: { gasto: Gasto }) {
   );
   return (
     <div style={{ display: "grid", gap: 4 }}>
-      {g.origenTipo === "factura_propiedad" && (
+      {g.pendiente ? (
+        <span className="pastilla mora" style={{ width: "fit-content", fontSize: 11 }}>Sin pagar</span>
+      ) : g.origenTipo === "factura_propiedad" && (
         <span className="pastilla publicado" style={{ width: "fit-content", fontSize: 11 }}>De una factura</span>
       )}
       {fila("Tipo de gasto", tituloGasto(g))}
@@ -433,7 +464,11 @@ function DetalleGasto({ gasto: g }: { gasto: Gasto }) {
 
       <div style={{ marginTop: 10 }}>
         <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>Comprobantes de pago</div>
-        {comprobantes === null ? (
+        {g.pendiente ? (
+          <p style={{ margin: 0, fontSize: 13, color: "var(--tinta-2)" }}>
+            Todavía no se pagó esta factura: registrá el pago desde Mis Facturas para subir el comprobante.
+          </p>
+        ) : comprobantes === null ? (
           <p style={{ margin: 0, fontSize: 13, color: "var(--tinta-3)" }}>Cargando…</p>
         ) : comprobantes.length === 0 ? (
           <p style={{ margin: 0, fontSize: 13, color: "var(--tinta-3)" }}>Todavía no subiste ninguno.</p>
@@ -456,14 +491,16 @@ function DetalleGasto({ gasto: g }: { gasto: Gasto }) {
             ))}
           </div>
         )}
-        <label className="boton fantasma" style={{
-          height: 36, fontSize: 13, marginTop: 8, display: "inline-flex", alignItems: "center",
-          padding: "0 12px", cursor: subiendo ? "default" : "pointer", opacity: subiendo ? 0.6 : 1,
-        }}>
-          {subiendo ? "Subiendo…" : "Subir uno o varios"}
-          <input type="file" accept={ACEPTA} multiple disabled={subiendo} style={{ display: "none" }}
-            onChange={(e) => { if (e.target.files?.length) void subir(e.target.files); e.target.value = ""; }} />
-        </label>
+        {!g.pendiente && (
+          <label className="boton fantasma" style={{
+            height: 36, fontSize: 13, marginTop: 8, display: "inline-flex", alignItems: "center",
+            padding: "0 12px", cursor: subiendo ? "default" : "pointer", opacity: subiendo ? 0.6 : 1,
+          }}>
+            {subiendo ? "Subiendo…" : "Subir uno o varios"}
+            <input type="file" accept={ACEPTA} multiple disabled={subiendo} style={{ display: "none" }}
+              onChange={(e) => { if (e.target.files?.length) void subir(e.target.files); e.target.value = ""; }} />
+          </label>
+        )}
         {error && <div className="aviso malo" role="alert" style={{ marginTop: 8 }}>{error}</div>}
       </div>
     </div>
@@ -485,6 +522,7 @@ function FormularioEditarGasto({ gasto, tipos, proveedores, alTerminar }: {
     gasto.prorrateo === "por_area" || gasto.prorrateo === "por_canon" ? gasto.prorrateo : "partes_iguales",
   );
   const [nota, setNota] = useState(gasto.nota ?? "");
+  const [estado, setEstado] = useState<"pendiente" | "finalizado">(gasto.pendiente ? "pendiente" : "finalizado");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -496,7 +534,7 @@ function FormularioEditarGasto({ gasto, tipos, proveedores, alTerminar }: {
         movimientoId: gasto.id,
         ...(tipoId !== "" ? { tipoMovimientoId: Number(tipoId) } : {}),
         monto: Number(monto),
-        fecha,
+        fecha, estado,
         ...(proveedorId !== "" ? { proveedorId: Number(proveedorId) } : {}),
         ...(gasto.edificacion ? { prorrateo } : {}),
         nota: nota.trim(),
@@ -526,6 +564,12 @@ function FormularioEditarGasto({ gasto, tipos, proveedores, alTerminar }: {
           <select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
             <option value="">Elegí uno…</option>
             {proveedores.map((p) => <option key={p.id} value={p.id}>{p.razonSocial}</option>)}
+          </select>
+        </Campo>
+        <Campo etiqueta="Estado">
+          <select value={estado} onChange={(e) => setEstado(e.target.value as typeof estado)}>
+            <option value="finalizado">Finalizado</option>
+            <option value="pendiente">Pendiente</option>
           </select>
         </Campo>
         {gasto.edificacion && (

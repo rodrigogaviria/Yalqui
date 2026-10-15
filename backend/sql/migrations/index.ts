@@ -108,6 +108,8 @@ import m051 from "./051_actas_entrega.sql";
 import m052 from "./052_promociones_unidad.sql";
 // @ts-ignore
 import m053 from "./053_medidores.sql";
+// @ts-ignore
+import m054 from "./054_movimiento_estado.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -169,4 +171,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "051", nombre: "actas_entrega", sql: m051 as string },
   { version: "052", nombre: "promociones_unidad", sql: m052 as string },
   { version: "053", nombre: "medidores", sql: m053 as string },
+  { version: "054", nombre: "movimiento_estado", sql: m054 as string },
 ];

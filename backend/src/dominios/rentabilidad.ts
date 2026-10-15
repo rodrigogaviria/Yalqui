@@ -10,6 +10,7 @@ import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { tiposMovimiento } from "../db/schema/administracion.js";
 import { proveedores } from "../db/schema/operacion.js";
 import { archivos } from "../db/schema/identidad.js";
+import { facturasPropiedad, tiposFactura } from "../db/schema/facturasPropiedad.js";
 
 const dinero = z.number().min(0).max(999_999_999);
 /** Un mes en formato AAAA-MM, como lo escribe el selector del navegador. */
@@ -63,6 +64,7 @@ export const rentabilidadRouter = router({
         proveedor: movimientos.proveedor,
         origenTipo: movimientos.origenTipo,
         prorrateo: movimientos.prorrateo,
+        estadoMovimiento: movimientos.estado,
         edificacion: edificaciones.nombre,
         direccion: inmuebles.direccion,
         complemento: inmuebles.complemento,
@@ -103,12 +105,47 @@ export const rentabilidadRouter = router({
         .map((a) => Number(a.id)),
     );
 
-    return filas.map((f) => ({
+    const registrados = filas.map(({ estadoMovimiento, ...f }) => ({
       ...f,
+      pendiente: estadoMovimiento === "pendiente",
       pagado: f.origenTipo === "factura_propiedad" || conComprobante.has(f.id),
       partes: partes.filter((x) => x.padreId === f.id)
         .map((x) => ({ unidad: `${x.direccion}${x.complemento ? `, ${x.complemento}` : ""}`, monto: x.monto })),
     }));
+
+    // Las facturas de servicios sin pagar todavía: no son plata que ya salió
+    // —no cuentan en el total ni en Mis Rendimientos—, pero conviene verlas
+    // acá para no enterarse solo al llegar a Mis Facturas. El propietario es
+    // quien las debe: las que paga el inquilino no son su gasto.
+    const sinPagar = await ctx.db
+      .select({
+        id: facturasPropiedad.id, valor: facturasPropiedad.valor,
+        fechaVencimiento: facturasPropiedad.fechaVencimiento, periodo: facturasPropiedad.periodo,
+        prorrateo: facturasPropiedad.prorrateo,
+        edificacion: edificaciones.nombre, direccion: inmuebles.direccion, complemento: inmuebles.complemento,
+        servicio: tiposFactura.nombre,
+      })
+      .from(facturasPropiedad)
+      .leftJoin(inmuebles, eq(inmuebles.id, facturasPropiedad.inmuebleId))
+      .leftJoin(edificaciones, eq(edificaciones.id, facturasPropiedad.edificacionId))
+      .innerJoin(tiposFactura, eq(tiposFactura.id, facturasPropiedad.tipoFacturaId))
+      .where(and(
+        eq(facturasPropiedad.estado, "sin_pagar"), eq(facturasPropiedad.responsable, "propietario"),
+        or(
+          ...(ids.length > 0 ? [inArray(facturasPropiedad.inmuebleId, ids)] : []),
+          ...(eds.length > 0 ? [inArray(facturasPropiedad.edificacionId, eds)] : []),
+        ),
+      ));
+
+    const pendientes = sinPagar.map((f) => ({
+      id: -f.id, monto: f.valor, fecha: f.fechaVencimiento,
+      nota: `Factura de ${f.servicio.toLowerCase()} · ${f.periodo} · sin pagar`,
+      proveedor: null, origenTipo: "factura_propiedad" as const, prorrateo: f.prorrateo,
+      edificacion: f.edificacion, direccion: f.direccion, complemento: f.complemento,
+      concepto: f.servicio, pendiente: true as const, pagado: false, partes: [] as Array<{ unidad: string; monto: string }>,
+    }));
+
+    return [...registrados, ...pendientes].sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0));
   }),
 
   /**
@@ -145,7 +182,8 @@ export const rentabilidadRouter = router({
         .from(movimientos)
         .innerJoin(inmuebles, eq(inmuebles.id, movimientos.inmuebleId))
         .leftJoin(tiposMovimiento, eq(tiposMovimiento.id, movimientos.tipoMovimientoId))
-        .where(inArray(movimientos.inmuebleId, ids))
+        // Lo pendiente no es caja todavía: no cuenta en Mis Rendimientos.
+        .where(and(inArray(movimientos.inmuebleId, ids), eq(movimientos.estado, "finalizado")))
         .orderBy(desc(movimientos.fecha));
 
       // El rango se filtra acá y no en SQL porque `fecha` es DATE y el período
@@ -209,6 +247,8 @@ export const rentabilidadRouter = router({
       nota: z.string().trim().max(255).optional(),
       /** Quién cobró, del catálogo: obligatorio en un gasto, no tiene sentido en un ingreso. */
       proveedorId: z.number().int().positive().optional(),
+      /** Pendiente es lo que se sabe que hay que pagar, sin contar todavía en Mis Rendimientos. */
+      estado: z.enum(["pendiente", "finalizado"]).default("finalizado"),
     }))
     .mutation(async ({ ctx, input }) => {
       if ((input.inmuebleId === undefined) === (input.edificacionId === undefined)) {
@@ -248,7 +288,7 @@ export const rentabilidadRouter = router({
       // negativo, un mismo gasto entraría a veces como egreso y a veces como
       // ingreso en negativo, y los totales dejarían de cuadrar.
       const comunes = {
-        tipo: tipo.tipo, tipoMovimientoId: input.tipoMovimientoId, fecha: input.fecha,
+        tipo: tipo.tipo, estado: input.estado, tipoMovimientoId: input.tipoMovimientoId, fecha: input.fecha,
         origenTipo: "manual" as const, nota: input.nota ?? null,
         proveedor, proveedorId: input.proveedorId ?? null,
       };
@@ -280,12 +320,13 @@ export const rentabilidadRouter = router({
       nota: z.string().trim().max(255).optional(),
       proveedorId: z.number().int().positive().optional(),
       prorrateo: z.enum(["partes_iguales", "por_area", "por_canon"]).optional(),
+      estado: z.enum(["pendiente", "finalizado"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const [m] = await ctx.db
         .select({
           inmuebleId: movimientos.inmuebleId, edificacionId: movimientos.edificacionId,
-          tipo: movimientos.tipo, tipoMovimientoId: movimientos.tipoMovimientoId,
+          tipo: movimientos.tipo, estado: movimientos.estado, tipoMovimientoId: movimientos.tipoMovimientoId,
           monto: movimientos.monto, fecha: movimientos.fecha, nota: movimientos.nota,
           proveedor: movimientos.proveedor, proveedorId: movimientos.proveedorId,
           prorrateo: movimientos.prorrateo, origenTipo: movimientos.origenTipo,
@@ -337,7 +378,7 @@ export const rentabilidadRouter = router({
       }
 
       const comunes = {
-        tipo, tipoMovimientoId: input.tipoMovimientoId ?? m.tipoMovimientoId,
+        tipo, estado: input.estado ?? m.estado, tipoMovimientoId: input.tipoMovimientoId ?? m.tipoMovimientoId,
         fecha: input.fecha ?? String(m.fecha),
         origenTipo: "manual" as const,
         nota: input.nota !== undefined ? (input.nota || null) : m.nota,

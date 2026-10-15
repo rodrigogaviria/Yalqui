@@ -72,7 +72,7 @@ export async function sincronizarGasto(db: Database | Tx, facturaId: number): Pr
     const fecha = new Date(f.fechaPago).toISOString().slice(0, 10);
     const nota = `Factura de ${f.tipo.toLowerCase()} · ${f.periodo}`;
     const comunes = {
-      tipo: "egreso" as const, tipoMovimientoId: conceptoId, fecha,
+      tipo: "egreso" as const, estado: "finalizado" as const, tipoMovimientoId: conceptoId, fecha,
       origenTipo: "factura_propiedad" as const, origenId: facturaId, nota,
     };
 
@@ -88,7 +88,7 @@ export async function sincronizarGasto(db: Database | Tx, facturaId: number): Pr
 }
 
 type Comunes = {
-  tipo: "ingreso" | "egreso"; tipoMovimientoId: number | null; fecha: string;
+  tipo: "ingreso" | "egreso"; estado: "pendiente" | "finalizado"; tipoMovimientoId: number | null; fecha: string;
   origenTipo: "factura_propiedad" | "manual"; origenId?: number; nota: string | null;
   proveedor?: string | null; proveedorId?: number | null;
 };
