@@ -40,6 +40,11 @@ const nuevo = z.object({
   ocupantesMaximo: z.number().int().min(1).max(50).optional(),
   mascotasMaximo: z.number().int().min(0).max(20).default(0),
   edificacionId: z.number().int().positive().optional(),
+  /** Si esta unidad es de una edificación con otras del mismo propietario,
+   *  si se permite trasladar a su inquilino a otra unidad de ahí. */
+  permiteTraslado: z.boolean().default(false),
+  requiereCodeudor: z.boolean().default(false),
+  frecuenciaPagoFlexible: z.boolean().default(false),
   descripcion: z.string().trim().max(4000).optional(),
   /** Va en la cláusula de objeto del contrato. Sin ella el contrato sale con
    *  el marcador a la vista, que es preferible a un espacio en blanco. */
@@ -69,6 +74,9 @@ export const cambiosUnidad = nuevo
     administracionIncluida: nuevo.shape.administracionIncluida.removeDefault(),
     ocupantesBase: nuevo.shape.ocupantesBase.removeDefault(),
     mascotasMaximo: nuevo.shape.mascotasMaximo.removeDefault(),
+    permiteTraslado: nuevo.shape.permiteTraslado.removeDefault(),
+    requiereCodeudor: nuevo.shape.requiereCodeudor.removeDefault(),
+    frecuenciaPagoFlexible: nuevo.shape.frecuenciaPagoFlexible.removeDefault(),
   })
   .partial()
   .extend({
@@ -139,6 +147,9 @@ export const inmueblesRouter = router({
         codigoPublico: codigoPublico(),
         propietarioId: ctx.usuario.id,
         edificacionId: input.edificacionId ?? null,
+        permiteTraslado: input.permiteTraslado,
+        requiereCodeudor: input.requiereCodeudor,
+        frecuenciaPagoFlexible: input.frecuenciaPagoFlexible,
         tipo: input.tipo,
         estado: "borrador",
         direccion: input.direccion,
@@ -535,6 +546,9 @@ export const inmueblesRouter = router({
       if (c.descripcion !== undefined) set["descripcion"] = c.descripcion || null;
       if (c.matriculaInmobiliaria !== undefined) set["matriculaInmobiliaria"] = c.matriculaInmobiliaria || null;
       if (c.plantillaContratoId !== undefined) set["plantillaContratoId"] = c.plantillaContratoId;
+      if (c.permiteTraslado !== undefined) set["permiteTraslado"] = c.permiteTraslado;
+      if (c.requiereCodeudor !== undefined) set["requiereCodeudor"] = c.requiereCodeudor;
+      if (c.frecuenciaPagoFlexible !== undefined) set["frecuenciaPagoFlexible"] = c.frecuenciaPagoFlexible;
 
       await ctx.db.update(inmuebles).set(set).where(eq(inmuebles.id, input.inmuebleId));
       return { ok: true };

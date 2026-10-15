@@ -55,6 +55,9 @@ export function FormularioUnidad({
   const [plantillas, setPlantillas] = useState<Array<{ id: number; nombre: string; marcoLegal: string; estado: string }>>([]);
   const [plantillaId, setPlantillaId] = useState("");
   const [administracionIncluida, setAdministracionIncluida] = useState(false);
+  const [permiteTraslado, setPermiteTraslado] = useState(false);
+  const [requiereCodeudor, setRequiereCodeudor] = useState(false);
+  const [frecuenciaPagoFlexible, setFrecuenciaPagoFlexible] = useState(false);
   const [habitaciones, setHabitaciones] = useState("");
   const [banos, setBanos] = useState("");
   const [ocupantesBase, setOcupantesBase] = useState("1");
@@ -90,6 +93,9 @@ export function FormularioUnidad({
         setContratoFechaFin(unidad.contratoFechaFin ? String(unidad.contratoFechaFin).slice(0, 10) : "");
         setPlantillaId(unidad.plantillaContratoId === null ? "" : String(unidad.plantillaContratoId));
         setAdministracionIncluida(unidad.administracionIncluida);
+        setPermiteTraslado(unidad.permiteTraslado);
+        setRequiereCodeudor(unidad.requiereCodeudor);
+        setFrecuenciaPagoFlexible(unidad.frecuenciaPagoFlexible);
         setHabitaciones(texto(unidad.habitaciones));
         setBanos(texto(unidad.banos));
         setOcupantesBase(texto(unidad.ocupantesBase) || "1");
@@ -187,6 +193,9 @@ export function FormularioUnidad({
       contratoFechaInicio: contratoFechaInicio || undefined,
       contratoFechaFin: contratoFechaFin || undefined,
       administracionIncluida,
+      permiteTraslado,
+      requiereCodeudor,
+      frecuenciaPagoFlexible,
       habitaciones: numero(habitaciones),
       banos: numero(banos),
       ocupantesBase: Number(ocupantesBase) || 1,
@@ -256,6 +265,15 @@ export function FormularioUnidad({
               {edificaciones.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
           </Campo>
+        )}
+
+        {edificacionId && (
+          <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14.5 }}>
+            <input type="checkbox" checked={permiteTraslado}
+              onChange={(e) => setPermiteTraslado(e.target.checked)}
+              style={{ width: 18, height: 18, flexShrink: 0 }} />
+            Se permite trasladar al inquilino a otra unidad de esta edificación
+          </label>
         )}
 
         <Campo etiqueta="Dirección">
@@ -336,6 +354,20 @@ export function FormularioUnidad({
             onChange={(e) => setAdministracionIncluida(e.target.checked)}
             style={{ width: 18, height: 18, flexShrink: 0 }} />
           La administración va incluida en el canon
+        </label>
+
+        <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14.5 }}>
+          <input type="checkbox" checked={requiereCodeudor}
+            onChange={(e) => setRequiereCodeudor(e.target.checked)}
+            style={{ width: 18, height: 18, flexShrink: 0 }} />
+          Exige codeudor sí o sí
+        </label>
+
+        <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14.5 }}>
+          <input type="checkbox" checked={frecuenciaPagoFlexible}
+            onChange={(e) => setFrecuenciaPagoFlexible(e.target.checked)}
+            style={{ width: 18, height: 18, flexShrink: 0 }} />
+          La frecuencia de pago es flexible (no solo mensual)
         </label>
 
         {canon > 0 && (

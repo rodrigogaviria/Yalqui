@@ -45,6 +45,15 @@ export const inmuebles = mysqlTable("inmuebles", {
   codigoPublico: varchar("codigo_publico", { length: 20 }).notNull(),
   propietarioId: int("propietario_id", { unsigned: true }).notNull(),
   edificacionId: int("edificacion_id", { unsigned: true }),
+  /** Si esta unidad es de una edificación con otras del mismo propietario, si
+   *  se permite trasladar a su inquilino a otra unidad de ahí. */
+  permiteTraslado: boolean("permite_traslado").notNull().default(false),
+  /** Si esta unidad exige codeudor sí o sí, más allá de lo que el ingreso de
+   *  cada aplicante ya exija. */
+  requiereCodeudor: boolean("requiere_codeudor").notNull().default(false),
+  /** Si el inquilino puede pactar una frecuencia de pago distinta a la
+   *  mensual (quincenal, semanal) en vez de la fija de la unidad. */
+  frecuenciaPagoFlexible: boolean("frecuencia_pago_flexible").notNull().default(false),
   /** La plantilla propia de esta unidad, si no usa la de su edificación (o la
    *  vigente del marco legal, si ninguna de las dos está puesta). */
   plantillaContratoId: int("plantilla_contrato_id", { unsigned: true }),
