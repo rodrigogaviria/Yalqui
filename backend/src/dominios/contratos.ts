@@ -5,16 +5,63 @@ import { enLetras, enPesos, fechaLarga, renderizar } from "./plantilla.js";
 import { garantes } from "../db/schema/score.js";
 import { TRPCError } from "@trpc/server";
 import { router, publico, privado, exigirRol } from "../trpc/base.js";
-import { contratos, contratoAjustes, contratoFirmas, plantillasContrato } from "../db/schema/contrato.js";
+import { contratos, contratoAjustes, contratoFirmas, plantillasContrato, actasEntrega } from "../db/schema/contrato.js";
 import { aplicaciones, aplicacionAjustes } from "../db/schema/demanda.js";
 import { inmuebles, inmueblePropietarios, edificaciones } from "../db/schema/inventario.js";
-import { usuarios } from "../db/schema/identidad.js";
+import { usuarios, archivos } from "../db/schema/identidad.js";
 import { nuevoToken, hashToken, expiraEn } from "../auth/tokens-enlace.js";
 import { otorgarRol } from "../auth/roles.js";
 
 const delPropietario = exigirRol<{ inmuebleId: number }>(
   "propietario", "inmueble", (e) => e.inmuebleId,
 );
+
+/** Un contrato sin firmar no tiene nada que entregar todavía. */
+const ESTADOS_LEGALIZADO = ["vigente", "en_mora", "en_terminacion", "terminado"] as const;
+
+function textoActa(numero: string, direccion: string, complemento: string | null): string {
+  return `ACTA DE ENTREGA Y RECIBO DEL INMUEBLE
+Contrato ${numero}
+Inmueble: ${direccion}${complemento ? `, ${complemento}` : ""}
+
+El arrendador hace entrega y el arrendatario recibe el inmueble arrendado en
+las condiciones que constan en las fotografías y/o videos adjuntos a esta
+acta, que forman parte integral de la misma como evidencia del estado de
+entrega.
+
+Ambas partes, al firmar electrónicamente esta acta dentro de la plataforma
+Yalqui, declaran estar de acuerdo con el estado del inmueble descrito en
+esa evidencia.`;
+}
+
+/** Trae el acta de entrega del contrato, generándola la primera vez que se pide. */
+async function actaDeContrato(
+  ctx: { db: import("../db/index.js").Database; usuario: { id: number } },
+  contratoId: number,
+) {
+  const [c] = await ctx.db.select({
+    propietarioId: contratos.propietarioId, inquilinoId: contratos.inquilinoId,
+    numero: contratos.numero, estado: contratos.estado,
+    direccion: inmuebles.direccion, complemento: inmuebles.complemento,
+  }).from(contratos).innerJoin(inmuebles, eq(inmuebles.id, contratos.inmuebleId))
+    .where(eq(contratos.id, contratoId)).limit(1);
+  if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Ese contrato no existe" });
+  if (c.propietarioId !== ctx.usuario.id && c.inquilinoId !== ctx.usuario.id) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Ese contrato no es tuyo" });
+  }
+  if (!(ESTADOS_LEGALIZADO as readonly string[]).includes(c.estado)) {
+    throw new TRPCError({ code: "CONFLICT", message: "El contrato todavía no está legalizado" });
+  }
+
+  let [acta] = await ctx.db.select().from(actasEntrega).where(eq(actasEntrega.contratoId, contratoId)).limit(1);
+  if (!acta) {
+    await ctx.db.insert(actasEntrega).values({
+      contratoId, texto: textoActa(c.numero, c.direccion, c.complemento),
+    }).onDuplicateKeyUpdate({ set: { contratoId } }); // por si dos pestañas la piden a la vez
+    [acta] = await ctx.db.select().from(actasEntrega).where(eq(actasEntrega.contratoId, contratoId)).limit(1);
+  }
+  return { acta: acta!, esPropietario: c.propietarioId === ctx.usuario.id };
+}
 
 /** El marco legal sale del tipo de unidad, no de una elección. Vivienda urbana
  *  se rige por la Ley 820; local comercial por el Código de Comercio, y son
@@ -505,4 +552,38 @@ export const contratosRouter = router({
     );
     return { total: mios.length, contratos: mios };
   }),
+
+  /**
+   * El acta de entrega de la unidad: la genera la primera vez que se pide
+   * (una vez el contrato está legalizado), con su evidencia y quién falta
+   * por firmar.
+   */
+  actaDe: privado
+    .input(z.object({ contratoId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const { acta, esPropietario } = await actaDeContrato(ctx, input.contratoId);
+      const media = await ctx.db.select({
+        id: archivos.id, nombre: archivos.nombreOriginal, mime: archivos.mime, createdAt: archivos.createdAt,
+      }).from(archivos).where(and(eq(archivos.entidadTipo, "acta_entrega"), eq(archivos.entidadId, acta.id)))
+        .orderBy(desc(archivos.createdAt));
+
+      return {
+        id: acta.id, texto: acta.texto,
+        entregaFirmadaAt: acta.entregaFirmadaAt, inquilinoFirmadaAt: acta.inquilinoFirmadaAt,
+        yoFirme: esPropietario ? acta.entregaFirmadaAt !== null : acta.inquilinoFirmadaAt !== null,
+        esPropietario, media,
+      };
+    }),
+
+  /** Cada parte firma lo que le corresponde: quien entrega, o el inquilino. */
+  firmarActa: privado
+    .input(z.object({ contratoId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const { acta, esPropietario } = await actaDeContrato(ctx, input.contratoId);
+      const ahora = new Date();
+      await ctx.db.update(actasEntrega)
+        .set(esPropietario ? { entregaFirmadaAt: ahora } : { inquilinoFirmadaAt: ahora })
+        .where(eq(actasEntrega.id, acta.id));
+      return { ok: true };
+    }),
 });

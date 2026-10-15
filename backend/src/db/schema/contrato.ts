@@ -1,5 +1,5 @@
 import {
-  mysqlTable, int, bigint, varchar, char, json, boolean, tinyint, smallint,
+  mysqlTable, int, bigint, varchar, char, text, json, boolean, tinyint, smallint,
   timestamp, date, decimal, mysqlEnum, uniqueIndex, index, mediumtext,
 } from "drizzle-orm/mysql-core";
 
@@ -81,6 +81,22 @@ export const contratos = mysqlTable("contratos", {
   index("ix_contratos_vencimiento").on(t.estado, t.fechaFin),
   index("ix_contratos_inmueble").on(t.inmuebleId),
   index("ix_contratos_inquilino").on(t.inquilinoId),
+]);
+
+/**
+ * La constancia de que el inquilino recibió la unidad, con evidencia y firma
+ * de las dos partes. Nace sola (con texto generado por el sistema) la
+ * primera vez que alguien la pide, una vez el contrato ya está legalizado.
+ */
+export const actasEntrega = mysqlTable("actas_entrega", {
+  id: int("id", { unsigned: true }).autoincrement().primaryKey(),
+  contratoId: int("contrato_id", { unsigned: true }).notNull(),
+  texto: text("texto").notNull(),
+  entregaFirmadaAt: timestamp("entrega_firmada_at"),
+  inquilinoFirmadaAt: timestamp("inquilino_firmada_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("uk_actas_contrato").on(t.contratoId),
 ]);
 
 /** Precio congelado al firmar; vigencias para entrar o salir a mitad de contrato. */

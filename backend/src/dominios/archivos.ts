@@ -13,6 +13,7 @@ import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { movimientos } from "../db/schema/finanzas.js";
 import { inmuebleFotos, inmuebleMemorias, TIPOS_MEMORIA, inmuebles } from "../db/schema/inventario.js";
 import { incidencias, incidenciaEventos } from "../db/schema/operacion.js";
+import { actasEntrega, contratos } from "../db/schema/contrato.js";
 import { alcanceDe } from "./incidencias.js";
 import type { Contexto } from "../context.js";
 
@@ -34,6 +35,7 @@ const MIME_MEMORIA = [
   "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ] as const;
 const TIPO_INCIDENCIA = "incidencia";
+const TIPO_ACTA = "acta_entrega";
 const MIME_MEDIA = [
   "image/jpeg", "image/png", "image/webp", "image/heic",
   "video/mp4", "video/quicktime", "video/webm",
@@ -110,6 +112,21 @@ async function puedeSobreIncidencia(
   return i.inmuebleId !== null
     ? alcance.unidades.includes(i.inmuebleId)
     : i.edificacionId !== null && alcance.edificaciones.includes(i.edificacionId);
+}
+
+/** Quién es, respecto al contrato de esta acta de entrega. `null` si el
+ *  acta no existe. */
+async function partesDeActa(
+  ctx: Contexto & { usuario: NonNullable<Contexto["usuario"]> },
+  actaId: number,
+): Promise<{ esPropietario: boolean; esInquilino: boolean } | null> {
+  const [fila] = await ctx.db
+    .select({ propietarioId: contratos.propietarioId, inquilinoId: contratos.inquilinoId })
+    .from(actasEntrega)
+    .innerJoin(contratos, eq(contratos.id, actasEntrega.contratoId))
+    .where(eq(actasEntrega.id, actaId)).limit(1);
+  if (!fila) return null;
+  return { esPropietario: fila.propietarioId === ctx.usuario.id, esInquilino: fila.inquilinoId === ctx.usuario.id };
 }
 
 /**
@@ -454,11 +471,30 @@ export const archivosRouter = router({
         .orderBy(desc(incidenciaEventos.createdAt));
     }),
 
+  /**
+   * La foto o el video que el inquilino sube como evidencia del estado en
+   * que recibió la unidad, al generarse el acta de entrega.
+   */
+  solicitarSubidaActa: privado
+    .input(z.object({
+      actaId: z.number().int().positive(),
+      nombre: z.string().trim().min(1).max(255),
+      mime: z.enum(MIME_MEDIA),
+      bytes: z.number().int().positive().max(MAX_BYTES_MEDIA, "El archivo pesa más de 80 MB"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const partes = await partesDeActa(ctx, input.actaId);
+      if (!partes?.esInquilino) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Solo el inquilino sube la evidencia de la entrega" });
+      }
+      return prepararSubida(ctx, TIPO_ACTA, input.actaId, input);
+    }),
+
   urlDescarga: privado
     .input(z.object({ archivoId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const [a] = await ctx.db.select().from(archivos).where(eq(archivos.id, input.archivoId)).limit(1);
-      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO && a.entidadTipo !== TIPO_FOTO && a.entidadTipo !== TIPO_PLANTILLA && a.entidadTipo !== TIPO_MEMORIA && a.entidadTipo !== TIPO_MEMORIA_EDIF && a.entidadTipo !== TIPO_INCIDENCIA)) {
+      if (!a || a.entidadId === null || (a.entidadTipo !== TIPO && a.entidadTipo !== TIPO_UNIDAD && a.entidadTipo !== TIPO_FACTURA && a.entidadTipo !== TIPO_FACTURA_EDIF && a.entidadTipo !== TIPO_GASTO && a.entidadTipo !== TIPO_FOTO && a.entidadTipo !== TIPO_PLANTILLA && a.entidadTipo !== TIPO_MEMORIA && a.entidadTipo !== TIPO_MEMORIA_EDIF && a.entidadTipo !== TIPO_INCIDENCIA && a.entidadTipo !== TIPO_ACTA)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Ese archivo no existe" });
       }
       if (a.entidadTipo === TIPO) {
@@ -490,6 +526,11 @@ export const archivosRouter = router({
       } else if (a.entidadTipo === TIPO_INCIDENCIA) {
         if (!(await puedeSobreIncidencia(ctx, a.entidadId))) {
           throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa incidencia" });
+        }
+      } else if (a.entidadTipo === TIPO_ACTA) {
+        const partes = await partesDeActa(ctx, a.entidadId);
+        if (!partes || (!partes.esPropietario && !partes.esInquilino)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa acta" });
         }
       } else if (!(await puedeSobreLaUnidad(ctx, a.entidadId))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });

@@ -1,7 +1,10 @@
 import { api } from "../../lib/api";
 import { pesos } from "../../componentes/Dinero";
+import { ActaEntrega } from "../../componentes/ActaEntrega";
 import { usePantalla, Encabezado, Vacio } from "../propietario/comun";
 import { fechaCorta, nombreUnidad } from "./comun";
+
+const ESTADOS_LEGALIZADO = ["vigente", "en_mora", "en_terminacion", "terminado"];
 
 const ESTADO_CONTRATO: Record<string, string> = {
   borrador: "En preparación",
@@ -53,6 +56,10 @@ export function MiContrato() {
               Todavía no hay un contrato firmado en Yalqui para esta unidad. Cuando tu
               arrendador lo genere, te llega el enlace para firmarlo y queda acá.
             </div>
+          )}
+
+          {u.contrato && ESTADOS_LEGALIZADO.includes(u.contrato.estado) && (
+            <ActaEntrega contratoId={u.contrato.id} />
           )}
         </section>
       ))}

@@ -2,8 +2,11 @@ import { useState } from "react";
 import { api } from "../../lib/api";
 import { pesos } from "../../componentes/Dinero";
 import { Ventana } from "../../componentes/Ventana";
+import { ActaEntrega } from "../../componentes/ActaEntrega";
 import { abrirArchivo } from "../../lib/archivos";
 import { usePantalla, Encabezado, Cifra, Cifras, Vacio } from "./comun";
+
+const ESTADOS_LEGALIZADO = ["vigente", "en_mora", "en_terminacion", "terminado"];
 
 const ESTADO: Record<string, { texto: string; clase: string }> = {
   borrador: { texto: "Borrador", clase: "borrador" },
@@ -215,6 +218,8 @@ function DetalleContrato({ contratoId }: { contratoId: number }) {
       ) : (
         <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-2)" }}>Este contrato no tiene texto ni archivo.</p>
       )}
+
+      {ESTADOS_LEGALIZADO.includes(datos.estado) && <ActaEntrega contratoId={contratoId} />}
     </div>
   );
 }

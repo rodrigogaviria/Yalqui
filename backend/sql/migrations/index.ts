@@ -102,6 +102,8 @@ import m048 from "./048_memoria_certificaciones.sql";
 import m049 from "./049_compartir_datos_vecinos.sql";
 // @ts-ignore
 import m050 from "./050_permite_traslado.sql";
+// @ts-ignore
+import m051 from "./051_actas_entrega.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -160,4 +162,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "048", nombre: "memoria_certificaciones", sql: m048 as string },
   { version: "049", nombre: "compartir_datos_vecinos", sql: m049 as string },
   { version: "050", nombre: "permite_traslado", sql: m050 as string },
+  { version: "051", nombre: "actas_entrega", sql: m051 as string },
 ];
