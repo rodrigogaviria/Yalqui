@@ -106,6 +106,8 @@ import m050 from "./050_permite_traslado.sql";
 import m051 from "./051_actas_entrega.sql";
 // @ts-ignore
 import m052 from "./052_promociones_unidad.sql";
+// @ts-ignore
+import m053 from "./053_medidores.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -166,4 +168,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "050", nombre: "permite_traslado", sql: m050 as string },
   { version: "051", nombre: "actas_entrega", sql: m051 as string },
   { version: "052", nombre: "promociones_unidad", sql: m052 as string },
+  { version: "053", nombre: "medidores", sql: m053 as string },
 ];

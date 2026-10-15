@@ -56,6 +56,68 @@ async function subir(donde: Donde, archivo: File): Promise<number> {
 const ACEPTA = "application/pdf,image/jpeg,image/png,image/webp,image/heic";
 
 /**
+ * El medidor del servicio, de un catálogo y no de texto libre: cuando hay
+ * varios del mismo servicio en el mismo sitio —Belén tiene cinco de gas—,
+ * un campo de texto es como se termina subiendo el comprobante de uno a la
+ * factura del otro.
+ */
+function SelectorMedidor({ donde, tipoFacturaId, medidorId, setMedidorId, actual }: {
+  donde: Donde; tipoFacturaId: number; medidorId: string; setMedidorId: (v: string) => void;
+  /** El texto libre que ya tenía la factura, de antes de este catálogo. */
+  actual?: string | null;
+}) {
+  const [medidores, setMedidores] = useState<Array<{ id: number; numero: string; tipoFacturaId: number }> | null>(null);
+  const [nuevo, setNuevo] = useState("");
+  const [creando, setCreando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function cargar() {
+    try { setMedidores(await api.facturasPropiedad.medidoresDe.query(donde)); }
+    catch { setMedidores([]); }
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void cargar(); }, ["inmuebleId" in donde ? donde.inmuebleId : donde.edificacionId]);
+
+  const propios = (medidores ?? []).filter((m) => m.tipoFacturaId === tipoFacturaId);
+
+  async function agregar() {
+    if (!nuevo.trim()) return;
+    setCreando(true); setError(null);
+    try {
+      const r = await api.facturasPropiedad.crearMedidor.mutate({ ...donde, tipoFacturaId, numero: nuevo.trim() });
+      setNuevo("");
+      await cargar();
+      setMedidorId(String(r.id));
+    } catch (e) {
+      const { mensajeDeError } = await import("../../lib/api");
+      setError(mensajeDeError(e));
+    } finally { setCreando(false); }
+  }
+
+  return (
+    <Campo etiqueta="Medidor" ayuda={actual && !medidorId ? `Hoy sin catálogo: "${actual}". Elegí uno o registrá uno nuevo.` : "Servicio y número"}>
+      <div style={{ display: "grid", gap: 6 }}>
+        {propios.length > 0 && (
+          <select required value={medidorId} onChange={(e) => setMedidorId(e.target.value)}>
+            <option value="">Elegí un medidor…</option>
+            {propios.map((m) => <option key={m.id} value={m.id}>{m.numero}</option>)}
+          </select>
+        )}
+        <div style={{ display: "flex", gap: 6 }}>
+          <input placeholder="Registrar medidor nuevo" value={nuevo} maxLength={40}
+            onChange={(e) => setNuevo(e.target.value)} style={{ flex: 1 }} />
+          <button type="button" className="boton fantasma" style={{ height: 36, fontSize: 13 }}
+            disabled={creando || !nuevo.trim()} onClick={() => void agregar()}>
+            {creando ? "…" : "Agregar"}
+          </button>
+        </div>
+        {error && <span style={{ fontSize: 12, color: "var(--mal)" }}>{error}</span>}
+      </div>
+    </Campo>
+  );
+}
+
+/**
  * Las facturas que genera cada propiedad —agua, energía, gas, predial,
  * seguro— y su pago. Lo que Yalqui le factura al propietario aparece aparte,
  * al final: es otro flujo de plata.
@@ -329,7 +391,7 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
   const [estado, setEstado] = useState<"sin_pagar" | "pagado">(factura.estado === "pagado" ? "pagado" : "sin_pagar");
   const [responsable, setResponsable] = useState(factura.responsable);
   const [prorrateo, setProrrateo] = useState<"partes_iguales" | "por_area" | "por_canon">(factura.prorrateo === "ninguno" ? "partes_iguales" : factura.prorrateo);
-  const [medidor, setMedidor] = useState(factura.numeroMedidor ?? "");
+  const [medidorId, setMedidorId] = useState(factura.medidorId !== null ? String(factura.medidorId) : "");
   const [referencia, setReferencia] = useState(factura.referenciaPago ?? "");
   const [fechaPago, setFechaPago] = useState(factura.fechaPago ? String(factura.fechaPago).slice(0, 10) : hoyISO());
   const [valorPagado, setValorPagado] = useState(String(Number(factura.valorPagado ?? factura.valor)));
@@ -350,7 +412,7 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
       await api.facturasPropiedad.editar.mutate({
         facturaId: factura.id, periodo, fechaVencimiento: vence, valor: Number(valor), responsable, estado,
         ...(factura.edificacionId !== null ? { prorrateo } : {}),
-        ...(tipo?.requiereMedidor ? { numeroMedidor: medidor.trim() } : {}),
+        ...(tipo?.requiereMedidor && medidorId ? { medidorId: Number(medidorId) } : {}),
         ...(tipo?.requiereReferencia ? { referenciaPago: referencia.trim() } : {}),
         ...(archivoId !== undefined ? { archivoId } : {}),
         ...(estado === "pagado" ? { fechaPago, valorPagado: Number(valorPagado) } : {}),
@@ -385,7 +447,8 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
         <Campo etiqueta="Fecha de vencimiento"><input type="date" required value={vence} onChange={(e) => setVence(e.target.value)} /></Campo>
         <Campo etiqueta="Valor"><input type="number" required min={1} step="any" value={valor} onChange={(e) => setValor(e.target.value)} /></Campo>
         {tipo?.requiereMedidor && (
-          <Campo etiqueta="# Medidor"><input required maxLength={40} value={medidor} onChange={(e) => setMedidor(e.target.value)} /></Campo>
+          <SelectorMedidor donde={donde} tipoFacturaId={tipo.id} medidorId={medidorId} setMedidorId={setMedidorId}
+            actual={factura.numeroMedidor} />
         )}
         {tipo?.requiereReferencia && (
           <Campo etiqueta="Referencia de pago"><input required maxLength={60} value={referencia} onChange={(e) => setReferencia(e.target.value)} /></Campo>
@@ -538,8 +601,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
   const [valor, setValor] = useState("");
   const [estado, setEstado] = useState<"sin_pagar" | "pagado">("sin_pagar");
   const [responsable, setResponsable] = useState<"propietario" | "inquilino">("propietario");
-  const [medidor, setMedidor] = useState("");
-  const [medidorTocado, setMedidorTocado] = useState(false);
+  const [medidorId, setMedidorId] = useState("");
   const [referencia, setReferencia] = useState("");
   const [referenciaTocada, setReferenciaTocada] = useState(false);
   const [prorrateo, setProrrateo] = useState<"partes_iguales" | "por_area" | "por_canon">("partes_iguales");
@@ -551,14 +613,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
   const [error, setError] = useState<string | null>(null);
 
   const tipo = tipos.find((t) => String(t.id) === tipoId);
-
-  // El medidor de una propiedad casi nunca cambia: se ofrece el de la última
-  // factura del mismo tipo en el mismo sitio, para no volver a escribirlo.
-  const sugerido = tipo?.requiereMedidor
-    ? anteriores.find((f) => f.tipo === tipo.nombre && f.numeroMedidor
-        && (unidad.startsWith("e") ? `e${f.edificacionId}` === unidad : String(f.inmuebleId) === unidad))?.numeroMedidor ?? ""
-    : "";
-  const medidorFinal = medidorTocado ? medidor : sugerido;
+  const donde: Donde = unidad.startsWith("e") ? { edificacionId: Number(unidad.slice(1)) } : { inmuebleId: Number(unidad) };
 
   // La referencia de pago de un servicio tampoco cambia de un mes a otro.
   const referenciaSugerida = tipo?.requiereReferencia
@@ -576,13 +631,12 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
     if (!tipo) return;
     setEnviando(true); setError(null);
     try {
-      const donde: Donde = unidad.startsWith("e") ? { edificacionId: Number(unidad.slice(1)) } : { inmuebleId: Number(unidad) };
       const archivoId = archivo ? await subir(donde, archivo) : undefined;
       const comprobanteArchivoId = estado === "pagado" && comprobante ? await subir(donde, comprobante) : undefined;
       await api.facturasPropiedad.registrar.mutate({
         ...donde, tipoFacturaId: tipo.id, periodo,
         fechaVencimiento: vence, valor: Number(valor), estado, responsable,
-        ...(tipo.requiereMedidor ? { numeroMedidor: medidorFinal.trim() } : {}),
+        ...(tipo.requiereMedidor && medidorId ? { medidorId: Number(medidorId) } : {}),
         ...(tipo.requiereReferencia ? { referenciaPago: referenciaFinal.trim() } : {}),
         ...(donde && "edificacionId" in donde ? { prorrateo } : {}),
         ...(estado === "pagado" ? { fechaPago, valorPagado: Number(valorPagado || valor) } : {}),
@@ -653,10 +707,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
         )}
 
         {tipo?.requiereMedidor && (
-          <Campo etiqueta="# Medidor" ayuda={sugerido && !medidorTocado ? "El de la última factura" : "Está impreso en la factura"}>
-            <input required value={medidorFinal} maxLength={40} placeholder="123456789"
-              onChange={(e) => { setMedidor(e.target.value); setMedidorTocado(true); }} />
-          </Campo>
+          <SelectorMedidor donde={donde} tipoFacturaId={tipo.id} medidorId={medidorId} setMedidorId={setMedidorId} />
         )}
         {tipo?.requiereReferencia && (
           <Campo etiqueta="Referencia de pago" ayuda={referenciaSugerida && !referenciaTocada ? "La de la última factura" : "Es la que se digita para pagar"}>
@@ -712,7 +763,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
 
       {error && <div className="aviso malo" role="alert">{error}</div>}
       <div>
-        <button type="submit" className="boton" disabled={enviando || !tipo || !vence || Number(valor) <= 0 || (tipo.requiereMedidor && medidorFinal.trim() === "") || (tipo.requiereReferencia && referenciaFinal.trim() === "")}>
+        <button type="submit" className="boton" disabled={enviando || !tipo || !vence || Number(valor) <= 0 || (tipo.requiereMedidor && medidorId === "") || (tipo.requiereReferencia && referenciaFinal.trim() === "")}>
           {enviando ? "Guardando…" : "Guardar factura"}
         </button>
       </div>

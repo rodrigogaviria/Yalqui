@@ -25,6 +25,26 @@ export const tiposFactura = mysqlTable("tipos_factura", {
   orden: smallint("orden", { unsigned: true }).notNull().default(0),
 }, (t) => [uniqueIndex("uk_tipofactura_codigo").on(t.codigo)]);
 
+/**
+ * Un medidor físico, de un servicio, de una unidad o de toda la edificación.
+ * Una edificación puede tener varios del mismo servicio —Belén tiene cinco
+ * de gas—, así que lo que no se repite es el número dentro de ese ámbito y
+ * ese servicio, no el servicio en sí.
+ */
+export const medidores = mysqlTable("medidores", {
+  id: int("id", { unsigned: true }).autoincrement().primaryKey(),
+  ambitoTipo: mysqlEnum("ambito_tipo", ["inmueble", "edificacion"]).notNull(),
+  ambitoId: int("ambito_id", { unsigned: true }).notNull(),
+  tipoFacturaId: int("tipo_factura_id", { unsigned: true }).notNull()
+    .references(() => tiposFactura.id, { onDelete: "cascade" }),
+  numero: varchar("numero", { length: 40 }).notNull(),
+  activo: boolean("activo").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("uk_medidor").on(t.ambitoTipo, t.ambitoId, t.tipoFacturaId, t.numero),
+  index("ix_medidor_ambito").on(t.ambitoTipo, t.ambitoId),
+]);
+
 export const facturasPropiedad = mysqlTable("facturas_propiedad", {
   id: int("id", { unsigned: true }).autoincrement().primaryKey(),
   /** De la unidad o de la edificación: exactamente una de las dos. */
@@ -43,6 +63,7 @@ export const facturasPropiedad = mysqlTable("facturas_propiedad", {
   /** Cómo se reparte entre las unidades una factura de toda la edificación. */
   prorrateo: mysqlEnum("prorrateo", ["ninguno", "partes_iguales", "por_area", "por_canon"]).notNull().default("ninguno"),
   numeroMedidor: varchar("numero_medidor", { length: 40 }),
+  medidorId: int("medidor_id", { unsigned: true }).references(() => medidores.id, { onDelete: "set null" }),
   referenciaPago: varchar("referencia_pago", { length: 60 }),
   archivoId: bigint("archivo_id", { mode: "number", unsigned: true }),
   fechaPago: date("fecha_pago"),

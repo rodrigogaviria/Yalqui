@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, privado } from "../trpc/base.js";
 import { ambitosCon, tieneRol, type RolOtorgado } from "../auth/roles.js";
 import { inmuebles, edificaciones } from "../db/schema/inventario.js";
 import { archivos } from "../db/schema/identidad.js";
-import { facturasPropiedad, tiposFactura } from "../db/schema/facturasPropiedad.js";
+import { facturasPropiedad, tiposFactura, medidores } from "../db/schema/facturasPropiedad.js";
 import { sincronizarGasto } from "./gastoDeFactura.js";
 
 /** Quien manda sobre la edificación: su dueño o su administrador. */
@@ -20,6 +20,22 @@ function exigirSitio(roles: RolOtorgado[], s: Sitio) {
     ? tieneRol(roles, "propietario", "inmueble", s.inmuebleId)
     : s.edificacionId !== null && puedeSobreEdificacion(roles, s.edificacionId);
   if (!puede) throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esto" });
+}
+
+/** El número del medidor elegido, si es de este mismo sitio y servicio. */
+async function resolverMedidor(
+  db: import("../db/index.js").Database, medidorId: number | undefined, sitio: Sitio, tipoFacturaId: number,
+): Promise<string | undefined> {
+  if (medidorId === undefined) return undefined;
+  const [m] = await db.select().from(medidores).where(eq(medidores.id, medidorId)).limit(1);
+  if (!m || !m.activo) throw new TRPCError({ code: "BAD_REQUEST", message: "Ese medidor no existe" });
+  const mismoSitio = sitio.inmuebleId !== null
+    ? m.ambitoTipo === "inmueble" && m.ambitoId === sitio.inmuebleId
+    : m.ambitoTipo === "edificacion" && m.ambitoId === sitio.edificacionId;
+  if (!mismoSitio || m.tipoFacturaId !== tipoFacturaId) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Ese medidor no es de este sitio y de este servicio" });
+  }
+  return m.numero;
 }
 
 const dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Usá el formato AAAA-MM-DD");
@@ -87,6 +103,7 @@ export const facturasPropiedadRouter = router({
         responsable: facturasPropiedad.responsable,
         prorrateo: facturasPropiedad.prorrateo,
         numeroMedidor: facturasPropiedad.numeroMedidor,
+        medidorId: facturasPropiedad.medidorId,
         referenciaPago: facturasPropiedad.referenciaPago,
         archivoId: facturasPropiedad.archivoId,
         fechaPago: facturasPropiedad.fechaPago,
@@ -135,6 +152,8 @@ export const facturasPropiedadRouter = router({
       estado: z.enum(["sin_pagar", "pagado"]).default("sin_pagar"),
       responsable: z.enum(["propietario", "inquilino"]).default("propietario"),
       numeroMedidor: z.string().trim().max(40).optional(),
+      /** El medidor del catálogo, si ya está registrado: manda sobre `numeroMedidor`. */
+      medidorId: z.number().int().positive().optional(),
       referenciaPago: z.string().trim().max(60).optional(),
       /** Cómo se reparte entre las unidades si la factura es de la edificación. */
       prorrateo: z.enum(["partes_iguales", "por_area", "por_canon"]).optional(),
@@ -166,7 +185,8 @@ export const facturasPropiedadRouter = router({
             tipo.periodicidad === "mensual" ? "un mes" : tipo.periodicidad === "bimensual" ? "un bimestre" : "un año"}`,
         });
       }
-      if (tipo.requiereMedidor && !input.numeroMedidor) {
+      const numeroMedidor = (await resolverMedidor(ctx.db, input.medidorId, donde, input.tipoFacturaId)) ?? input.numeroMedidor;
+      if (tipo.requiereMedidor && !numeroMedidor) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `La factura de ${tipo.nombre.toLowerCase()} necesita el número de medidor` });
       }
       if (tipo.requiereReferencia && !input.referenciaPago) {
@@ -187,7 +207,8 @@ export const facturasPropiedadRouter = router({
         prorrateo: donde.edificacionId !== null ? input.prorrateo! : "ninguno",
         fechaPago: pagada ? aFecha(input.fechaPago ?? hoy()) : null,
         valorPagado: pagada ? (input.valorPagado ?? input.valor).toFixed(2) : null,
-        numeroMedidor: tipo.requiereMedidor ? input.numeroMedidor! : null,
+        numeroMedidor: tipo.requiereMedidor ? numeroMedidor! : null,
+        medidorId: input.medidorId ?? null,
         referenciaPago: tipo.requiereReferencia ? input.referenciaPago! : null,
         archivoId: input.archivoId ?? null,
         comprobanteArchivoId: pagada ? (input.comprobanteArchivoId ?? null) : null,
@@ -244,6 +265,8 @@ export const facturasPropiedadRouter = router({
       responsable: z.enum(["propietario", "inquilino"]).optional(),
       prorrateo: z.enum(["partes_iguales", "por_area", "por_canon"]).optional(),
       numeroMedidor: z.string().trim().max(40).optional(),
+      /** El medidor del catálogo, si ya está registrado: manda sobre `numeroMedidor`. */
+      medidorId: z.number().int().positive().optional(),
       referenciaPago: z.string().trim().max(60).optional(),
       archivoId: z.number().int().positive().optional(),
       estado: z.enum(["sin_pagar", "pagado"]).optional(),
@@ -255,6 +278,7 @@ export const facturasPropiedadRouter = router({
       const [f] = await ctx.db
         .select({
           inmuebleId: facturasPropiedad.inmuebleId, edificacionId: facturasPropiedad.edificacionId,
+          tipoFacturaId: facturasPropiedad.tipoFacturaId,
           estado: facturasPropiedad.estado, numeroMedidor: facturasPropiedad.numeroMedidor,
           referenciaPago: facturasPropiedad.referenciaPago, fechaPago: facturasPropiedad.fechaPago,
           valorPagado: facturasPropiedad.valorPagado, valor: facturasPropiedad.valor,
@@ -273,7 +297,7 @@ export const facturasPropiedadRouter = router({
       if (input.periodo !== undefined && !periodoValido(f.periodicidad, input.periodo)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `El período de ${f.tipo} es ${f.periodicidad}` });
       }
-      const medidor = input.numeroMedidor ?? f.numeroMedidor ?? "";
+      const medidor = (await resolverMedidor(ctx.db, input.medidorId, f, f.tipoFacturaId)) ?? input.numeroMedidor ?? f.numeroMedidor ?? "";
       if (f.requiereMedidor && medidor.trim() === "") {
         throw new TRPCError({ code: "BAD_REQUEST", message: `La factura de ${f.tipo.toLowerCase()} necesita el número de medidor` });
       }
@@ -292,6 +316,7 @@ export const facturasPropiedadRouter = router({
       if (input.responsable !== undefined) cambios["responsable"] = input.responsable;
       if (input.prorrateo !== undefined && f.edificacionId !== null) cambios["prorrateo"] = input.prorrateo;
       if (f.requiereMedidor) cambios["numeroMedidor"] = medidor.trim();
+      if (input.medidorId !== undefined) cambios["medidorId"] = input.medidorId;
       if (f.requiereReferencia) cambios["referenciaPago"] = referencia.trim();
       if (input.archivoId !== undefined) cambios["archivoId"] = input.archivoId;
 
@@ -358,6 +383,72 @@ export const facturasPropiedadRouter = router({
         await sincronizarGasto(tx, input.facturaId);
       });
       return { estado: "anulada" as const };
+    }),
+
+  /** Los medidores de un sitio —una unidad o la edificación entera—, el servicio de cada uno. */
+  medidoresDe: privado
+    .input(z.object({ inmuebleId: z.number().int().positive().optional(), edificacionId: z.number().int().positive().optional() }))
+    .query(async ({ ctx, input }) => {
+      if ((input.inmuebleId === undefined) === (input.edificacionId === undefined)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Decí si es de una unidad o de la edificación" });
+      }
+      const sitio: Sitio = { inmuebleId: input.inmuebleId ?? null, edificacionId: input.edificacionId ?? null };
+      exigirSitio(ctx.usuario.roles, sitio);
+      const ambitoTipo = input.inmuebleId !== undefined ? "inmueble" as const : "edificacion" as const;
+      const ambitoId = input.inmuebleId ?? input.edificacionId!;
+      return ctx.db
+        .select({
+          id: medidores.id, tipoFacturaId: medidores.tipoFacturaId, servicio: tiposFactura.nombre,
+          numero: medidores.numero, activo: medidores.activo,
+        })
+        .from(medidores)
+        .innerJoin(tiposFactura, eq(tiposFactura.id, medidores.tipoFacturaId))
+        .where(and(eq(medidores.ambitoTipo, ambitoTipo), eq(medidores.ambitoId, ambitoId), eq(medidores.activo, true)))
+        .orderBy(asc(tiposFactura.nombre), asc(medidores.numero));
+    }),
+
+  /** Registra un medidor nuevo: su servicio y su número, de una unidad o de toda la edificación. */
+  crearMedidor: privado
+    .input(z.object({
+      inmuebleId: z.number().int().positive().optional(),
+      edificacionId: z.number().int().positive().optional(),
+      tipoFacturaId: z.number().int().positive(),
+      numero: z.string().trim().min(1).max(40),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if ((input.inmuebleId === undefined) === (input.edificacionId === undefined)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Decí si es de una unidad o de la edificación" });
+      }
+      const sitio: Sitio = { inmuebleId: input.inmuebleId ?? null, edificacionId: input.edificacionId ?? null };
+      exigirSitio(ctx.usuario.roles, sitio);
+      const ambitoTipo = input.inmuebleId !== undefined ? "inmueble" as const : "edificacion" as const;
+      const ambitoId = input.inmuebleId ?? input.edificacionId!;
+
+      const [existente] = await ctx.db.select({ id: medidores.id }).from(medidores)
+        .where(and(
+          eq(medidores.ambitoTipo, ambitoTipo), eq(medidores.ambitoId, ambitoId),
+          eq(medidores.tipoFacturaId, input.tipoFacturaId), eq(medidores.numero, input.numero),
+        )).limit(1);
+      if (existente) throw new TRPCError({ code: "CONFLICT", message: "Ese medidor ya está registrado" });
+
+      const [res] = await ctx.db.insert(medidores)
+        .values({ ambitoTipo, ambitoId, tipoFacturaId: input.tipoFacturaId, numero: input.numero })
+        .$returningId();
+      return { id: res!.id };
+    }),
+
+  /** Da de baja un medidor: las facturas que ya lo tenían lo conservan como texto. */
+  desactivarMedidor: privado
+    .input(z.object({ medidorId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [m] = await ctx.db.select().from(medidores).where(eq(medidores.id, input.medidorId)).limit(1);
+      if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Ese medidor no existe" });
+      const sitio: Sitio = m.ambitoTipo === "inmueble"
+        ? { inmuebleId: m.ambitoId, edificacionId: null }
+        : { inmuebleId: null, edificacionId: m.ambitoId };
+      exigirSitio(ctx.usuario.roles, sitio);
+      await ctx.db.update(medidores).set({ activo: false }).where(eq(medidores.id, input.medidorId));
+      return { ok: true };
     }),
 });
 
