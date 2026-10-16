@@ -3,9 +3,39 @@ import { router, privado } from "../trpc/base.js";
 import { ambitosCon } from "../auth/roles.js";
 import { inmuebles } from "../db/schema/inventario.js";
 import { contratos } from "../db/schema/contrato.js";
-import { facturasArriendo, pagosArriendo } from "../db/schema/dinero.js";
+import { facturasArriendo, pagosArriendo, pagosUnidad } from "../db/schema/dinero.js";
 import { incidencias } from "../db/schema/operacion.js";
 import { aplicaciones } from "../db/schema/demanda.js";
+
+/** El mismo cálculo que hace Mis Ingresos para «este mes»: lo previsto es el
+ *  canon de cada unidad arrendada, y lo pagado sale de sus pagos directos
+ *  confirmados o de la factura del período — lo que exista. Duplicarlo
+ *  acá es lo que evita que el Dashboard muestre $0 cuando la unidad nunca
+ *  tuvo una factura emitida pero sí paga por fuera de ese circuito. */
+function dentroDelContrato(
+  u: { contratoFechaInicio: string | Date | null; contratoFechaFin: string | Date | null }, periodo: string,
+): boolean {
+  if (u.contratoFechaInicio && periodo < String(u.contratoFechaInicio).slice(0, 7)) return false;
+  if (u.contratoFechaFin && periodo > String(u.contratoFechaFin).slice(0, 7)) return false;
+  return true;
+}
+
+function montoPagadoDelMes(
+  inmuebleId: number, canonBase: string, periodo: string,
+  facturas: Array<{ inmuebleId: number; periodo: string; total: string; saldo: string }>,
+  pagos: Array<{ inmuebleId: number; periodo: string; estado: string; monto: string | null }>,
+): number {
+  let total = 0;
+  for (const f of facturas) {
+    if (f.inmuebleId === inmuebleId && f.periodo === periodo) total += Number(f.total) - Number(f.saldo);
+  }
+  for (const p of pagos) {
+    if (p.inmuebleId === inmuebleId && p.periodo === periodo && p.estado === "confirmado") {
+      total += p.monto !== null ? Number(p.monto) : Number(canonBase);
+    }
+  }
+  return total;
+}
 
 /**
  * Lo primero que ve el propietario al entrar.
@@ -28,8 +58,11 @@ export const dashboardRouter = router({
     }
 
     const misUnidades = await ctx.db
-      .select({ id: inmuebles.id, estado: inmuebles.estado, canonBase: inmuebles.canonBase,
-                direccion: inmuebles.direccion, diasGracia: inmuebles.diasGracia })
+      .select({
+        id: inmuebles.id, estado: inmuebles.estado, canonBase: inmuebles.canonBase,
+        direccion: inmuebles.direccion, diaPago: inmuebles.diaPago, diasGracia: inmuebles.diasGracia,
+        contratoFechaInicio: inmuebles.contratoFechaInicio, contratoFechaFin: inmuebles.contratoFechaFin,
+      })
       .from(inmuebles)
       .where(inArray(inmuebles.id, ids));
 
@@ -37,35 +70,42 @@ export const dashboardRouter = router({
       .select({ id: contratos.id, inmuebleId: contratos.inmuebleId })
       .from(contratos)
       .where(and(inArray(contratos.inmuebleId, ids), eq(contratos.estado, "vigente")));
-    const graciaDe = (contratoId: number) => {
-      const c = misContratos.find((x) => x.id === contratoId);
-      return misUnidades.find((u) => u.id === c?.inmuebleId)?.diasGracia ?? 0;
-    };
 
     const idsContrato = misContratos.map((c) => c.id);
 
-    const facturas = idsContrato.length === 0 ? [] : await ctx.db
+    // Las mismas dos fuentes que usa Mis Ingresos: la factura del período, si
+    // la hay, y el pago directo de la unidad — una no sustituye a la otra.
+    const facturasDelMes = idsContrato.length === 0 ? [] : await ctx.db
       .select({
-        saldo: facturasArriendo.saldo,
-        fechaVencimiento: facturasArriendo.fechaVencimiento,
-        periodo: facturasArriendo.periodo,
-        contratoId: facturasArriendo.contratoId,
+        inmuebleId: contratos.inmuebleId, periodo: facturasArriendo.periodo,
+        total: facturasArriendo.total, saldo: facturasArriendo.saldo,
       })
       .from(facturasArriendo)
+      .innerJoin(contratos, eq(contratos.id, facturasArriendo.contratoId))
       .where(inArray(facturasArriendo.contratoId, idsContrato));
+
+    const pagosDelMes = await ctx.db
+      .select({ inmuebleId: pagosUnidad.inmuebleId, periodo: pagosUnidad.periodo, estado: pagosUnidad.estado, monto: pagosUnidad.monto })
+      .from(pagosUnidad)
+      .where(inArray(pagosUnidad.inmuebleId, ids));
 
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
+    const periodo = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+    const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
 
-    const pendientes = facturas.filter((f) => Number(f.saldo) > 0);
-    const porCobrar = pendientes.reduce((t, f) => t + Number(f.saldo), 0);
-    const vencido = pendientes
-      .filter((f) => {
-        const limite = new Date(f.fechaVencimiento);
-        limite.setUTCDate(limite.getUTCDate() + graciaDe(f.contratoId));
-        return limite < hoy;
-      })
-      .reduce((t, f) => t + Number(f.saldo), 0);
+    let porCobrar = 0;
+    let vencido = 0;
+    for (const u of misUnidades) {
+      if (u.estado !== "arrendado" || !dentroDelContrato(u, periodo)) continue;
+      const previsto = Number(u.canonBase);
+      const pagado = montoPagadoDelMes(u.id, u.canonBase, periodo, facturasDelMes, pagosDelMes);
+      if (pagado >= previsto) continue;
+      porCobrar += previsto;
+      const dia = Math.min(u.diaPago, ultimoDiaMes);
+      const limite = new Date(hoy.getFullYear(), hoy.getMonth(), dia + u.diasGracia, 23, 59, 59);
+      if (hoy > limite) vencido += previsto;
+    }
 
     const [pagos] = idsContrato.length === 0 ? [{ n: 0 }] : await ctx.db
       .select({ n: sql<number>`COUNT(*)` })

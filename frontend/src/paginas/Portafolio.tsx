@@ -7,6 +7,31 @@ import { PromocionesPendientes } from "../componentes/PromocionesPendientes";
 
 type Unidad = Awaited<ReturnType<typeof api.inmuebles.mias.query>>["unidades"][number];
 type Factura = Awaited<ReturnType<typeof api.facturacion.misFacturas.query>>["facturas"][number];
+type PagoUnidad = Awaited<ReturnType<typeof api.facturacion.misPagosUnidad.query>>[number];
+
+/** Si la unidad tiene fecha de inicio (o fin) de contrato, el mes solo
+ *  cuenta dentro de ese rango. Mismo criterio que usa Mis Ingresos. */
+function dentroDelContrato(u: Unidad, periodo: string): boolean {
+  if (u.contratoFechaInicio && periodo < String(u.contratoFechaInicio).slice(0, 7)) return false;
+  if (u.contratoFechaFin && periodo > String(u.contratoFechaFin).slice(0, 7)) return false;
+  return true;
+}
+
+/** Lo ya pagado del mes: la factura del período, si la hay, más los pagos
+ *  directos confirmados — una unidad sin factura emitida no es una unidad
+ *  sin pagar, solo una que paga por el otro circuito. */
+function montoPagadoDelMes(u: Unidad, facturas: Factura[], pagos: PagoUnidad[], periodo: string): number {
+  let total = 0;
+  for (const f of facturas) {
+    if (f.inmuebleId === u.id && f.periodo === periodo) total += Number(f.total) - Number(f.saldo);
+  }
+  for (const p of pagos) {
+    if (p.inmuebleId === u.id && p.periodo === periodo && p.estado === "confirmado") {
+      total += p.monto !== null ? Number(p.monto) : Number(u.canonBase);
+    }
+  }
+  return total;
+}
 
 const BOTON = { height: 38, fontSize: 13.5, padding: "0 10px" } as const;
 
@@ -67,6 +92,7 @@ export function Portafolio({
 }) {
   const [unidades, setUnidades] = useState<Unidad[] | null>(null);
   const [facturas, setFacturas] = useState<Factura[] | null>(null);
+  const [pagosUnidad, setPagosUnidad] = useState<PagoUnidad[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupada, setOcupada] = useState<number | null>(null);
   /** La unidad cuyo intento de publicación falló, para ofrecerle completarla
@@ -78,12 +104,14 @@ export function Portafolio({
 
   const cargar = useCallback(async () => {
     try {
-      const [r, f] = await Promise.all([
+      const [r, f, p] = await Promise.all([
         api.inmuebles.mias.query(),
         api.facturacion.misFacturas.query(),
+        api.facturacion.misPagosUnidad.query(),
       ]);
       setUnidades(r.unidades);
       setFacturas(f.facturas);
+      setPagosUnidad(p);
       setError(null);
     } catch (e) {
       setError(mensajeDeError(e));
@@ -157,20 +185,25 @@ export function Portafolio({
   const arrendamientosPotenciales = unidades.reduce((t, u) => t + Number(u.canonBase), 0);
   const arrendamientosActuales = arrendadas.reduce((t, u) => t + Number(u.canonBase), 0);
 
-  // Lo esperado del mes se reparte en tres estados según la factura: ya
-  // llegó el pago y se verificó, todavía no vence, o venció sin pagarse.
-  // `saldo` y no `total` para lo pendiente y lo vencido: es lo que
-  // efectivamente falta cobrar, no el valor completo de la factura si ya
-  // hubo un abono parcial.
-  const recaudado = (facturas ?? [])
-    .filter((f) => f.situacion === "pagada")
-    .reduce((t, f) => t + Number(f.total), 0);
-  const pendiente = (facturas ?? [])
-    .filter((f) => f.situacion === "porVencer")
-    .reduce((t, f) => t + Number(f.saldo), 0);
-  const vencido = (facturas ?? [])
-    .filter((f) => f.situacion === "vencida")
-    .reduce((t, f) => t + Number(f.saldo), 0);
+  // Lo esperado de este mes se reparte en tres estados: pagado, por vencer
+  // o vencido — igual que en Mis Ingresos, y de las mismas dos fuentes
+  // (factura del período o pago directo), para que los dos no se contradigan.
+  const hoy = new Date();
+  const periodoActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+  const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+  let recaudado = 0;
+  let pendiente = 0;
+  let vencido = 0;
+  for (const u of arrendadas) {
+    if (!dentroDelContrato(u, periodoActual)) continue;
+    const previsto = Number(u.canonBase);
+    const pagado = montoPagadoDelMes(u, facturas ?? [], pagosUnidad ?? [], periodoActual);
+    if (pagado >= previsto) { recaudado += previsto; continue; }
+    const dia = Math.min(u.diaPago, ultimoDiaMes);
+    const limite = new Date(hoy.getFullYear(), hoy.getMonth(), dia + u.diasGracia, 23, 59, 59);
+    if (hoy > limite) vencido += previsto;
+    else pendiente += previsto;
+  }
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -292,15 +325,15 @@ export function Portafolio({
                   }}
                   disabled={ocupada === u.id}
                   title={u.estado === "arrendado"
-                    ? "Está alquilada. Tocá para liberarla."
-                    : "Está disponible. Tocá para registrar al inquilino."}
+                    ? "Está alquilada. Toque para liberarla."
+                    : "Está disponible. Toque para registrar al inquilino."}
                   onClick={() => u.estado === "arrendado"
                     ? void liberar(u.id)
                     : alAlquilar(u.id, titulo(u), Number(u.canonBase))}
                 >
                   {ocupada === u.id
                     ? "…"
-                    : u.estado === "arrendado" ? "Disponible, Un Nuevo Reto" : "Genial, Ya Alquilé"}
+                    : u.estado === "arrendado" ? "Liberar unidad" : "Marcar alquilado"}
                 </button>
               </div>
 
