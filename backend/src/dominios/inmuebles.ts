@@ -1021,6 +1021,8 @@ export const inmueblesRouter = router({
         return { inquilinoId, cuentaNueva, aplicacionId };
       });
 
+      await otorgarRol(ctx.db, resultado.inquilinoId, "inquilino", "inmueble", input.inmuebleId, ctx.usuario.id);
+
       return {
         ...resultado,
         canon,

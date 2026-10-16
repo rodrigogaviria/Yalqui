@@ -1,10 +1,13 @@
 import { z } from "zod";
-import { and, desc, eq, isNull, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, admin } from "../../trpc/base.js";
 import { cifrarContrasena } from "../../auth/password.js";
+import { otorgarRol } from "../../auth/roles.js";
 import type { Database } from "../../db/index.js";
 import { usuarios, usuarioRoles, ROLES, AMBITOS } from "../../db/schema/identidad.js";
+import { aplicaciones } from "../../db/schema/demanda.js";
+import { contratos } from "../../db/schema/contrato.js";
 import { nuevoToken, expiraEn } from "../../auth/tokens-enlace.js";
 
 const id = z.number().int().positive();
@@ -286,6 +289,34 @@ export const usuariosRouter = router({
         .where(eq(usuarios.id, input.usuarioId));
       return { ok: true };
     }),
+
+  /**
+   * Le pone el rol de inquilino a cada quien ya es arrendatario de algo —vía
+   * una aplicación aprobada o un contrato que no terminó— y todavía no lo
+   * tiene. El rol siempre nació al firmar el contrato, así que quien entró
+   * por el camino directo (`marcarAlquilado`) o por una aplicación aprobada
+   * sin llegar a firmar se quedaba sin él, aunque ya estuviera usando la
+   * unidad. Vuelve a correrse sin riesgo: `otorgarRol` no duplica.
+   */
+  sincronizarRolesInquilino: admin.mutation(async ({ ctx }) => {
+    const designados = await ctx.db
+      .select({ inmuebleId: aplicaciones.inmuebleId, inquilinoId: aplicaciones.inquilinoId })
+      .from(aplicaciones).where(eq(aplicaciones.estado, "aprobada"));
+    const conContrato = await ctx.db
+      .select({ inmuebleId: contratos.inmuebleId, inquilinoId: contratos.inquilinoId })
+      .from(contratos)
+      .where(inArray(contratos.estado, ["borrador", "pendiente_firma", "vigente", "en_mora", "en_terminacion"]));
+
+    const pares = new Map<string, { inmuebleId: number; inquilinoId: number }>();
+    for (const p of [...designados, ...conContrato]) {
+      pares.set(`${p.inmuebleId}:${p.inquilinoId}`, p);
+    }
+
+    for (const { inmuebleId, inquilinoId } of pares.values()) {
+      await otorgarRol(ctx.db, inquilinoId, "inquilino", "inmueble", inmuebleId, ctx.usuario.id);
+    }
+    return { otorgados: pares.size };
+  }),
 });
 
 /** Falla si sacar a este usuario dejaría al sistema sin administradores. */

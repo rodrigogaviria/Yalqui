@@ -3,7 +3,7 @@ import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, privado, exigirRol } from "../trpc/base.js";
-import { ambitosCon } from "../auth/roles.js";
+import { ambitosCon, otorgarRol } from "../auth/roles.js";
 import { usuarios } from "../db/schema/identidad.js";
 import { aplicaciones, aplicacionAjustes, aplicacionDocumentos, precalificaciones } from "../db/schema/demanda.js";
 import { inmuebles, inmuebleAjustes, catalogoAjustes } from "../db/schema/inventario.js";
@@ -277,6 +277,10 @@ export const aplicacionesRouter = router({
         decididaPorId: ctx.usuario.id,
         motivoRechazo: input.decision === "rechazada" ? (input.motivo ?? null) : null,
       }).where(eq(aplicaciones.id, input.aplicacionId));
+
+      if (input.decision === "aprobada") {
+        await otorgarRol(ctx.db, a.inquilinoId, "inquilino", "inmueble", input.inmuebleId, ctx.usuario.id);
+      }
 
       return { estado: input.decision };
     }),
