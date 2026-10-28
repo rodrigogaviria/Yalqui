@@ -38,6 +38,9 @@ export const medidores = mysqlTable("medidores", {
   tipoFacturaId: int("tipo_factura_id", { unsigned: true }).notNull()
     .references(() => tiposFactura.id, { onDelete: "cascade" }),
   numero: varchar("numero", { length: 40 }).notNull(),
+  /** Una nota corta para distinguirlo a simple vista —"Piso 3A", "Torre 2"—
+   *  sin depender solo del número grabado en el aparato. */
+  descripcion: varchar("descripcion", { length: 120 }),
   activo: boolean("activo").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [

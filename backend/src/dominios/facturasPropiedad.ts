@@ -399,7 +399,7 @@ export const facturasPropiedadRouter = router({
       return ctx.db
         .select({
           id: medidores.id, tipoFacturaId: medidores.tipoFacturaId, servicio: tiposFactura.nombre,
-          numero: medidores.numero, activo: medidores.activo,
+          numero: medidores.numero, descripcion: medidores.descripcion, activo: medidores.activo,
         })
         .from(medidores)
         .innerJoin(tiposFactura, eq(tiposFactura.id, medidores.tipoFacturaId))
@@ -407,13 +407,16 @@ export const facturasPropiedadRouter = router({
         .orderBy(asc(tiposFactura.nombre), asc(medidores.numero));
     }),
 
-  /** Registra un medidor nuevo: su servicio y su número, de una unidad o de toda la edificación. */
+  /** Registra un medidor nuevo: su servicio, su número y, opcionalmente, una
+   *  descripción para distinguirlo a simple vista, de una unidad o de toda
+   *  la edificación. */
   crearMedidor: privado
     .input(z.object({
       inmuebleId: z.number().int().positive().optional(),
       edificacionId: z.number().int().positive().optional(),
       tipoFacturaId: z.number().int().positive(),
       numero: z.string().trim().min(1).max(40),
+      descripcion: z.string().trim().max(120).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if ((input.inmuebleId === undefined) === (input.edificacionId === undefined)) {
@@ -432,7 +435,10 @@ export const facturasPropiedadRouter = router({
       if (existente) throw new TRPCError({ code: "CONFLICT", message: "Ese medidor ya está registrado" });
 
       const [res] = await ctx.db.insert(medidores)
-        .values({ ambitoTipo, ambitoId, tipoFacturaId: input.tipoFacturaId, numero: input.numero })
+        .values({
+          ambitoTipo, ambitoId, tipoFacturaId: input.tipoFacturaId, numero: input.numero,
+          descripcion: input.descripcion ?? null,
+        })
         .$returningId();
       return { id: res!.id };
     }),

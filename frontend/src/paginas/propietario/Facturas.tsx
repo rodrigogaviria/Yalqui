@@ -67,22 +67,28 @@ const ACEPTA = "application/pdf,image/jpeg,image/png,image/webp,image/heic";
  * guardar la factura sea un solo paso y no dos (elegir/crear y después
  * guardar) — el segundo paso es el que se quedaba sin hacerse.
  */
-async function resolverMedidorId(donde: Donde, tipoFacturaId: number, medidorId: string, nuevo: string): Promise<number> {
+async function resolverMedidorId(
+  donde: Donde, tipoFacturaId: number, medidorId: string, nuevo: string, descripcion: string,
+): Promise<number> {
   if (medidorId) return Number(medidorId);
   if (nuevo.trim()) {
-    const r = await api.facturasPropiedad.crearMedidor.mutate({ ...donde, tipoFacturaId, numero: nuevo.trim() });
+    const r = await api.facturasPropiedad.crearMedidor.mutate({
+      ...donde, tipoFacturaId, numero: nuevo.trim(),
+      ...(descripcion.trim() ? { descripcion: descripcion.trim() } : {}),
+    });
     return r.id;
   }
   throw new Error("Elegí un medidor o escribí uno nuevo");
 }
 
-function SelectorMedidor({ donde, tipoFacturaId, medidorId, setMedidorId, nuevo, setNuevo, actual }: {
+function SelectorMedidor({ donde, tipoFacturaId, medidorId, setMedidorId, nuevo, setNuevo, descripcion, setDescripcion, actual }: {
   donde: Donde; tipoFacturaId: number; medidorId: string; setMedidorId: (v: string) => void;
   nuevo: string; setNuevo: (v: string) => void;
+  descripcion: string; setDescripcion: (v: string) => void;
   /** El texto libre que ya tenía la factura, de antes de este catálogo. */
   actual?: string | null;
 }) {
-  const [medidores, setMedidores] = useState<Array<{ id: number; numero: string; tipoFacturaId: number }> | null>(null);
+  const [medidores, setMedidores] = useState<Array<{ id: number; numero: string; descripcion: string | null; tipoFacturaId: number }> | null>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -97,11 +103,17 @@ function SelectorMedidor({ donde, tipoFacturaId, medidorId, setMedidorId, nuevo,
         {propios.length > 0 && (
           <select value={medidorId} onChange={(e) => { setMedidorId(e.target.value); if (e.target.value) setNuevo(""); }}>
             <option value="">Elegí un medidor…</option>
-            {propios.map((m) => <option key={m.id} value={m.id}>{m.numero}</option>)}
+            {propios.map((m) => (
+              <option key={m.id} value={m.id}>{m.numero}{m.descripcion ? ` — ${m.descripcion}` : ""}</option>
+            ))}
           </select>
         )}
-        <input placeholder="O escribí uno nuevo (se registra al guardar)" value={nuevo} maxLength={40}
+        <input placeholder="O escribí un número nuevo (se registra al guardar)" value={nuevo} maxLength={40}
           onChange={(e) => { setNuevo(e.target.value); if (e.target.value) setMedidorId(""); }} />
+        {nuevo.trim() !== "" && (
+          <input placeholder="Descripción, opcional (Piso 3A, Torre 2…)" value={descripcion} maxLength={120}
+            onChange={(e) => setDescripcion(e.target.value)} />
+        )}
       </div>
     </Campo>
   );
@@ -383,6 +395,7 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
   const [prorrateo, setProrrateo] = useState<"partes_iguales" | "por_area" | "por_canon">(factura.prorrateo === "ninguno" ? "partes_iguales" : factura.prorrateo);
   const [medidorId, setMedidorId] = useState(factura.medidorId !== null ? String(factura.medidorId) : "");
   const [nuevoMedidor, setNuevoMedidor] = useState("");
+  const [nuevaDescripcion, setNuevaDescripcion] = useState("");
   const [referencia, setReferencia] = useState(factura.referenciaPago ?? "");
   const [fechaPago, setFechaPago] = useState(factura.fechaPago ? String(factura.fechaPago).slice(0, 10) : hoyISO());
   const [valorPagado, setValorPagado] = useState(String(Number(factura.valorPagado ?? factura.valor)));
@@ -401,7 +414,7 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
       const archivoId = archivo ? await subir(donde, archivo) : undefined;
       const comprobanteArchivoId = estado === "pagado" && comprobante ? await subir(donde, comprobante) : undefined;
       const medidorIdFinal = tipo?.requiereMedidor
-        ? await resolverMedidorId(donde, tipo.id, medidorId, nuevoMedidor)
+        ? await resolverMedidorId(donde, tipo.id, medidorId, nuevoMedidor, nuevaDescripcion)
         : undefined;
       await api.facturasPropiedad.editar.mutate({
         facturaId: factura.id, periodo, fechaVencimiento: vence, valor: Number(valor), responsable, estado,
@@ -442,7 +455,8 @@ function FormularioEdicion({ factura, tipo, alTerminar }: {
         <Campo etiqueta="Valor"><input type="number" required min={1} step="any" value={valor} onChange={(e) => setValor(e.target.value)} /></Campo>
         {tipo?.requiereMedidor && (
           <SelectorMedidor donde={donde} tipoFacturaId={tipo.id} medidorId={medidorId} setMedidorId={setMedidorId}
-            nuevo={nuevoMedidor} setNuevo={setNuevoMedidor} actual={factura.numeroMedidor} />
+            nuevo={nuevoMedidor} setNuevo={setNuevoMedidor} descripcion={nuevaDescripcion} setDescripcion={setNuevaDescripcion}
+            actual={factura.numeroMedidor} />
         )}
         {tipo?.requiereReferencia && (
           <Campo etiqueta="Referencia de pago"><input required maxLength={60} value={referencia} onChange={(e) => setReferencia(e.target.value)} /></Campo>
@@ -597,6 +611,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
   const [responsable, setResponsable] = useState<"propietario" | "inquilino">("propietario");
   const [medidorId, setMedidorId] = useState("");
   const [nuevoMedidor, setNuevoMedidor] = useState("");
+  const [nuevaDescripcion, setNuevaDescripcion] = useState("");
   const [referencia, setReferencia] = useState("");
   const [referenciaTocada, setReferenciaTocada] = useState(false);
   const [prorrateo, setProrrateo] = useState<"partes_iguales" | "por_area" | "por_canon">("partes_iguales");
@@ -629,7 +644,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
       const archivoId = archivo ? await subir(donde, archivo) : undefined;
       const comprobanteArchivoId = estado === "pagado" && comprobante ? await subir(donde, comprobante) : undefined;
       const medidorIdFinal = tipo.requiereMedidor
-        ? await resolverMedidorId(donde, tipo.id, medidorId, nuevoMedidor)
+        ? await resolverMedidorId(donde, tipo.id, medidorId, nuevoMedidor, nuevaDescripcion)
         : undefined;
       await api.facturasPropiedad.registrar.mutate({
         ...donde, tipoFacturaId: tipo.id, periodo,
@@ -706,7 +721,7 @@ function FormularioFactura({ unidades, edificaciones, tipos, anteriores, alTermi
 
         {tipo?.requiereMedidor && (
           <SelectorMedidor donde={donde} tipoFacturaId={tipo.id} medidorId={medidorId} setMedidorId={setMedidorId}
-            nuevo={nuevoMedidor} setNuevo={setNuevoMedidor} />
+            nuevo={nuevoMedidor} setNuevo={setNuevoMedidor} descripcion={nuevaDescripcion} setDescripcion={setNuevaDescripcion} />
         )}
         {tipo?.requiereReferencia && (
           <Campo etiqueta="Referencia de pago" ayuda={referenciaSugerida && !referenciaTocada ? "La de la última factura" : "Es la que se digita para pagar"}>
