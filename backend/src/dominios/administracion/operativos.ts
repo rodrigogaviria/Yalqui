@@ -535,6 +535,7 @@ export const operativosRouter = router({
   crearProveedor: admin
     .input(z.object({
       razonSocial: z.string().trim().min(2).max(191),
+      tipoPersona: z.enum(["natural", "juridica"]).default("juridica"),
       nit: z.string().trim().max(30).optional(),
       ciudad: z.string().trim().max(120).optional(),
       telefono: z.string().trim().max(30).optional(),
@@ -545,6 +546,7 @@ export const operativosRouter = router({
     .mutation(async ({ ctx, input }) => {
       const [res] = await ctx.db.insert(proveedores).values({
         razonSocial: input.razonSocial,
+        tipoPersona: input.tipoPersona,
         nit: input.nit ?? null,
         ciudad: input.ciudad ?? null,
         telefono: input.telefono ?? null,
@@ -558,6 +560,7 @@ export const operativosRouter = router({
     .input(z.object({
       proveedorId: id,
       razonSocial: nombre.optional(),
+      tipoPersona: z.enum(["natural", "juridica"]).optional(),
       nit: z.string().trim().max(30).optional(),
       ciudad: z.string().trim().max(120).optional(),
       telefono: z.string().trim().max(30).optional(),
@@ -584,7 +587,8 @@ export const operativosRouter = router({
     .mutation(async ({ ctx, input }) => {
       const [p] = await ctx.db.select({
         razonSocial: proveedores.razonSocial, email: proveedores.email,
-        telefono: proveedores.telefono, nit: proveedores.nit, usuarioId: proveedores.usuarioId,
+        telefono: proveedores.telefono, nit: proveedores.nit, tipoPersona: proveedores.tipoPersona,
+        usuarioId: proveedores.usuarioId,
       }).from(proveedores).where(eq(proveedores.id, input.proveedorId)).limit(1);
       if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Ese proveedor no existe" });
       if (p.usuarioId !== null) {
@@ -612,9 +616,9 @@ export const operativosRouter = router({
             nombre: nombre ?? p.razonSocial,
             apellido: resto.join(" ") || p.razonSocial,
             telefono: p.telefono ?? null,
-            // El NIT no siempre está, y acá hace falta un documento único: con
+            // El documento no siempre está, y acá hace falta uno único: con
             // uno de a mentiras basado en su id, nunca choca con otra cuenta.
-            tipoDocumento: "NIT",
+            tipoDocumento: p.tipoPersona === "natural" ? "CC" : "NIT",
             numeroDocumento: p.nit ?? `PROV-${input.proveedorId}`,
             estado: "activo",
           });

@@ -14,6 +14,10 @@ export const proveedores = mysqlTable("proveedores", {
 	id: int({ unsigned: true }).autoincrement().notNull(),
 	usuarioId: int("usuario_id", { unsigned: true }).references(() => usuarios.id, { onDelete: "set null" } ),
 	razonSocial: varchar("razon_social", { length: 191 }).notNull(),
+	/** Natural, con Cédula de Ciudadanía, o jurídica, con NIT: el número va
+	 *  igual en `nit`, pero el tipo decide con qué tipo de documento se crea
+	 *  su cuenta al darle acceso. */
+	tipoPersona: mysqlEnum("tipo_persona", ["natural", "juridica"]).notNull().default("juridica"),
 	nit: varchar({ length: 30 }),
 	especialidades: json(),
 	ciudad: varchar({ length: 120 }),

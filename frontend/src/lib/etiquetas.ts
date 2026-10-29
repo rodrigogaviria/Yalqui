@@ -146,6 +146,11 @@ const PERIODO_FACTURA: Record<string, string> = {
   anual: "Anual",
 };
 
+const TIPO_PERSONA: Record<string, string> = {
+  natural: "Natural (Cédula)",
+  juridica: "Jurídica (NIT)",
+};
+
 const GENERO: Record<string, string> = {
   femenino: "Femenino",
   masculino: "Masculino",
@@ -176,6 +181,7 @@ const DICCIONARIOS = {
   categoriaFactura: CATEGORIA_FACTURA,
   periodoFactura: PERIODO_FACTURA,
   genero: GENERO,
+  tipoPersona: TIPO_PERSONA,
 } as const;
 
 export type Diccionario = keyof typeof DICCIONARIOS;

@@ -258,8 +258,9 @@ export function Proveedores({ avisar }: { avisar: (m: string) => void }) {
     useCatalogo(() => api.admin.operativos.proveedores.query(), avisar);
 
   const campos: CampoCatalogo[] = [
-    { clave: "razonSocial", titulo: "Razón social", tipo: "texto" },
-    { clave: "nit", titulo: "NIT", tipo: "texto", ancho: 150, opcional: true },
+    { clave: "razonSocial", titulo: "Nombre o razón social", tipo: "texto" },
+    { clave: "tipoPersona", titulo: "Tipo de persona", tipo: "seleccion", diccionario: "tipoPersona", ancho: 170 },
+    { clave: "nit", titulo: "NIT o Cédula", tipo: "texto", ancho: 150, opcional: true },
     { clave: "ciudad", titulo: "Ciudad", tipo: "texto", ancho: 160, opcional: true },
     { clave: "telefono", titulo: "Teléfono", tipo: "texto", ancho: 150, opcional: true },
     { clave: "email", titulo: "Correo", tipo: "texto", ancho: 220, opcional: true },
