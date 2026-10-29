@@ -128,6 +128,34 @@ export const inmueblePropietarios = mysqlTable("inmueble_propietarios", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [index("ix_inmprop_usuario").on(t.usuarioId)]);
 
+/**
+ * El extracto mensual que el propietario genera para un socio inversionista
+ * y comparte por enlace. Es una foto congelada del mes: los totales se
+ * guardan al generarlo, no se recalculan cada vez que alguien lo abre.
+ */
+export const extractosSocio = mysqlTable("extractos_socio", {
+  id: int("id", { unsigned: true }).autoincrement().primaryKey(),
+  propietarioId: int("propietario_id", { unsigned: true }).notNull(),
+  socioId: int("socio_id", { unsigned: true }).notNull(),
+  periodo: varchar("periodo", { length: 7 }).notNull(),
+  token: char("token", { length: 64 }).notNull(),
+  unidadesTotales: smallint("unidades_totales", { unsigned: true }).notNull(),
+  unidadesOcupadas: smallint("unidades_ocupadas", { unsigned: true }).notNull(),
+  ingresos: decimal("ingresos", { precision: 14, scale: 2 }).notNull(),
+  recaudo: decimal("recaudo", { precision: 14, scale: 2 }).notNull(),
+  gastosTotal: decimal("gastos_total", { precision: 14, scale: 2 }).notNull(),
+  gastosPorTipo: json("gastos_por_tipo").notNull(),
+  porcentajeSocio: decimal("porcentaje_socio", { precision: 5, scale: 2 }).notNull(),
+  utilidadPropiedad: decimal("utilidad_propiedad", { precision: 14, scale: 2 }).notNull(),
+  utilidadSocio: decimal("utilidad_socio", { precision: 14, scale: 2 }).notNull(),
+  generadoPorId: int("generado_por_id", { unsigned: true }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+}, (t) => [
+  uniqueIndex("uk_extracto").on(t.propietarioId, t.socioId, t.periodo),
+  uniqueIndex("uk_extracto_token").on(t.token),
+]);
+
 export const etiquetas = mysqlTable("etiquetas", {
   id: int("id", { unsigned: true }).autoincrement().primaryKey(),
   ambitoTipo: mysqlEnum("ambito_tipo", ["propietario", "edificacion"]).notNull(),

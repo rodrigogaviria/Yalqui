@@ -21,6 +21,7 @@ import { facturasPropiedadRouter } from "./dominios/facturasPropiedad.js";
 import { proveedorRouter } from "./dominios/proveedor.js";
 import { vecinosRouter } from "./dominios/vecinos.js";
 import { promocionesRouter } from "./dominios/promociones.js";
+import { extractosRouter } from "./dominios/extractos.js";
 
 /**
  * Un router por dominio, con procedimientos explícitos.
@@ -53,6 +54,7 @@ export const appRouter = router({
   proveedor: proveedorRouter,
   vecinos: vecinosRouter,
   promociones: promocionesRouter,
+  extractos: extractosRouter,
 });
 
 export type AppRouter = typeof appRouter;

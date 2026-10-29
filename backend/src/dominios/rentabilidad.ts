@@ -6,10 +6,10 @@ import { ambitosCon, tieneRol } from "../auth/roles.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { repartirEnEdificacion, reRepartirEnEdificacion } from "./gastoDeFactura.js";
 import { movimientos } from "../db/schema/finanzas.js";
-import { inmuebles, edificaciones } from "../db/schema/inventario.js";
+import { inmuebles, edificaciones, inmueblePropietarios } from "../db/schema/inventario.js";
 import { tiposMovimiento } from "../db/schema/administracion.js";
 import { proveedores } from "../db/schema/operacion.js";
-import { archivos } from "../db/schema/identidad.js";
+import { archivos, usuarios } from "../db/schema/identidad.js";
 import { facturasPropiedad, tiposFactura } from "../db/schema/facturasPropiedad.js";
 
 const dinero = z.number().min(0).max(999_999_999);
@@ -156,9 +156,52 @@ export const rentabilidadRouter = router({
    * forma exigiría datos que el sistema no tiene.
    */
   resumen: privado
-    .input(z.object({ desde: periodo.optional(), hasta: periodo.optional() }).default({}))
+    .input(z.object({
+      desde: periodo.optional(), hasta: periodo.optional(),
+      /** Solo para el principal: previsualiza lo que ve un socio suyo, a su %. */
+      verComoSocioId: z.number().int().positive().optional(),
+    }).default({}))
     .query(async ({ ctx, input }) => {
-      const ids = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+      const idsPropietario = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+      const idsSocio = ambitosCon(ctx.usuario.roles, "socio_propietario", "inmueble");
+
+      // A qué % se ve cada unidad: 100% si es la vista del propietario,
+      // o el % del socio (el propio, o el que el principal quiere previsualizar).
+      let ids: number[];
+      let porcentajes: Map<number, number>;
+      if (input.verComoSocioId !== undefined) {
+        if (idsPropietario.length === 0) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Solo el propietario puede ver como un socio" });
+        }
+        const filas = await ctx.db
+          .select({ inmuebleId: inmueblePropietarios.inmuebleId, porcentaje: inmueblePropietarios.porcentaje })
+          .from(inmueblePropietarios)
+          .where(and(
+            inArray(inmueblePropietarios.inmuebleId, idsPropietario),
+            eq(inmueblePropietarios.usuarioId, input.verComoSocioId),
+            eq(inmueblePropietarios.rol, "socio"), isNull(inmueblePropietarios.hasta),
+          ));
+        ids = filas.map((f) => f.inmuebleId);
+        porcentajes = new Map(filas.map((f) => [f.inmuebleId, Number(f.porcentaje)]));
+      } else if (idsPropietario.length > 0) {
+        ids = idsPropietario;
+        porcentajes = new Map(ids.map((id) => [id, 100]));
+      } else if (idsSocio.length > 0) {
+        const filas = await ctx.db
+          .select({ inmuebleId: inmueblePropietarios.inmuebleId, porcentaje: inmueblePropietarios.porcentaje })
+          .from(inmueblePropietarios)
+          .where(and(
+            inArray(inmueblePropietarios.inmuebleId, idsSocio),
+            eq(inmueblePropietarios.usuarioId, ctx.usuario.id),
+            eq(inmueblePropietarios.rol, "socio"), isNull(inmueblePropietarios.hasta),
+          ));
+        ids = filas.map((f) => f.inmuebleId);
+        porcentajes = new Map(filas.map((f) => [f.inmuebleId, Number(f.porcentaje)]));
+      } else {
+        ids = [];
+        porcentajes = new Map();
+      }
+
       if (ids.length === 0) {
         return { movimientos: [], ingresos: 0, egresos: 0, neto: 0, porUnidad: [], porConcepto: [] };
       }
@@ -188,13 +231,17 @@ export const rentabilidadRouter = router({
 
       // El rango se filtra acá y no en SQL porque `fecha` es DATE y el período
       // llega como AAAA-MM: comparar los siete primeros caracteres es más claro
-      // que construir el primer y último día del mes en la consulta.
-      const dentro = filas.filter((m) => {
-        const mes = String(m.fecha).slice(0, 7);
-        if (input.desde !== undefined && mes < input.desde) return false;
-        if (input.hasta !== undefined && mes > input.hasta) return false;
-        return true;
-      });
+      // que construir el primer y último día del mes en la consulta. El monto
+      // ya sale a la parte que le toca a quien mira: 100% si es el propietario
+      // viendo lo suyo, su % si es un socio.
+      const dentro = filas
+        .filter((m) => {
+          const mes = String(m.fecha).slice(0, 7);
+          if (input.desde !== undefined && mes < input.desde) return false;
+          if (input.hasta !== undefined && mes > input.hasta) return false;
+          return true;
+        })
+        .map((m) => ({ ...m, monto: (Number(m.monto) * (porcentajes.get(m.inmuebleId) ?? 100) / 100).toFixed(2) }));
 
       const suma = (t: "ingreso" | "egreso") =>
         dentro.filter((m) => m.tipo === t).reduce((s, m) => s + Number(m.monto), 0);
@@ -230,6 +277,21 @@ export const rentabilidadRouter = router({
           .sort((a, b) => (b.ingresos + b.egresos) - (a.ingresos + a.egresos)),
       };
     }),
+
+  /** Los socios de mis unidades, para elegir a cuál previsualizar en Mis Rendimientos. */
+  misSociosInversionistas: privado.query(async ({ ctx }) => {
+    const idsPropietario = ambitosCon(ctx.usuario.roles, "propietario", "inmueble");
+    if (idsPropietario.length === 0) return [];
+    const filas = await ctx.db
+      .selectDistinct({ id: usuarios.id, nombre: usuarios.nombre, apellido: usuarios.apellido })
+      .from(inmueblePropietarios)
+      .innerJoin(usuarios, eq(usuarios.id, inmueblePropietarios.usuarioId))
+      .where(and(
+        inArray(inmueblePropietarios.inmuebleId, idsPropietario),
+        eq(inmueblePropietarios.rol, "socio"), isNull(inmueblePropietarios.hasta),
+      ));
+    return filas;
+  }),
 
   /** Registra un ingreso o egreso a mano. */
   /**

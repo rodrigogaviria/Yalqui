@@ -32,6 +32,7 @@ import { Reservas as ReservasInquilino } from "./paginas/inquilino/Reservas";
 import { Avisos } from "./paginas/inquilino/Avisos";
 import { Vecinos } from "./paginas/inquilino/Vecinos";
 import { Disponibles } from "./paginas/inquilino/Disponibles";
+import { ExtractoPublico } from "./paginas/ExtractoPublico";
 
 type Sesion = Awaited<ReturnType<typeof api.auth.sesion.query>>;
 
@@ -51,6 +52,11 @@ type Vista =
   | { tipo: "inquilinos"; inmuebleId: number; direccion: string };
 
 export default function App() {
+  /** El extracto de un socio se abre sin sesión: ni el aviso de autenticación
+   *  ni el chequeo del token de inicio deben correr para esta ruta. */
+  const [tokenExtracto] = useState<string | null>(() =>
+    window.location.pathname === "/extracto" ? new URLSearchParams(window.location.search).get("t") : null,
+  );
   const [usuario, setUsuario] = useState<Sesion | null>(null);
   const [cargando, setCargando] = useState(true);
   const [vista, setVista] = useState<Vista>({ tipo: "menu", clave: "portafolio" });
@@ -80,7 +86,7 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => { void revisarSesion(); }, [revisarSesion]);
+  useEffect(() => { if (tokenExtracto === null) void revisarSesion(); }, [revisarSesion, tokenExtracto]);
 
   useEffect(() => {
     if (usuario === null) { setUnidades([]); return; }
@@ -131,6 +137,10 @@ export default function App() {
     setUsuario(null);
     setRolActivo(null);
     setVista({ tipo: "menu", clave: "portafolio" });
+  }
+
+  if (tokenExtracto !== null) {
+    return <ExtractoPublico token={tokenExtracto} />;
   }
 
   if (cargando) {

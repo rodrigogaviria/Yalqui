@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, publico, privado, exigirRol } from "../trpc/base.js";
 import {
@@ -1031,6 +1031,140 @@ export const inmueblesRouter = router({
          *  tenía y no hay nada que comunicarle. */
         contrasenaTemporal: resultado.cuentaNueva ? CONTRASENA_TEMPORAL : null,
       };
+    }),
+
+  /** Los dueños de una unidad: el principal y cada socio, con su %. */
+  sociosDe: delPropietario.input(soloId).query(({ ctx, input }) =>
+    ctx.db
+      .select({
+        id: inmueblePropietarios.id, usuarioId: inmueblePropietarios.usuarioId,
+        nombre: usuarios.nombre, apellido: usuarios.apellido, email: usuarios.email,
+        rol: inmueblePropietarios.rol, porcentaje: inmueblePropietarios.porcentaje,
+        puedeVerFinanzas: inmueblePropietarios.puedeVerFinanzas, puedeDecidir: inmueblePropietarios.puedeDecidir,
+        apareceEnTitulo: inmueblePropietarios.apareceEnTitulo,
+        desde: inmueblePropietarios.desde, hasta: inmueblePropietarios.hasta,
+      })
+      .from(inmueblePropietarios)
+      .innerJoin(usuarios, eq(usuarios.id, inmueblePropietarios.usuarioId))
+      .where(and(eq(inmueblePropietarios.inmuebleId, input.inmuebleId), isNull(inmueblePropietarios.hasta)))
+      .orderBy(desc(inmueblePropietarios.rol)),
+  ),
+
+  /**
+   * Asocia un socio inversionista a esta unidad, con el % que le corresponde.
+   * Se lo resta al principal: la suma de todos nunca pasa de 100% — eso es
+   * lo que hace que "Utilidad Socio" tenga sentido como una porción de
+   * "Utilidad Propiedad" y no un número suelto.
+   */
+  agregarSocio: delPropietario
+    .input(z.object({
+      inmuebleId: z.number().int().positive(),
+      email: z.string().trim().toLowerCase().email().max(191),
+      nombre: z.string().trim().min(1).max(120),
+      apellido: z.string().trim().min(1).max(120),
+      tipoDocumento: z.enum(["CC", "CE", "NIT", "PA"]),
+      numeroDocumento: z.string().trim().min(4).max(40),
+      telefono: z.string().trim().max(30).optional(),
+      porcentaje: z.number().positive().max(100),
+      puedeVerFinanzas: z.boolean().default(true),
+      apareceEnTitulo: z.boolean().default(false),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [principal] = await ctx.db
+        .select({ id: inmueblePropietarios.id, porcentaje: inmueblePropietarios.porcentaje })
+        .from(inmueblePropietarios)
+        .where(and(
+          eq(inmueblePropietarios.inmuebleId, input.inmuebleId),
+          eq(inmueblePropietarios.rol, "principal"), isNull(inmueblePropietarios.hasta),
+        )).limit(1);
+      if (!principal) throw new TRPCError({ code: "NOT_FOUND", message: "Esa unidad no tiene principal" });
+      if (input.porcentaje >= Number(principal.porcentaje)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `El principal solo tiene ${Number(principal.porcentaje)}% para ceder`,
+        });
+      }
+
+      const [existente] = await ctx.db.select({ id: usuarios.id }).from(usuarios)
+        .where(eq(usuarios.email, input.email)).limit(1);
+      if (existente?.id === ctx.usuario.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No podés agregarte a vos mismo como socio" });
+      }
+      if (!existente) {
+        const [porDocumento] = await ctx.db.select({ email: usuarios.email }).from(usuarios)
+          .where(and(eq(usuarios.tipoDocumento, input.tipoDocumento), eq(usuarios.numeroDocumento, input.numeroDocumento)))
+          .limit(1);
+        if (porDocumento) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Ya hay una cuenta con ${input.tipoDocumento} ${input.numeroDocumento}, a nombre de ${porDocumento.email}. Agregalo con ese correo.`,
+          });
+        }
+      }
+
+      const CONTRASENA_TEMPORAL = "123456";
+      const socioId = await ctx.db.transaction(async (tx) => {
+        let usuarioId: number;
+        if (existente) {
+          usuarioId = existente.id;
+        } else {
+          const [res] = await tx.insert(usuarios).values({
+            email: input.email,
+            passwordHash: await cifrarContrasena(CONTRASENA_TEMPORAL),
+            debeCambiarContrasena: true,
+            creadaPorId: ctx.usuario.id,
+            nombre: input.nombre, apellido: input.apellido, telefono: input.telefono ?? null,
+            tipoDocumento: input.tipoDocumento, numeroDocumento: input.numeroDocumento,
+            estado: "activo",
+          });
+          usuarioId = Number((res as { insertId: number }).insertId);
+        }
+
+        const [ya] = await tx.select({ id: inmueblePropietarios.id }).from(inmueblePropietarios)
+          .where(and(
+            eq(inmueblePropietarios.inmuebleId, input.inmuebleId), eq(inmueblePropietarios.usuarioId, usuarioId),
+            isNull(inmueblePropietarios.hasta),
+          )).limit(1);
+        if (ya) throw new TRPCError({ code: "CONFLICT", message: "Esa persona ya es socia de esta unidad" });
+
+        await tx.update(inmueblePropietarios)
+          .set({ porcentaje: (Number(principal.porcentaje) - input.porcentaje).toFixed(2) })
+          .where(eq(inmueblePropietarios.id, principal.id));
+
+        await tx.insert(inmueblePropietarios).values({
+          inmuebleId: input.inmuebleId, usuarioId, rol: "socio",
+          porcentaje: input.porcentaje.toFixed(2),
+          apareceEnTitulo: input.apareceEnTitulo, puedeDecidir: false,
+          puedeVerFinanzas: input.puedeVerFinanzas, desde: new Date(),
+        });
+        return usuarioId;
+      });
+
+      await otorgarRol(ctx.db, socioId, "socio_propietario", "inmueble", input.inmuebleId, ctx.usuario.id);
+      return { ok: true };
+    }),
+
+  /** Retira un socio: le devuelve su % al principal y cierra su participación. */
+  quitarSocio: delPropietario
+    .input(z.object({ inmuebleId: z.number().int().positive(), inmueblePropietarioId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const [socio] = await ctx.db.select().from(inmueblePropietarios)
+        .where(and(eq(inmueblePropietarios.id, input.inmueblePropietarioId), eq(inmueblePropietarios.inmuebleId, input.inmuebleId)))
+        .limit(1);
+      if (!socio) throw new TRPCError({ code: "NOT_FOUND", message: "Ese socio no existe en esta unidad" });
+      if (socio.rol === "principal") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "El principal no se retira a sí mismo" });
+      }
+      if (socio.hasta !== null) throw new TRPCError({ code: "CONFLICT", message: "Esa participación ya estaba cerrada" });
+
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(inmueblePropietarios).set({ hasta: new Date() })
+          .where(eq(inmueblePropietarios.id, input.inmueblePropietarioId));
+        await tx.update(inmueblePropietarios)
+          .set({ porcentaje: sql`${inmueblePropietarios.porcentaje} + ${socio.porcentaje}` })
+          .where(and(eq(inmueblePropietarios.inmuebleId, input.inmuebleId), eq(inmueblePropietarios.rol, "principal")));
+      });
+      return { ok: true };
     }),
 
   /**
