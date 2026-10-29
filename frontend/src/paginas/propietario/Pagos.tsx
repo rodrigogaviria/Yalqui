@@ -377,9 +377,11 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
   const porDia = new Map<number, Array<{
     u: Unidad; tono: keyof typeof TONO; diasVencido: number; pagadoMonto: number; previsto: number;
   }>>();
-  for (const { u, dia, tono, diasVencido, pagadoMonto, previsto } of situacionDelMes(unidades, facturas, pagosUnidad, mes)) {
+  const situacion = situacionDelMes(unidades, facturas, pagosUnidad, mes);
+  for (const { u, dia, tono, diasVencido, pagadoMonto, previsto } of situacion) {
     porDia.set(dia, [...(porDia.get(dia) ?? []), { u, tono, diasVencido, pagadoMonto, previsto }]);
   }
+  const conteoPorTono = (tono: keyof typeof TONO) => situacion.filter((s) => s.tono === tono).length;
 
   const celdas: Array<number | null> = [
     ...Array<null>(primerDiaSemana).fill(null),
@@ -402,17 +404,25 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
           <button className="boton fantasma" style={{ height: 34, padding: "0 12px" }}
             aria-label="Mes siguiente" onClick={() => mover(1)}>→</button>
         </div>
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12.5, color: "var(--tinta-2)" }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12.5, color: "var(--tinta-2)" }}>
           {Object.entries(TONO).map(([k, t]) => (
-            <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 12, height: 12, borderRadius: 3, background: k === "vencida" ? "var(--mal)" : t.fondo, border: `1px solid ${t.borde}` }} />
-              {t.nombre}
-            </span>
+            <div key={k} style={{ display: "grid", justifyItems: "center", gap: 3 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: k === "vencida" ? "var(--mal)" : t.fondo, border: `1px solid ${t.borde}` }} />
+                {t.nombre}
+              </span>
+              <span className="num" style={{ fontWeight: 600, color: "var(--tinta)" }}>
+                {conteoPorTono(k as keyof typeof TONO)}
+              </span>
+            </div>
           ))}
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 12, height: 12, borderRadius: 3, background: "#fff", border: "1px solid var(--linea)" }} />
-            Desocupada
-          </span>
+          <div style={{ display: "grid", justifyItems: "center", gap: 3 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 12, height: 12, borderRadius: 3, background: "#fff", border: "1px solid var(--linea)" }} />
+              Desocupada
+            </span>
+            <span className="num" style={{ fontWeight: 600, color: "var(--tinta)" }}>{desocupadas.length}</span>
+          </div>
         </div>
       </div>
 
