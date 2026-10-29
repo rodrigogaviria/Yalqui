@@ -76,6 +76,7 @@ export function Pagos() {
         <Cifra titulo="Pagado" valor={pesos(delMes.pagado)} tono={delMes.pagado > 0 ? "bien" : "normal"} />
         <Cifra titulo="Por cobrar" valor={pesos(delMes.porCobrar)} tono={delMes.porCobrar > 0 ? "ojo" : "normal"} />
         <Cifra titulo="Vencido" valor={pesos(delMes.vencido)} tono={delMes.vencido > 0 ? "mal" : "bien"} />
+        <Cifra titulo="Desocupado" valor={pesos(delMes.desocupado)} tono={delMes.desocupado > 0 ? "ojo" : "normal"} />
       </Cifras>
 
       {pagosUnidad.some((p) => p.estado === "pendiente") && (
@@ -350,16 +351,24 @@ function situacionDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUni
   });
 }
 
+/**
+ * Previsto, pagado, por cobrar, vencido y desocupado deben sumar siempre lo mismo
+ * (el total previsto): cada unidad del mes aporta su canon completo a un único balde.
+ * El saldo que deja un pago parcial se cuenta como vencido, no como "por cobrar".
+ */
 function resumenDelMes(unidades: Unidad[], facturas: Factura[], pagos: PagoUnidad[], m: Mes) {
   const filas = situacionDelMes(unidades, facturas, pagos, m);
-  const suma = (f: (t: keyof typeof TONO) => boolean) =>
-    filas.filter((x) => f(x.tono)).reduce((t, x) => t + Number(x.u.canonBase), 0);
-  return {
-    previsto: suma(() => true),
-    pagado: suma((t) => t === "pagada"),
-    porCobrar: suma((t) => t !== "pagada"),
-    vencido: suma((t) => t === "vencida"),
-  };
+  const pagado = filas.reduce((t, x) => t + Math.min(x.pagadoMonto, x.previsto), 0);
+  const porCobrar = filas.filter((x) => x.tono === "porVencer").reduce((t, x) => t + x.previsto, 0);
+  const vencido = filas.reduce((t, x) => {
+    if (x.tono === "vencida") return t + x.previsto;
+    if (x.tono === "parcial") return t + Math.max(x.previsto - x.pagadoMonto, 0);
+    return t;
+  }, 0);
+  const desocupado = unidades
+    .filter((u) => u.estado !== "arrendado")
+    .reduce((t, u) => t + Number(u.canonBase), 0);
+  return { previsto: pagado + porCobrar + vencido + desocupado, pagado, porCobrar, vencido, desocupado };
 }
 
 function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: {
