@@ -367,6 +367,9 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
   alElegir: (u: Unidad, dia: number) => void;
 }) {
   const arrendadas = unidades.filter((u) => u.estado === "arrendado");
+  // Sin inquilino no tienen día de pago: se ponen todas el día 1, tachadas,
+  // para que se note de un vistazo qué está sin generar renta este mes.
+  const desocupadas = unidades.filter((u) => u.estado !== "arrendado");
   const ultimo = new Date(mes.anio, mes.mes + 1, 0).getDate();
   const primerDiaSemana = (new Date(mes.anio, mes.mes, 1).getDay() + 6) % 7; // lunes = 0
   const periodo = periodoDe(mes);
@@ -406,6 +409,10 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
               {t.nombre}
             </span>
           ))}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: "#fff", border: "1px solid var(--linea)" }} />
+            Desocupada
+          </span>
         </div>
       </div>
 
@@ -455,6 +462,17 @@ function Calendario({ facturas, unidades, pagosUnidad, mes, setMes, alElegir }: 
                         </button>
                       );
                     })}
+                    {dia === 1 && desocupadas.map((u) => (
+                      <span key={u.id}
+                        title={`${u.direccion}${u.complemento ? `, ${u.complemento}` : ""} · Desocupada`}
+                        style={{
+                          fontSize: 11.5, fontWeight: 600, padding: "2px 7px", borderRadius: 6,
+                          background: "#fff", color: "var(--tinta-3)", textDecoration: "line-through",
+                          border: "1px solid var(--linea)", fontFamily: "inherit",
+                        }}>
+                        {u.complemento || u.direccion}
+                      </span>
+                    ))}
                   </div>
                 </>
               )}
