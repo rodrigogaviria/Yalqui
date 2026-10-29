@@ -30,6 +30,7 @@ export function Edificaciones({ unidades, alCambiar }: {
   const [asignando, setAsignando] = useState<Edificacion | null>(null);
   const [areas, setAreas] = useState<Edificacion | null>(null);
   const [memorias, setMemorias] = useState<Edificacion | null>(null);
+  const [socios, setSocios] = useState<Edificacion | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -86,6 +87,12 @@ export function Edificaciones({ unidades, alCambiar }: {
                   onClick={() => setMemorias(e)}>
                   Memorias
                 </button>
+                {n > 0 && (
+                  <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
+                    onClick={() => setSocios(e)}>
+                    Socios
+                  </button>
+                )}
                 <button className="boton fantasma" style={{ height: 34, fontSize: 13, padding: "0 12px" }}
                   onClick={() => setEditando(e)}>
                   Editar
@@ -136,6 +143,12 @@ export function Edificaciones({ unidades, alCambiar }: {
       {memorias && (
         <Ventana titulo={`Memorias · ${memorias.nombre}`} alCerrar={() => setMemorias(null)}>
           <MemoriasUnidad edificacionId={memorias.id} />
+        </Ventana>
+      )}
+
+      {socios && (
+        <Ventana titulo={`Socios · ${socios.nombre}`} alCerrar={() => setSocios(null)}>
+          <SociosEdificacion edificacionId={socios.id} />
         </Ventana>
       )}
 
@@ -332,5 +345,145 @@ function AsignarUnidades({ edificacion, unidades, alTerminar }: {
         </button>
       </div>
     </div>
+  );
+}
+
+type SocioEdificacion = Awaited<ReturnType<typeof api.inmuebles.sociosDeEdificacion.query>>[number];
+
+/** Los socios de la edificación entera: el mismo % en cada una de sus unidades. */
+function SociosEdificacion({ edificacionId }: { edificacionId: number }) {
+  const [lista, setLista] = useState<SocioEdificacion[] | null>(null);
+  const [agregando, setAgregando] = useState(false);
+  const [ocupado, setOcupado] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  function cargar() {
+    void api.inmuebles.sociosDeEdificacion.query({ edificacionId }).then(setLista).catch((e) => setError(mensajeDeError(e)));
+  }
+  useEffect(cargar, [edificacionId]);
+
+  async function quitar(fila: SocioEdificacion) {
+    setOcupado(fila.usuarioId); setError(null);
+    try {
+      await api.inmuebles.quitarSocioEdificacion.mutate({ edificacionId, usuarioId: fila.usuarioId });
+      setAviso("Socio retirado.");
+      cargar();
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally { setOcupado(null); }
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-2)" }}>
+        El % de un socio se aplica igual en cada unidad de la edificación, y se le resta
+        al principal de cada una. Mis Rendimientos y el extracto ya lo tienen en cuenta.
+      </p>
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+      {aviso && <div className="aviso bueno" role="status">{aviso}</div>}
+
+      {lista === null ? (
+        <p style={{ margin: 0, fontSize: 13.5, color: "var(--tinta-3)" }}>Cargando…</p>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {lista.map((s) => (
+            <div key={s.usuarioId} style={{
+              display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+              padding: "10px 12px", borderRadius: 10, border: "1px solid var(--linea)",
+            }}>
+              <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {s.nombre} {s.apellido}
+                  <span className="pastilla publicado" style={{ marginLeft: 8, fontSize: 11 }}>
+                    {s.rol === "principal" ? "Principal" : "Socio"}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12.5, color: "var(--tinta-2)", marginTop: 2 }}>
+                  {s.email} · en {s.enUnidades} de {s.deUnidades} unidades
+                </div>
+              </div>
+              <div className="num" style={{ fontSize: 15, fontWeight: 600 }}>
+                {s.porcentaje !== null ? `${s.porcentaje}%` : "varía"}
+              </div>
+              {s.rol === "socio" && (
+                <button type="button" className="boton riesgo" style={{ height: 32, fontSize: 12.5 }}
+                  disabled={ocupado === s.usuarioId} onClick={() => void quitar(s)}>
+                  {ocupado === s.usuarioId ? "…" : "Quitar"}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div>
+        <button className="boton fantasma" onClick={() => setAgregando((v) => !v)}>
+          {agregando ? "Cancelar" : "Agregar socio"}
+        </button>
+      </div>
+
+      {agregando && (
+        <FormularioSocioEdificacion edificacionId={edificacionId} alAgregar={() => {
+          setAgregando(false); setAviso("Socio agregado."); cargar();
+        }} />
+      )}
+    </div>
+  );
+}
+
+function FormularioSocioEdificacion({ edificacionId, alAgregar }: { edificacionId: number; alAgregar: () => void }) {
+  const [nombreSocio, setNombreSocio] = useState("");
+  const [apellido, setApellido] = useState("");
+  const [email, setEmail] = useState("");
+  const [celular, setCelular] = useState("");
+  const [tipoDocumento, setTipoDocumento] = useState<"CC" | "CE" | "NIT" | "PA">("CC");
+  const [numeroDocumento, setNumeroDocumento] = useState("");
+  const [porcentaje, setPorcentaje] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true); setError(null);
+    try {
+      await api.inmuebles.agregarSocioEdificacion.mutate({
+        edificacionId, email: email.trim(), nombre: nombreSocio.trim(), apellido: apellido.trim(),
+        tipoDocumento, numeroDocumento: numeroDocumento.trim(),
+        ...(celular.trim() ? { telefono: celular.trim() } : {}),
+        porcentaje: Number(porcentaje),
+      });
+      alAgregar();
+    } catch (err) {
+      setError(mensajeDeError(err));
+    } finally { setEnviando(false); }
+  }
+
+  return (
+    <form onSubmit={enviar} style={{ display: "grid", gap: 12, padding: 14, borderRadius: 10, border: "1px solid var(--linea)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12 }}>
+        <Campo etiqueta="Nombre"><input required value={nombreSocio} onChange={(e) => setNombreSocio(e.target.value)} /></Campo>
+        <Campo etiqueta="Apellido"><input required value={apellido} onChange={(e) => setApellido(e.target.value)} /></Campo>
+        <Campo etiqueta="Celular"><input value={celular} onChange={(e) => setCelular(e.target.value)} placeholder="300 123 4567" /></Campo>
+        <Campo etiqueta="Correo"><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Campo>
+        <Campo etiqueta="Tipo de documento">
+          <select value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value as typeof tipoDocumento)}>
+            <option value="CC">CC</option><option value="CE">CE</option><option value="NIT">NIT</option><option value="PA">PA</option>
+          </select>
+        </Campo>
+        <Campo etiqueta="Número de documento">
+          <input required value={numeroDocumento} onChange={(e) => setNumeroDocumento(e.target.value)} />
+        </Campo>
+        <Campo etiqueta="% de participación" ayuda="Igual en cada unidad de la edificación">
+          <input type="number" required min={1} max={99} step="0.01" value={porcentaje} onChange={(e) => setPorcentaje(e.target.value)} />
+        </Campo>
+      </div>
+      {error && <div className="aviso malo" role="alert">{error}</div>}
+      <div>
+        <button type="submit" className="boton" disabled={enviando}>
+          {enviando ? "Agregando…" : "Agregar socio"}
+        </button>
+      </div>
+    </form>
   );
 }

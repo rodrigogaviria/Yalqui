@@ -102,6 +102,7 @@ function FormularioSocio({ inmuebleId, alAgregar }: { inmuebleId: number; alAgre
   const [email, setEmail] = useState("");
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
+  const [celular, setCelular] = useState("");
   const [tipoDocumento, setTipoDocumento] = useState<"CC" | "CE" | "NIT" | "PA">("CC");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [porcentaje, setPorcentaje] = useState("");
@@ -114,7 +115,9 @@ function FormularioSocio({ inmuebleId, alAgregar }: { inmuebleId: number; alAgre
     try {
       await api.inmuebles.agregarSocio.mutate({
         inmuebleId, email: email.trim(), nombre: nombre.trim(), apellido: apellido.trim(),
-        tipoDocumento, numeroDocumento: numeroDocumento.trim(), porcentaje: Number(porcentaje),
+        tipoDocumento, numeroDocumento: numeroDocumento.trim(),
+        ...(celular.trim() ? { telefono: celular.trim() } : {}),
+        porcentaje: Number(porcentaje),
       });
       alAgregar();
     } catch (err) {
@@ -128,6 +131,7 @@ function FormularioSocio({ inmuebleId, alAgregar }: { inmuebleId: number; alAgre
         <Campo etiqueta="Correo"><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Campo>
         <Campo etiqueta="Nombre"><input required value={nombre} onChange={(e) => setNombre(e.target.value)} /></Campo>
         <Campo etiqueta="Apellido"><input required value={apellido} onChange={(e) => setApellido(e.target.value)} /></Campo>
+        <Campo etiqueta="Celular"><input value={celular} onChange={(e) => setCelular(e.target.value)} placeholder="300 123 4567" /></Campo>
         <Campo etiqueta="Tipo de documento">
           <select value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value as typeof tipoDocumento)}>
             <option value="CC">CC</option><option value="CE">CE</option><option value="NIT">NIT</option><option value="PA">PA</option>
