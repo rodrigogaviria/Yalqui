@@ -6,7 +6,7 @@ import { ambitosCon, tieneRol } from "../auth/roles.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { repartirEnEdificacion, reRepartirEnEdificacion } from "./gastoDeFactura.js";
 import { movimientos } from "../db/schema/finanzas.js";
-import { inmuebles, edificaciones, inmueblePropietarios } from "../db/schema/inventario.js";
+import { inmuebles, edificaciones, inmueblePropietarios, pagosSocio, pagosSocioMedios } from "../db/schema/inventario.js";
 import { tiposMovimiento } from "../db/schema/administracion.js";
 import { proveedores } from "../db/schema/operacion.js";
 import { archivos, usuarios } from "../db/schema/identidad.js";
@@ -292,6 +292,161 @@ export const rentabilidadRouter = router({
       ));
     return filas;
   }),
+
+  /** Las edificaciones donde soy propietario directo —no solo administrador—,
+   *  para elegir cuál mirar en el resumen agregado de Mis Rendimientos. */
+  edificacionesPropias: privado.query(async ({ ctx }) => {
+    const ids = ambitosCon(ctx.usuario.roles, "propietario", "edificacion");
+    if (ids.length === 0) return [];
+    return ctx.db
+      .select({ id: edificaciones.id, nombre: edificaciones.nombre })
+      .from(edificaciones)
+      .where(inArray(edificaciones.id, ids))
+      .orderBy(edificaciones.nombre);
+  }),
+
+  /**
+   * El resumen de un mes para la edificación entera: cuántas unidades,
+   * cuánto se esperaba, cuánto se recaudó, los gastos por tipo y la
+   * utilidad —y cómo se reparte entre los socios, según su %—.
+   */
+  resumenEdificacion: privado
+    .input(z.object({ edificacionId: z.number().int().positive(), periodo }))
+    .query(async ({ ctx, input }) => {
+      if (!tieneRol(ctx.usuario.roles, "propietario", "edificacion", input.edificacionId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No sos propietario de esa edificación" });
+      }
+
+      const unidades = await ctx.db
+        .select({ id: inmuebles.id, estado: inmuebles.estado, canonBase: inmuebles.canonBase })
+        .from(inmuebles).where(eq(inmuebles.edificacionId, input.edificacionId));
+      const idsUnidad = unidades.map((u) => u.id);
+      const ocupadas = unidades.filter((u) => u.estado === "arrendado");
+      const ingresosTotales = ocupadas.reduce((t, u) => t + Number(u.canonBase), 0);
+
+      const filasMov = idsUnidad.length === 0 ? [] : await ctx.db
+        .select({
+          inmuebleId: movimientos.inmuebleId, tipo: movimientos.tipo, monto: movimientos.monto,
+          fecha: movimientos.fecha, concepto: tiposMovimiento.nombre,
+        })
+        .from(movimientos)
+        .leftJoin(tiposMovimiento, eq(tiposMovimiento.id, movimientos.tipoMovimientoId))
+        .where(and(inArray(movimientos.inmuebleId, idsUnidad), eq(movimientos.estado, "finalizado")));
+      const delMes = filasMov.filter((m) => String(m.fecha).slice(0, 7) === input.periodo);
+
+      const recaudo = delMes.filter((m) => m.tipo === "ingreso").reduce((t, m) => t + Number(m.monto), 0);
+
+      const porTipo = new Map<string, number>();
+      for (const m of delMes.filter((m) => m.tipo === "egreso")) {
+        const nombre = m.concepto ?? "Sin clasificar";
+        porTipo.set(nombre, (porTipo.get(nombre) ?? 0) + Number(m.monto));
+      }
+      const gastosPorTipo = [...porTipo.entries()].map(([concepto, monto]) => ({ concepto, monto }))
+        .sort((a, b) => b.monto - a.monto);
+      const gastosTotal = gastosPorTipo.reduce((t, g) => t + g.monto, 0);
+      const utilidad = recaudo - gastosTotal;
+
+      // Por unidad, para repartir la utilidad entre los socios con el % que
+      // cada uno tiene ahí —igual criterio que el extracto individual—.
+      const porUnidad = new Map<number, number>();
+      for (const id of idsUnidad) {
+        const recU = delMes.filter((m) => m.inmuebleId === id && m.tipo === "ingreso").reduce((t, m) => t + Number(m.monto), 0);
+        const gasU = delMes.filter((m) => m.inmuebleId === id && m.tipo === "egreso").reduce((t, m) => t + Number(m.monto), 0);
+        porUnidad.set(id, recU - gasU);
+      }
+
+      const socios = idsUnidad.length === 0 ? [] : await ctx.db
+        .select({
+          usuarioId: inmueblePropietarios.usuarioId, nombre: usuarios.nombre, apellido: usuarios.apellido,
+          porcentaje: inmueblePropietarios.porcentaje, inmuebleId: inmueblePropietarios.inmuebleId,
+        })
+        .from(inmueblePropietarios)
+        .innerJoin(usuarios, eq(usuarios.id, inmueblePropietarios.usuarioId))
+        .where(and(
+          inArray(inmueblePropietarios.inmuebleId, idsUnidad),
+          eq(inmueblePropietarios.rol, "socio"), isNull(inmueblePropietarios.hasta),
+        ));
+
+      const porSocio = new Map<number, { nombre: string; apellido: string; utilidad: number; pesos: number[] }>();
+      for (const s of socios) {
+        const utilidadUnidad = porUnidad.get(s.inmuebleId) ?? 0;
+        const actual = porSocio.get(s.usuarioId) ?? { nombre: s.nombre, apellido: s.apellido, utilidad: 0, pesos: [] };
+        actual.utilidad += utilidadUnidad * Number(s.porcentaje) / 100;
+        actual.pesos.push(Number(s.porcentaje));
+        porSocio.set(s.usuarioId, actual);
+      }
+
+      return {
+        unidades: unidades.length,
+        ingresosTotales, recaudo, gastosPorTipo, gastosTotal, utilidad,
+        socios: [...porSocio.entries()].map(([usuarioId, s]) => ({
+          usuarioId, nombre: s.nombre, apellido: s.apellido,
+          porcentaje: utilidad !== 0 ? (s.utilidad / utilidad) * 100 : s.pesos.reduce((t, p) => t + p, 0) / s.pesos.length,
+          utilidad: s.utilidad,
+        })).sort((a, b) => b.utilidad - a.utilidad),
+      };
+    }),
+
+  /** Registra que se le pagó a un socio su utilidad: con fecha, y uno o
+   *  varios medios —cada uno con su monto, y comprobante si fue transferencia—. */
+  registrarPagoSocio: privado
+    .input(z.object({
+      socioId: z.number().int().positive(),
+      edificacionId: z.number().int().positive().optional(),
+      periodo: periodo.optional(),
+      fecha: z.coerce.date(),
+      partes: z.array(z.object({
+        monto: dinero,
+        medio: z.enum(["efectivo", "transferencia", "cheque", "otro"]),
+        comprobanteArchivoId: z.number().int().positive().optional(),
+      })).min(1).max(6),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [esMiSocio] = await ctx.db.select({ id: inmueblePropietarios.id })
+        .from(inmueblePropietarios)
+        .innerJoin(inmuebles, eq(inmuebles.id, inmueblePropietarios.inmuebleId))
+        .where(and(
+          eq(inmueblePropietarios.usuarioId, input.socioId), eq(inmueblePropietarios.rol, "socio"),
+          isNull(inmueblePropietarios.hasta), eq(inmuebles.propietarioId, ctx.usuario.id),
+        )).limit(1);
+      if (!esMiSocio) throw new TRPCError({ code: "FORBIDDEN", message: "Esa persona no es tu socia" });
+      if (input.edificacionId !== undefined
+        && !tieneRol(ctx.usuario.roles, "propietario", "edificacion", input.edificacionId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No sos propietario de esa edificación" });
+      }
+      for (const p of input.partes) {
+        if (p.monto <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "El monto debe ser mayor a cero" });
+        if (p.medio === "transferencia" && p.comprobanteArchivoId === undefined) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "La transferencia necesita comprobante" });
+        }
+      }
+
+      const valor = input.partes.reduce((t, p) => t + p.monto, 0);
+      const [res] = await ctx.db.insert(pagosSocio).values({
+        propietarioId: ctx.usuario.id, socioId: input.socioId,
+        edificacionId: input.edificacionId ?? null, periodo: input.periodo ?? null,
+        fechaPago: input.fecha, valor: valor.toFixed(2), registradoPorId: ctx.usuario.id,
+      });
+      const pagoSocioId = Number((res as { insertId: number }).insertId);
+      await ctx.db.insert(pagosSocioMedios).values(input.partes.map((p) => ({
+        pagoSocioId, medio: p.medio, monto: p.monto.toFixed(2),
+        comprobanteArchivoId: p.comprobanteArchivoId ?? null,
+      })));
+      return { pagoSocioId };
+    }),
+
+  /** Los pagos ya registrados a un socio, el más nuevo primero. */
+  pagosDeSocio: privado
+    .input(z.object({ socioId: z.number().int().positive(), edificacionId: z.number().int().positive().optional() }))
+    .query(async ({ ctx, input }) =>
+      ctx.db
+        .select({ id: pagosSocio.id, fechaPago: pagosSocio.fechaPago, valor: pagosSocio.valor, periodo: pagosSocio.periodo })
+        .from(pagosSocio)
+        .where(and(
+          eq(pagosSocio.propietarioId, ctx.usuario.id), eq(pagosSocio.socioId, input.socioId),
+          ...(input.edificacionId !== undefined ? [eq(pagosSocio.edificacionId, input.edificacionId)] : []),
+        ))
+        .orderBy(desc(pagosSocio.fechaPago))),
 
   /** Registra un ingreso o egreso a mano. */
   /**

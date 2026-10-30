@@ -120,6 +120,8 @@ import m057 from "./057_admin_rodrigo.sql";
 import m058 from "./058_extractos_socio.sql";
 // @ts-ignore
 import m059 from "./059_proveedor_tipo_persona.sql";
+// @ts-ignore
+import m060 from "./060_pagos_socio.sql";
 
 export interface Migracion {
   readonly version: string;
@@ -187,4 +189,5 @@ export const MIGRACIONES: readonly Migracion[] = [
   { version: "057", nombre: "admin_rodrigo", sql: m057 as string },
   { version: "058", nombre: "extractos_socio", sql: m058 as string },
   { version: "059", nombre: "proveedor_tipo_persona", sql: m059 as string },
+  { version: "060", nombre: "pagos_socio", sql: m060 as string },
 ];

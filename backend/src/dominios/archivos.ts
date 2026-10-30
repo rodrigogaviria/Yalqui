@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -11,7 +11,7 @@ import { tieneRol, esAdmin } from "../auth/roles.js";
 import { esArrendatarioDe } from "../auth/arrendatario.js";
 import { puedeSobreEdificacion } from "./facturasPropiedad.js";
 import { movimientos } from "../db/schema/finanzas.js";
-import { inmuebleFotos, inmuebleMemorias, tiposMemoria, inmuebles } from "../db/schema/inventario.js";
+import { inmuebleFotos, inmuebleMemorias, tiposMemoria, inmuebles, inmueblePropietarios } from "../db/schema/inventario.js";
 import { incidencias, incidenciaEventos } from "../db/schema/operacion.js";
 import { actasEntrega, contratos } from "../db/schema/contrato.js";
 import { alcanceDe } from "./incidencias.js";
@@ -21,6 +21,7 @@ const MIME_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/we
 const MAX_BYTES = 10 * 1024 * 1024;
 const TIPO = "comprobante_pago";
 const TIPO_UNIDAD = "pago_unidad";
+const TIPO_PAGO_SOCIO = "pago_socio";
 const TIPO_FACTURA = "factura_propiedad";
 const TIPO_FACTURA_EDIF = "factura_edificacion";
 const TIPO_GASTO = "movimiento_gasto";
@@ -163,6 +164,27 @@ export const archivosRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "No tenés permiso sobre esa unidad" });
       }
       return prepararSubida(ctx, TIPO_UNIDAD, input.inmuebleId, input);
+    }),
+
+  /** Comprobante de un pago a un socio inversionista —el pago todavía no
+   *  existe cuando se sube, así que queda anotado contra el socio, no contra él—. */
+  solicitarSubidaPagoSocio: privado
+    .input(z.object({
+      socioId: z.number().int().positive(),
+      nombre: z.string().trim().min(1).max(255),
+      mime: z.enum(MIME_PERMITIDOS),
+      bytes: z.number().int().positive().max(MAX_BYTES, "El archivo pesa más de 10 MB"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [esMiSocio] = await ctx.db.select({ id: inmueblePropietarios.id })
+        .from(inmueblePropietarios)
+        .innerJoin(inmuebles, eq(inmuebles.id, inmueblePropietarios.inmuebleId))
+        .where(and(
+          eq(inmueblePropietarios.usuarioId, input.socioId), eq(inmueblePropietarios.rol, "socio"),
+          isNull(inmueblePropietarios.hasta), eq(inmuebles.propietarioId, ctx.usuario.id),
+        )).limit(1);
+      if (!esMiSocio) throw new TRPCError({ code: "FORBIDDEN", message: "Esa persona no es tu socia" });
+      return prepararSubida(ctx, TIPO_PAGO_SOCIO, input.socioId, input);
     }),
 
   /** La factura de la propiedad o de la edificación, o el comprobante de su pago. */

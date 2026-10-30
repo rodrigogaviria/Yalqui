@@ -156,6 +156,28 @@ export const extractosSocio = mysqlTable("extractos_socio", {
   uniqueIndex("uk_extracto_token").on(t.token),
 ]);
 
+/** El pago que el propietario le hace a un socio por su utilidad. */
+export const pagosSocio = mysqlTable("pagos_socio", {
+  id: int("id", { unsigned: true }).autoincrement().primaryKey(),
+  propietarioId: int("propietario_id", { unsigned: true }).notNull(),
+  socioId: int("socio_id", { unsigned: true }).notNull(),
+  edificacionId: int("edificacion_id", { unsigned: true }),
+  periodo: varchar("periodo", { length: 7 }),
+  fechaPago: date("fecha_pago").notNull(),
+  valor: decimal("valor", { precision: 14, scale: 2 }).notNull(),
+  registradoPorId: int("registrado_por_id", { unsigned: true }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("ix_pagosocio_socio").on(t.propietarioId, t.socioId)]);
+
+/** Cada medio con el que se cubrió un pago a un socio: puede llegar partido. */
+export const pagosSocioMedios = mysqlTable("pagos_socio_medios", {
+  id: int("id", { unsigned: true }).autoincrement().primaryKey(),
+  pagoSocioId: int("pago_socio_id", { unsigned: true }).notNull(),
+  medio: mysqlEnum("medio", ["efectivo", "transferencia", "cheque", "otro"]).notNull(),
+  monto: decimal("monto", { precision: 14, scale: 2 }).notNull(),
+  comprobanteArchivoId: bigint("comprobante_archivo_id", { mode: "number", unsigned: true }),
+}, (t) => [index("ix_pagosociomedio_pago").on(t.pagoSocioId)]);
+
 export const etiquetas = mysqlTable("etiquetas", {
   id: int("id", { unsigned: true }).autoincrement().primaryKey(),
   ambitoTipo: mysqlEnum("ambito_tipo", ["propietario", "edificacion"]).notNull(),
